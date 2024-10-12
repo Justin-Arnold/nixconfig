@@ -35,6 +35,7 @@
     #   echo "Hello, ${config.home.username}!"
     # '')
     pkgs.tmux
+    pkgs.zsh-powerlevel10k
   ];
 
   # Home Manager is pretty good at managing dotfiles. The primary way to manage
@@ -50,6 +51,9 @@
     #   org.gradle.console=verbose
     #   org.gradle.daemon.idletimeout=3600000
     # '';
+
+    ".config/tmux/tmux.conf".source = ../tmux/tmux.conf;
+    ".config/alacritty/alacritty.toml".source = ../alacritty/alacritty.toml;
   };
 
   # Home Manager can also manage your environment variables through
@@ -74,4 +78,26 @@
 
   # Let Home Manager install and manage itself.
   programs.home-manager.enable = true;
+
+  programs.git = {
+    enable = true;
+    userName = "Justin Arnold";
+    userEmail = "hello@justin-arnold.com";
+  };
+
+  programs.zsh = {
+    enable = true;
+    initExtra = "source ~/.p10k.zsh";	
+    plugins =  [
+      {
+        name = "powerlevel10k";
+        src = pkgs.zsh-powerlevel10k;
+        file = "share/zsh-powerlevel10k/powerlevel10k.zsh-theme";
+      }
+    ];
+    oh-my-zsh = {
+      enable = true;
+      theme = "robbyrussell";
+    };
+  };
 }
