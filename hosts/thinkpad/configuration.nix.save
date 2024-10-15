@@ -1,4 +1,4 @@
-{ config, pkgs, self, zen-browser, ... }:
+{ config, pkgs, self, ... }:
 
 {
   imports =
@@ -11,6 +11,7 @@
   # Bootloader
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
+  boot.kernelPackages = pkgs.linuxPackages_latest;
 
   networking.hostName = "nixos";
   networking.networkmanager.enable = true;
@@ -28,9 +29,7 @@
   };
 
   services.printing.enable = true;
-  environment.systemPackages =  [
-    zen-browser.packages."x86_64-linux".default
-  ];
+
   hardware.pulseaudio.enable = false;
   security.rtkit.enable = true;
   services.pipewire = {
@@ -47,12 +46,6 @@
   nixpkgs.config.allowUnfree = true;
 
   nix.settings.experimental-features = [ "nix-command" "flakes" ];
- 
-  services.xserver.videoDrivers = [ "intel" ];
-  services.xserver.deviceSection = ''
-    Option "DRI" "2"
-    Option "TearFree" "true"
-  '';  
 
-   system.stateVersion = "24.05";
+  system.stateVersion = "24.05";
 }

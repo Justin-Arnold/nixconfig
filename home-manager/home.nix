@@ -1,4 +1,4 @@
-{ config, pkgs, ... }:
+{ pkgs, ... }:
 
 {
   # Home Manager needs a bit of information about you and the paths it should
@@ -37,6 +37,7 @@
     pkgs.tmux
     pkgs.zsh-powerlevel10k
     pkgs.lazygit
+    #zenBrowserPackage
   ];
 
   # Home Manager is pretty good at managing dotfiles. The primary way to manage
@@ -55,6 +56,7 @@
 
     ".config/tmux/tmux.conf".source = ../tmux/tmux.conf;
     ".config/alacritty/alacritty.toml".source = ../alacritty/alacritty.toml;
+    ".p10k.zsh".source = ./dotfiles/p10k.zsh;
   };
 
   # Home Manager can also manage your environment variables through

@@ -21,4 +21,6 @@
     enable = true;
     polkitPolicyOwners = [ "justin" ];
   };
+
+  boot.kernelPackages = pkgs.linuxPackages_latest;
 }
