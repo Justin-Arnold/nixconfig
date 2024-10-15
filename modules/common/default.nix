@@ -1,0 +1,24 @@
+{ config, pkgs, ... }:
+
+{
+  imports = [
+    ./users.nix
+    ./zsh.nix
+  ];
+
+  environment.systemPackages = with pkgs; [
+    git
+    alacritty
+    fira-code-nerdfont
+  ];
+
+  fonts.fonts = with pkgs; [
+    (nerdfonts.override { fonts = [ "FiraCode" ]; })
+  ];
+
+  programs._1password.enable = true;
+  programs._1password-gui = {
+    enable = true;
+    polkitPolicyOwners = [ "justin" ];
+  };
+}
