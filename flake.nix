@@ -58,6 +58,14 @@
           ];
           specialArgs = { inherit self; };
         };
+        slim7i = lib.nixosSystem {
+          system = "x86_64-linux";
+          modules = [
+            ./hosts/slim7i/configuration.nix
+            # Add any additional modules here
+          ];
+          specialArgs = { inherit self; };
+        };
       };
     };
 }
