@@ -4,6 +4,7 @@
   imports = [
     ./users.nix
     ./zsh.nix
+    ./github-ssh.nix
   ];
 
   environment.systemPackages = with pkgs; [
@@ -21,6 +22,8 @@
     enable = true;
     polkitPolicyOwners = [ "justin" ];
   };
-
+  services.githubSsh.enable = true;
+  programs.ssh.startAgent = true;
+ 
   boot.kernelPackages = pkgs.linuxPackages_latest;
 }
