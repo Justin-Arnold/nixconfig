@@ -9,7 +9,6 @@
 
   environment.systemPackages = with pkgs; [
     git
-    alacritty
     fira-code-nerdfont
   ];
 

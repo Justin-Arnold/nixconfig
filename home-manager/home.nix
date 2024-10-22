@@ -5,6 +5,7 @@
   imports =
     [ 
       ./nvim.nix
+      ./modules/alacritty.nix
     ];
 
   # Home Manager needs a bit of information about you and the paths it should
@@ -61,7 +62,6 @@
     # '';
 
     ".config/tmux/tmux.conf".source = ../tmux/tmux.conf;
-    ".config/alacritty/alacritty.toml".source = ../alacritty/alacritty.toml;
     ".p10k.zsh".source = ./dotfiles/p10k.zsh;
   };
 
