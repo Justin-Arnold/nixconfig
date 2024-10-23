@@ -109,4 +109,32 @@
       theme = "robbyrussell";
     };
   };
+
+  dconf.settings = {
+      "org/gnome/desktop/background" = {
+        picture-uri-dark = "file://${pkgs.nixos-artwork.wallpapers.nineish-dark-gray.src}";
+      };
+      "org/gnome/desktop/interface" = {
+        color-scheme = "prefer-dark";
+      };
+    };
+
+    gtk = {
+      enable = true;
+      cursorTheme = {
+        package = pkgs.nordzy-cursor-theme;
+        name = "Nordzy-cursors";
+      };
+    theme = {
+      name = "Nordic";
+      package = pkgs.nordic;
+    };
+  };
+  
+
+  #qt = {
+   # enable = true;
+   # platformTheme = "gnome";
+   # style = "adwaita-dark";
+  #};
 }
