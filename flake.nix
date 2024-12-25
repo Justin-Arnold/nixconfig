@@ -43,10 +43,14 @@
       url = "github:nix-community/home-manager";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-
+    darwin = {
+      url = "github:lnl7/nix-darwin";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+    nix-homebrew.url = "github:zhaofengli-wip/nix-homebrew";
   };
 
-  outputs = { self, nixpkgs, home-manager, zen-browser, ... }:
+  outputs = { self, nixpkgs, nix-darwin, home-manager, zen-browser, nix-homebrew, ... }:
     let
       lib = nixpkgs.lib;
     in {
@@ -80,6 +84,38 @@
           ];
           specialArgs = { inherit self; inherit zen-browser;};
         };
+      };
+      darwinConfigurations = {
+        macbook16 = nix-darwin.lib.darwinSystem {
+          system = "aarch64-darwin";
+   	  modules = [
+	    nix-homebrew.darwinModules.nix-homebrew
+	    ./hosts/macbook16/configuration.nix
+	    home-manager.darwinModules.home-manager
+	    {
+	      home-manager.useGlobalPkgs = true;
+	      home-manager.useUserPackages = true;
+	      home-manager.backupFileExtension = "backup";
+	      users.users.justin.home = "/Users/justin";
+	      home-manager.users.justin = import ./home-manager/darwin-home.nix;
+	    }
+	  ];
+        };
+        macmini = nix-darwin.lib.darwinSystem {
+          system = "aarch64-darwin";
+          modules = [
+            nix-homebrew.darwinModules.nix-homebrew
+            ./hosts/macmini/configuration.nix
+            home-manager.darwinModules.home-manager
+	    {
+	      home-manager.useGlobalPkgs = true;
+	      home-manager.useUserPackages = true;
+              home-manager.backupFileExtension = "backup";
+	      users.users.justin.home = "/Users/justin";
+              home-manager.users.justin = import ./home-manager/darwin-home.nix;
+	    }
+  	  ];
+	};
       };
     };
 }
