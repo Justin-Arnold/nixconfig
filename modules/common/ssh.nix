@@ -5,22 +5,13 @@ with lib;
 let
   cfg = config.services.githubSsh;
 in {
-
-
-  services.githubSsh.enable = true;
-  programs.ssh.startAgent = true;
-
-  programs.git = {
-    enable = true;
-    userName  = "Justin Arnold";
-    userEmail = "hello@justin-arnold.com";
-  };
-
   options.services.githubSsh = {
     enable = mkEnableOption "GitHub SSH key generation";
   };
 
   config = mkIf cfg.enable {
+    programs.ssh.startAgent = true;
+
     services.openssh = {
       enable = true;
       hostKeys = [
@@ -37,5 +28,7 @@ in {
       ];
     };
   };
+
+  
  
 }

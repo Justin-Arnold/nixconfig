@@ -5,7 +5,8 @@
   imports =
     [ 
       ../../modules/common/homebrew.nix
-      ../../modules/common/git-ssh.nix
+      ../../modules/common/git.nix
+      ../../modules/common/ssh.nix
     ];
 
   environment.systemPackages = [
