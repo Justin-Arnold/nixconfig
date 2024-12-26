@@ -11,6 +11,8 @@
       ./modules/defaultbrowser.nix
       ./modules/slack.nix
       ./modules/gitkraken.nix
+      ./modules/yarn.nix
+      ./modules/doppler.nix
     ];
 
   # Home Manager needs a bit of information about you and the paths it should

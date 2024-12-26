@@ -1,34 +1,19 @@
-{ config, lib, pkgs, ... }:
+{ pkgs, ... }:
 
-with lib;
+{
+  system.activationScripts.postActivation.text = ''
+    # Ensure .ssh directory exists with correct permissions
+    mkdir -p /Users/justin/.ssh
+    chmod 700 /Users/justin/.ssh
 
-let
-  cfg = config.services.githubSsh;
-in {
-  options.services.githubSsh = {
-    enable = mkEnableOption "GitHub SSH key generation";
-  };
+    # Generate ed25519 key if it doesn't exist
+    if [ ! -f /Users/justin/.ssh/id_ed25519 ]; then
+      ${pkgs.openssh}/bin/ssh-keygen -t ed25519 -f /Users/justin/.ssh/id_ed25519 -C "hello@justin-arnold.com" -N ""
+    fi
 
-  config = mkIf cfg.enable {
-    programs.ssh.startAgent = true;
-
-    services.openssh = {
-      enable = true;
-      hostKeys = [
-        {
-          path = "/Users/justin/.ssh/ssh_host_rsa_key";
-          type = "rsa";
-          bits = 4096;
-        }
-        {
-          path = "/Users/justin/.ssh/id_ed25519";
-          type = "ed25519";
-	  comment = "justin.arnold@programmer.net";
-        }
-      ];
-    };
-  };
-
-  
- 
+    # Set correct permissions
+    chmod 600 /Users/justin/.ssh/id_ed25519
+    chmod 644 /Users/justin/.ssh/id_ed25519.pub
+    chown -R justin /Users/justin/.ssh
+  '';
 }

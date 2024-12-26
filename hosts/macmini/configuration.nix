@@ -5,8 +5,8 @@
   imports =
     [ 
       ../../modules/common/homebrew.nix
-      ../../modules/common/git.nix
       ../../modules/common/ssh.nix
+      ../../modules/common/secrets.nix
     ];
 
   environment.systemPackages = [
@@ -28,4 +28,20 @@
   nix.settings.experimental-features = [ "nix-command" "flakes" ];
 
   system.stateVersion = 5;
+
+  # networking.hosts = {
+  #   "127.0.0.1" = [
+  #     "localhost"
+  #     "localhost.spectora.com"
+  #     "agents-localhost.spectora.com"
+  #     "client-localhost.spectora.com"
+  #     "editor-localhost.spectora.com"
+  #     "ui-localhost.spectora.com"
+  #     "localhost.ssl"
+  #     "next-localhost.spectora.com"
+  #     "reports-localhost.spectora.com"
+  #     "widgets-localhost.spectora.com"
+  #     "www-localhost.spectora.com"
+  #   ];
+  # };
 }
