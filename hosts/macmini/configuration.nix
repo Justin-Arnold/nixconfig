@@ -4,9 +4,9 @@
 
   imports =
     [ 
-      ../../modules/common/homebrew.nix
       ../../modules/common/ssh.nix
       ../../modules/common/secrets.nix
+      ../../modules/darwin
     ];
 
   environment.systemPackages = [
