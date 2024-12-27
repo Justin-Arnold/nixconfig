@@ -1,8 +1,7 @@
-{ config, pkgs, ... }:
+{ config, pkgs, lib, ... }:
 
 {
   imports = [
-    ./users.nix
     ./zsh.nix
     ./github-ssh.nix
   ];
