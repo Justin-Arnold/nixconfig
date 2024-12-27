@@ -39,6 +39,7 @@
       "discord"
       "betterdisplay"
       "raycast"
+      "nikitabobko/tap/aerospace"
     ];
 
     masApps = {

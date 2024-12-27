@@ -27,5 +27,10 @@
   nix.settings.experimental-features = [ "nix-command" "flakes" ];
 
   system.stateVersion = 5;
+
+  # services.aerospace = {
+  #   enable = true;
+  #   # settings.start-at-login = true;
+  # };
 }
 
