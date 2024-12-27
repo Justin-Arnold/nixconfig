@@ -19,7 +19,6 @@
     enable = true;
     polkitPolicyOwners = [ "justin" ];
   };
-  services.githubSsh.enable = true;
   programs.ssh.startAgent = true;
  
   boot.kernelPackages = pkgs.linuxPackages_latest;
