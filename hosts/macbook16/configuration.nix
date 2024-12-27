@@ -5,6 +5,7 @@
   imports =
     [ 
       ../../modules/common/homebrew.nix
+      ../../modules/common/dock.nix
     ];
 
   environment.systemPackages = [
