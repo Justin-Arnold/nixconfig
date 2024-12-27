@@ -2,7 +2,6 @@
 
 {
   imports = [
-    ./zsh.nix
     ./github-ssh.nix
   ];
 
