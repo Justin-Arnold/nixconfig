@@ -4,7 +4,6 @@
 
   imports =
     [ 
-      ../../modules/common/ssh.nix
       ../../modules/common/secrets.nix
       ../../modules/darwin
     ];

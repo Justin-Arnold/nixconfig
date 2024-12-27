@@ -1,9 +1,7 @@
 { config, pkgs, lib, ... }:
 
 {
-  imports = [
-    ./github-ssh.nix
-  ];
+  imports = [];
 
   environment.systemPackages = with pkgs; [
     git

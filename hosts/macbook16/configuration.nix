@@ -4,8 +4,7 @@
 
   imports =
     [ 
-      ../../modules/common/homebrew.nix
-      ../../modules/common/dock.nix
+      ../../modules/darwin
     ];
 
   environment.systemPackages = [
