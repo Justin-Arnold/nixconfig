@@ -1,7 +1,8 @@
 { pkgs, ... }:
 
-{
-
+let 
+  paths = import ./modules/paths.nix;
+in {
   imports =
     [ 
       #./nvim.nix
@@ -14,6 +15,7 @@
       ./modules/yarn.nix
       ./modules/doppler.nix
       ./modules/aerospace.nix
+      (import ./modules/cglt { inherit paths pkgs; }) 
     ];
 
   # Home Manager needs a bit of information about you and the paths it should
