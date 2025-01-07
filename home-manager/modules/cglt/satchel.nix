@@ -1,6 +1,8 @@
 { cgltPath, pkgs, ... }:
 
-{   
+let
+    nodePkgs = import ../node-eol-versions.nix;
+in {   
     # This defines the root path of the repository and pulls it down.
     home.activation.cloneSatchel = {
         after = ["writeBoundary"];
@@ -24,4 +26,15 @@
     #     url = "git@github.com:commongoodlt/satchel.git";
     #     ref = "main";
     # };
+    # home.file."${cgltPath}/satchel/.envrc".text = ''
+    #     use nix
+    #     layout node ${nodePkgs.nodejs-16}
+    # '';
+    home.file."${cgltPath}/satchel/.envrc".text = ''
+        PATH_add ${nodePkgs.nodejs-16}/bin
+    '';
+
+    services.node.versions = {
+        node16 = nodePkgs.nodejs-16;
+    };
 }

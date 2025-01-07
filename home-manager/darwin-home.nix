@@ -1,4 +1,4 @@
-{ pkgs, ... }:
+{ pkgs, lib, config, ... }:
 
 let 
   paths = import ./modules/paths.nix;
@@ -15,6 +15,8 @@ in {
       ./modules/yarn.nix
       ./modules/doppler.nix
       ./modules/aerospace.nix
+      ./modules/direnv.nix
+      ./modules/node.nix
       (import ./modules/cglt { inherit paths pkgs; }) 
     ];
 
@@ -111,7 +113,10 @@ in {
 
   programs.zsh = {
     enable = true;
-    initExtra = "source ~/.p10k.zsh";	
+    initExtra = ''
+      eval "$(direnv hook zsh)"
+      source ~/.p10k.zsh
+    '';
     plugins =  [
       {
         name = "powerlevel10k";
