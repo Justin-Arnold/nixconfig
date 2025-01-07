@@ -8,5 +8,6 @@ let
 in {
     imports = [ 
         (import ./satchel.nix { inherit cgltPath pkgs; })
+        (import ./devops.nix { inherit cgltPath pkgs; })
     ];
 }
