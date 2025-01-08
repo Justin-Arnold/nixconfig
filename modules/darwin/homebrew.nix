@@ -40,6 +40,7 @@
       "betterdisplay"
       "raycast"
       "nikitabobko/tap/aerospace"
+      "via"
     ];
 
     masApps = {
