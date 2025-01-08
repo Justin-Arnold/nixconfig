@@ -41,6 +41,7 @@
       "raycast"
       "nikitabobko/tap/aerospace"
       "via"
+      "docker" # TODO - install with nix packages
     ];
 
     masApps = {
