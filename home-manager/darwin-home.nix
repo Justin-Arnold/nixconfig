@@ -1,4 +1,4 @@
-{ pkgs, lib, config, ... }:
+{ pkgs, lib, config, secrets, ... }:
 
 let 
   paths = import ./modules/paths.nix;
@@ -17,7 +17,8 @@ in {
       ./modules/aerospace.nix
       ./modules/direnv.nix
       ./modules/node.nix
-      (import ./modules/cglt { inherit paths pkgs; }) 
+      ./modules/via.nix
+      (import ./modules/cglt { inherit paths pkgs secrets config; }) 
     ];
 
   # Home Manager needs a bit of information about you and the paths it should

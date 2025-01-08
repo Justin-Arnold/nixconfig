@@ -1,4 +1,4 @@
-{ paths, pkgs }:
+{ paths, pkgs, secrets, config }:
 let
     cgltPath = "${paths.codePath}/cglt";
     # TODO - Create service in nix repo so I can add words like
@@ -7,7 +7,7 @@ let
     # words in the domain specific sections of the codebase.
 in {
     imports = [ 
-        (import ./satchel.nix { inherit cgltPath pkgs; })
-        (import ./devops.nix { inherit cgltPath pkgs; })
+        (import ./satchel.nix { inherit cgltPath pkgs secrets; })
+        (import ./devops.nix { inherit cgltPath pkgs config; })
     ];
 }

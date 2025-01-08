@@ -48,9 +48,13 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
     nix-homebrew.url = "github:zhaofengli-wip/nix-homebrew";
+    secrets = {
+      url = "git+ssh://git@github.com/Justin-Arnold/private-config.git";
+      flake = true;
+    };
   };
 
-  outputs = { self, nixpkgs, nix-darwin, home-manager, zen-browser, nix-homebrew, ... }:
+  outputs = { self, nixpkgs, nix-darwin, home-manager, zen-browser, nix-homebrew, secrets, ... }:
     let
       lib = nixpkgs.lib;
     in {
@@ -107,12 +111,22 @@
             nix-homebrew.darwinModules.nix-homebrew
             ./hosts/macmini/configuration.nix
             home-manager.darwinModules.home-manager
+            {  # This is a separate module
+              _module.args = {
+                secrets = secrets.lib;
+              };
+            }
 	    {
 	      home-manager.useGlobalPkgs = true;
 	      home-manager.useUserPackages = true;
               home-manager.backupFileExtension = "backup";
 	      users.users.justin.home = "/Users/justin";
-              home-manager.users.justin = import ./home-manager/darwin-home.nix;
+              home-manager.users.justin = {... }: {
+                imports = [ 
+                  ./home-manager/darwin-home.nix
+                ];
+                _module.args.secrets = secrets.lib."aarch64-darwin";
+              };
 	    }
   	  ];
 	};

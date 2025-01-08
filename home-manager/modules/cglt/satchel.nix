@@ -1,4 +1,4 @@
-{ cgltPath, pkgs, ... }:
+{ cgltPath, pkgs, secrets, ... }:
 
 let
     nodePkgs = import ../node-eol-versions.nix;
@@ -33,6 +33,43 @@ in {
     home.file."${cgltPath}/satchel/.envrc".text = ''
         PATH_add ${nodePkgs.nodejs-16}/bin
     '';
+
+    home.activation.writeNpmrc = {
+        after = ["writeBoundary"];
+        before = [];
+        data = ''
+            echo '${secrets.cglt.npm_token}' > "${cgltPath}/satchel/vue-cli/.npmrc"
+            chmod 600 "${cgltPath}/satchel/vue-cli/.npmrc"
+        '';
+    };
+
+    home.activation.writeSparklsaltConfig = {
+        after = ["writeBoundary"];
+        before = [];
+        data = ''
+            cat > "${cgltPath}/satchel/src/sparklsalt_config.php" << 'EOF'
+            ${secrets.cglt.sparklsalt_config}
+            EOF
+        '';
+    };
+
+    home.activation.writeFilestoreDirectories = {
+        after = ["writeBoundary"];
+        before = [];
+        data = ''
+            mkdir -p ${cgltPath}/satchel/src/filestore/{framework_archives,frameworks,frameworks_case_v1p0,frameworks_case_v1p1,images,tmp,vectors}
+        '';
+    };
+
+    home.activation.writeDatabaseDirectories = {
+        after = ["writeBoundary"];
+        before = [];
+        data = ''
+            mkdir -p ${cgltPath}/satchel-db/{data,load} 
+            mkdir -p ${cgltPath}/suitcase 
+            mkdir -p ${cgltPath}/suitcase-db/{data,load}
+        '';
+    };
 
     services.node.versions = {
         node16 = nodePkgs.nodejs-16;
