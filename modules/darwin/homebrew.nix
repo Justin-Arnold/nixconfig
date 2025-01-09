@@ -42,6 +42,7 @@
       "nikitabobko/tap/aerospace"
       "via"
       "docker" # TODO - install with nix packages
+      "arc"
     ];
 
     masApps = {
