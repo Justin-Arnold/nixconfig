@@ -43,6 +43,8 @@
       "via"
       "docker" # TODO - install with nix packages
       "arc"
+      "mysqlworkbench"
+      "forklift"
     ];
 
     masApps = {
