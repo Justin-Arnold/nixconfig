@@ -1,4 +1,4 @@
-{ pkgs, lib, config, secrets, ... }:
+{ pkgs, config, secrets, ... }:
 
 let 
   paths = import ./modules/paths.nix;

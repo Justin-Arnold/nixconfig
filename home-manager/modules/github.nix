@@ -1,4 +1,4 @@
-{ pkgs, ... }:
+{ pkgs, secrets, ... }:
 
 {
   # Add the GitHub CLI tool
@@ -23,6 +23,7 @@
           awk '{print $2}' | \
           xargs git clone
       }
+      export GH_TOKEN="${secrets.github.cli_token}"
     '';
   };
 }

@@ -17,5 +17,6 @@ in
     FONT_AWESOME_TOKEN = secrets.FONT_AWESOME_TOKEN or "";
     BRYNTUM_AUTH_TOKEN = secrets.BRYNTUM_AUTH_TOKEN or "";
     BIT_TOKEN = secrets.BIT_TOKEN or "";
+    GH_TOKEN = secrets.github.cli_token or "";
   };
 }
