@@ -13,6 +13,8 @@
       jnoortheen.nix-ide
       vue.volar
       github.copilot
+      github.copilot-chat
+      vscode-icons-team.vscode-icons
     ];
 
     userSettings = {
@@ -26,6 +28,7 @@
         "spectora"
       ];
       "[json].editor.defaultFormatter" = "esbenp.prettier-vscode";
+      "workbench.iconTheme" = "vscode-icons";
     };
   };
 }
