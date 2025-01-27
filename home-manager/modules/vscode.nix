@@ -12,6 +12,7 @@
       arcticicestudio.nord-visual-studio-code
       jnoortheen.nix-ide
       vue.volar
+      github.copilot
     ];
 
     userSettings = {
