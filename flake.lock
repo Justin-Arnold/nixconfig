@@ -44,11 +44,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1737762889,
-        "narHash": "sha256-5HGG09bh/Yx0JA8wtBMAzt0HMCL1bYZ93x4IqzVExio=",
+        "lastModified": 1737968762,
+        "narHash": "sha256-xiPARGKwocaMtv+U/rgi+h2g56CZZEmrcl7ldRaslq8=",
         "owner": "nix-community",
         "repo": "home-manager",
-        "rev": "daf04c5950b676f47a794300657f1d3d14c1a120",
+        "rev": "e1ae908bcc30af792b0bb0a52e53b03d2577255e",
         "type": "github"
       },
       "original": {
@@ -222,11 +222,11 @@
         "utils": "utils"
       },
       "locked": {
-        "lastModified": 1737956724,
-        "narHash": "sha256-3ZpUGLevY2UqwhR/emNJwhansVHS/zAWBTzoskddcsg=",
+        "lastModified": 1738013745,
+        "narHash": "sha256-LEpHoyibPPgqaa3D0qGwj3QsiBX4P6AGUTzHG3ijL7A=",
         "ref": "refs/heads/main",
-        "rev": "f9768c84fa55ce9442c003c35c86e9b48b611e90",
-        "revCount": 5,
+        "rev": "412eca6f8aca53bfe410b58593821eddb55651ef",
+        "revCount": 6,
         "type": "git",
         "url": "ssh://git@github.com/Justin-Arnold/private-config.git"
       },
