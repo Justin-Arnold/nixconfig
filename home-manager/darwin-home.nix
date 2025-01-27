@@ -17,7 +17,6 @@ in {
       ./modules/aerospace.nix
       ./modules/direnv.nix
       ./modules/node.nix
-      ./modules/go-task.nix
       (import ./modules/cglt { inherit paths pkgs secrets config; }) 
     ];
 
