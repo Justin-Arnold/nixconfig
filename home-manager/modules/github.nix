@@ -23,6 +23,6 @@
           awk '{print $2}' | \
           xargs git clone
       }
-    ''
-  }
+    '';
+  };
 }
