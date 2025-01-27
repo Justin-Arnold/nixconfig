@@ -4,6 +4,7 @@
   programs.vscode = {
     enable = true;
     extensions = with pkgs.vscode-extensions; [
+      tamasfe.even-better-toml
       streetsidesoftware.code-spell-checker
       dbaeumer.vscode-eslint
       oderwat.indent-rainbow

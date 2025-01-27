@@ -17,6 +17,7 @@ in {
       ./modules/aerospace.nix
       ./modules/direnv.nix
       ./modules/node.nix
+      ./modules/github.nix
       (import ./modules/cglt { inherit paths pkgs secrets config; }) 
     ];
 
