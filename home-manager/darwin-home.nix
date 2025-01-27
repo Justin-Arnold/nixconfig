@@ -19,6 +19,7 @@ in {
       ./modules/node.nix
       ./modules/github.nix
       (import ./modules/cglt { inherit paths pkgs secrets config; }) 
+      (import ./modules/personal-code { inherit paths pkgs secrets config; })
     ];
 
   # Home Manager needs a bit of information about you and the paths it should
@@ -58,7 +59,9 @@ in {
     # '')
     #pkgs.tmux
     pkgs.zsh-powerlevel10k
-    (pkgs.nerdfonts.override { fonts = [ "FiraCode" "DroidSansMono" ]; })
+    # pkgs.nerd-fonts.firacode
+    # pkgs.nerd-fonts.droidsansmono
+    # (pkgs.nerdfonts.override { fonts = [ "FiraCode" "DroidSansMono" ]; })
     #pkgs.lazygit
     #zenBrowserPackage
   ];
