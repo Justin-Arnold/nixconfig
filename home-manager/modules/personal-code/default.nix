@@ -1,10 +1,9 @@
-{ pkgs, config, secrets, ... }:
+{ pkgs, config, paths, ... }:
 
 let 
-  paths = import ./modules/paths.nix;
   personalPath = "${paths.codePath}/personal";
 in {
   imports = [ 
-    (import ./sudoku-solver { inherit personalPath pkgs; })
+    (import ./sudoku-solver.nix { inherit personalPath pkgs; })
   ];
 }
