@@ -6,6 +6,7 @@
     extensions = with pkgs.vscode-extensions; [
       eamodio.gitlens
       tamasfe.even-better-toml
+      svelte.svelte-vscode
       streetsidesoftware.code-spell-checker
       dbaeumer.vscode-eslint
       oderwat.indent-rainbow
