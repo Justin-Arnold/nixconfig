@@ -5,5 +5,6 @@
         ./dock.nix
         ./homebrew.nix
         ./ssh.nix
+        ./window-manager.nix
     ];
 }
