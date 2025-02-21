@@ -7,4 +7,8 @@
         ./ssh.nix
         ./window-manager.nix
     ];
+
+    fonts.packages = with pkgs; [
+        nerd-fonts.fira-code
+    ];
 }

@@ -5,12 +5,12 @@
 
   environment.systemPackages = with pkgs; [
     git
-    fira-code-nerdfont
   ];
 
-  fonts.fonts = with pkgs; [
-    (nerdfonts.override { fonts = [ "FiraCode" ]; })
+  fonts.packages = with pkgs; [
+    nerd-fonts.fira-code
   ];
+  
 
   programs._1password.enable = true;
   programs._1password-gui = {
