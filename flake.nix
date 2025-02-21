@@ -92,18 +92,28 @@
       darwinConfigurations = {
         macbook16 = nix-darwin.lib.darwinSystem {
           system = "aarch64-darwin";
-   	  modules = [
-	    nix-homebrew.darwinModules.nix-homebrew
-	    ./hosts/macbook16/configuration.nix
-	    home-manager.darwinModules.home-manager
-	    {
-	      home-manager.useGlobalPkgs = true;
-	      home-manager.useUserPackages = true;
-	      home-manager.backupFileExtension = "backup";
-	      users.users.justin.home = "/Users/justin";
-	      home-manager.users.justin = import ./home-manager/darwin-home.nix;
-	    }
-	  ];
+          modules = [
+            nix-homebrew.darwinModules.nix-homebrew
+            ./hosts/macbook16/configuration.nix
+            home-manager.darwinModules.home-manager
+            {  # This is a separate module
+              _module.args = {
+                secrets = secrets.lib;
+              };
+            }
+            {
+              home-manager.useGlobalPkgs = true;
+              home-manager.useUserPackages = true;
+              home-manager.backupFileExtension = "backup";
+              users.users.justin.home = "/Users/justin";
+              home-manager.users.justin = {... }: {
+                imports = [ 
+                  ./home-manager/darwin-home.nix
+                ];
+                _module.args.secrets = secrets.lib."aarch64-darwin";
+              };
+            }
+          ];
         };
         macmini = nix-darwin.lib.darwinSystem {
           system = "aarch64-darwin";
@@ -116,20 +126,20 @@
                 secrets = secrets.lib;
               };
             }
-	    {
-	      home-manager.useGlobalPkgs = true;
-	      home-manager.useUserPackages = true;
+            {
+              home-manager.useGlobalPkgs = true;
+              home-manager.useUserPackages = true;
               home-manager.backupFileExtension = "backup";
-	      users.users.justin.home = "/Users/justin";
+              users.users.justin.home = "/Users/justin";
               home-manager.users.justin = {... }: {
                 imports = [ 
                   ./home-manager/darwin-home.nix
                 ];
                 _module.args.secrets = secrets.lib."aarch64-darwin";
               };
-	    }
-  	  ];
-	};
+            }
+          ];
+        };
       };
     };
 }
