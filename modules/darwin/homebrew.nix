@@ -45,6 +45,7 @@
       "arc"
       "mysqlworkbench"
       "forklift"
+      "bambu-studio"
     ];
 
     masApps = {
