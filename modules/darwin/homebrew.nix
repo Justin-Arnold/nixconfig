@@ -51,6 +51,7 @@
       "bettertouchtool"
       "cleanmymac"
       "cleanshot"
+      "iina"
     ];
 
     masApps = {
