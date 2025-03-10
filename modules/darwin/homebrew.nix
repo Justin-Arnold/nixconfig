@@ -49,6 +49,7 @@
       "via"
       "bartender"
       "bettertouchtool"
+      "cleanmymac"
     ];
 
     masApps = {
