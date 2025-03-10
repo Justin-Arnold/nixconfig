@@ -47,6 +47,7 @@
       "forklift"
       "bambu-studio"
       "via"
+      "bartender"
     ];
 
     masApps = {
