@@ -50,6 +50,7 @@
       "bartender"
       "bettertouchtool"
       "cleanmymac"
+      "cleanshot"
     ];
 
     masApps = {
