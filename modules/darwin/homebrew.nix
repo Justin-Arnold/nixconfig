@@ -48,6 +48,7 @@
       "bambu-studio"
       "via"
       "bartender"
+      "bettertouchtool"
     ];
 
     masApps = {
