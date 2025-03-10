@@ -18,6 +18,7 @@ in {
       ./modules/direnv.nix
       ./modules/node.nix
       ./modules/github.nix
+      ./modules/obs-studio.nix
       (import ./modules/cglt { inherit paths pkgs secrets config; }) 
       (import ./modules/personal-code { inherit paths pkgs secrets config; })
     ];
