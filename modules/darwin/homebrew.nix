@@ -54,6 +54,7 @@
       "iina"
       "iterm2"
       "notion"
+      "notion-calendar"
     ];
 
     masApps = {
