@@ -46,6 +46,7 @@
       "mysqlworkbench"
       "forklift"
       "bambu-studio"
+      "via"
     ];
 
     masApps = {
