@@ -53,6 +53,7 @@
       "cleanshot"
       "iina"
       "iterm2"
+      "notion"
     ];
 
     masApps = {
