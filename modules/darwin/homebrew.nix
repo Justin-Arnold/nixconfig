@@ -52,6 +52,7 @@
       "cleanmymac"
       "cleanshot"
       "iina"
+      "iterm2"
     ];
 
     masApps = {
