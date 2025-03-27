@@ -10,5 +10,6 @@ in {
         (import ./satchel.nix { inherit cgltPath pkgs secrets; })
         (import ./deployments.nix { inherit cgltPath pkgs config secrets; })
         (import ./devops.nix { inherit cgltPath pkgs config; })
+        (import ./monorepo.nix { inherit cgltPath pkgs config; })
     ];
 }
