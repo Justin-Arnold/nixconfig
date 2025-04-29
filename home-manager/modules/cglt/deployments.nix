@@ -112,9 +112,9 @@ in {
 
         # Declare and populate groups
         typeset -A DEPLOY_GROUPS
-        DEPLOY_GROUPS["All Instances"]="satchel-ref satchel-alabama satchel-ap satchel-appub satchel-azed satchel-caselabs satchel-cn2 satchel-carnegie satchel-commons satchel-cps satchel-edsby satchel-frogstreet satchel-mt satchel-nc satchel-sas satchel-sc satchel-wi satchel-gaprd"
-        DEPLOY_GROUPS["All Instances (without AP Pub)"]="satchel-ref satchel-alabama satchel-ap satchel-azed satchel-caselabs satchel-cn2 satchel-carnegie satchel-commons satchel-cps satchel-edsby satchel-frogstreet satchel-mt satchel-nc satchel-sas satchel-sc satchel-wi satchel-gaprd"
-        DEPLOY_GROUPS["All Instances (without Georgia or AP Pub)"]="satchel-ref satchel-alabama satchel-ap satchel-azed satchel-caselabs satchel-cn2 satchel-carnegie satchel-commons satchel-cps satchel-edsby satchel-frogstreet satchel-mt satchel-nc satchel-sas satchel-sc satchel-wi"
+        DEPLOY_GROUPS["All Instances"]="satchel-ref satchel-alabama satchel-ap satchel-appub satchel-azed satchel-caselabs satchel-cn2 satchel-carnegie satchel-commons satchel-cps satchel-edsby satchel-frogstreet satchel-mt satchel-nc satchel-sas satchel-sc satchel-wi satchel-gaprd satchel-idaho satchel-rosetta satchel-wida"
+        DEPLOY_GROUPS["All Instances (without AP Pub)"]="satchel-ref satchel-alabama satchel-ap satchel-azed satchel-caselabs satchel-cn2 satchel-carnegie satchel-commons satchel-cps satchel-edsby satchel-frogstreet satchel-mt satchel-nc satchel-sas satchel-sc satchel-wi satchel-gaprd satchel-idaho satchel-rosetta satchel-wida"
+        DEPLOY_GROUPS["All Instances (without Georgia or AP Pub)"]="satchel-ref satchel-alabama satchel-ap satchel-azed satchel-caselabs satchel-cn2 satchel-carnegie satchel-commons satchel-cps satchel-edsby satchel-frogstreet satchel-mt satchel-nc satchel-sas satchel-sc satchel-wi satchel-idaho satchel-rosetta satchel-wida"
         
         # All available instances
         DEPLOY_INSTANCES=(
@@ -137,6 +137,9 @@ in {
           satchel-sc
           satchel-wi
           satchel-gaprd
+          satchel-idaho
+          satchel-rosetta
+          satchel-wida
         )
 
         # Process flags
