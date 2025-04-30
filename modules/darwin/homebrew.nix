@@ -28,7 +28,7 @@
 
   homebrew = {
     enable = true;
-    # onActivation.cleanup = "uninstall";
+    onActivation.cleanup = "uninstall";
 
     taps = [];
     brews = [ "cowsay" ];
@@ -39,7 +39,6 @@
       "discord"
       "betterdisplay"
       "raycast"
-      "nikitabobko/tap/aerospace"
       "via"
       "docker" # TODO - install with nix packages
       "arc"
@@ -57,9 +56,9 @@
       "notion-calendar"
     ];
 
-    masApps = {
-      "Canary Mail App" = 1236045954;
-      "Session Pomodoro Focus Timer" = 1521432881;
-    };
+    # masApps = {
+    #   "Canary Mail App" = 1236045954;
+    #   "Session Pomodoro Focus Timer" = 1521432881;
+    # };
 };
 }
