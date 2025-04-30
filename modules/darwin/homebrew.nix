@@ -56,6 +56,7 @@
       "iterm2"
       "notion"
       "notion-calendar"
+      "league-of-legends"
     ];
 
     # masApps = {
