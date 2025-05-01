@@ -59,20 +59,6 @@
       lib = nixpkgs.lib;
     in {
       nixosConfigurations = {
-        thinkpad = lib.nixosSystem {
-          system = "x86_64-linux";
-          modules = [
-            ./hosts/thinkpad/configuration.nix
-            # Add any additional modules here
-            {
-              # Integrate Home Manager
-              home-manager.useGlobalPkgs = true;
-              home-manager.useUserPackages = true;
-              home-manager.users.justin = import ./home-manager/home.nix;
-            }
-          ];
-          specialArgs = { inherit self; inherit nixpkgs; };
-        };
         slim7i = lib.nixosSystem {
           system = "x86_64-linux";
           modules = [
