@@ -34,6 +34,10 @@
               home-manager.useGlobalPkgs = true;
               home-manager.useUserPackages = true;
               home-manager.backupFileExtension = "backup";
+	      users.users.justin.home = "/home/justin";
+	      users.users.justin.isNormalUser = true;
+	      users.users.justin.group = "justin";
+	      users.groups.justin = {};
               home-manager.users.justin = import ./home-manager/home.nix;
             }
           ];

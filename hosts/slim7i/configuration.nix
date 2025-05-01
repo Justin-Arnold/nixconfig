@@ -48,7 +48,7 @@
 
   nix.settings.experimental-features = [ "nix-command" "flakes" ];
  
-  services.xserver.videoDrivers = [ "intel" ];
+  services.xserver.videoDrivers = [ "modedriver" ];
   services.xserver.deviceSection = ''
     Option "DRI" "2"
     Option "TearFree" "true"
