@@ -8,6 +8,26 @@
       ../../modules/desktop
     ];
 
+     # slim7i = makeNixos [] {
+        #   system = "x86_64-linux";
+        #   modules = [
+        #     ./hosts/slim7i/configuration.nix
+        #     # Add any additional modules here
+        #     home-manager.nixosModules.home-manager
+        #     {
+        #       home-manager.useGlobalPkgs = true;
+        #       home-manager.useUserPackages = true;
+        #       home-manager.backupFileExtension = "backup";
+        #       users.users.justin.home = "/home/justin";
+        #       users.users.justin.isNormalUser = true;
+        #       users.users.justin.group = "justin";
+        #       users.groups.justin = {};
+        #       home-manager.users.justin = import ./home-manager/home.nix;
+        #     }
+        #   ];
+        #   specialArgs = { inherit self; inherit zen-browser;};
+        # };
+
   # Bootloader
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;

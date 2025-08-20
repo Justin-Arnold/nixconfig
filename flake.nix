@@ -2,8 +2,10 @@
   description = "Personal Nix Configuration";
 
   inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
-    zen-browser.url = "github:MarceColl/zen-browser-flake";
+    # nixpkgs.url        = "github:NixOS/nixpkgs/nixos-25.05";
+    nixpkgs.url          = "github:NixOS/nixpkgs/nixos-unstable";
+    zen-browser.url      = "github:MarceColl/zen-browser-flake";
+    nix-homebrew.url     = "github:zhaofengli-wip/nix-homebrew";
     home-manager = {
       url = "github:nix-community/home-manager";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -12,7 +14,6 @@
       url = "github:lnl7/nix-darwin";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-    nix-homebrew.url = "github:zhaofengli-wip/nix-homebrew";
     secrets = {
       url = "git+ssh://git@github.com/Justin-Arnold/private-config.git";
       flake = true;
@@ -20,29 +21,27 @@
   };
 
   outputs = { self, nixpkgs, nix-darwin, home-manager, zen-browser, nix-homebrew, secrets, ... }:
-    let
-      lib = nixpkgs.lib;
-    in {
+  let
+    lib = nixpkgs.lib;
+
+    mkNixos = hostFile:
+      lib.nixosSystem {
+        system = "x86_64-linux";
+        specialArgs = { inherit home-manager; };
+        modules = [ hostFile ];
+      };
+
+    mkDarwin = modules:
+      darwin.lib.darwinSystem {
+        system = "aarch64-darwin";
+        specialArgs = { inherit home-manager; };
+        modules = [ hostFile ];
+      };
+
+  in {
       nixosConfigurations = {
-        slim7i = lib.nixosSystem {
-          system = "x86_64-linux";
-          modules = [
-            ./hosts/slim7i/configuration.nix
-            # Add any additional modules here
-            home-manager.nixosModules.home-manager
-            {
-              home-manager.useGlobalPkgs = true;
-              home-manager.useUserPackages = true;
-              home-manager.backupFileExtension = "backup";
-	      users.users.justin.home = "/home/justin";
-	      users.users.justin.isNormalUser = true;
-	      users.users.justin.group = "justin";
-	      users.groups.justin = {};
-              home-manager.users.justin = import ./home-manager/home.nix;
-            }
-          ];
-          specialArgs = { inherit self; inherit zen-browser;};
-        };
+        terraform-controller = mkNixos ./hosts/terraform-controller/configuration.nix;
+        slim7i = mkNixos ./hosts/slim7i/configuration.nix;
       };
       darwinConfigurations = {
         macbook16 = nix-darwin.lib.darwinSystem {

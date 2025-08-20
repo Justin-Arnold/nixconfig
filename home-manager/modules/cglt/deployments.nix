@@ -8,7 +8,7 @@ in {
     pkgs.jq
   ];
 
-  home.file."${cgltPath}/deployments/.envrc".text = ''
+  home.file."${cgltPath}/monorepo/.envrc".text = ''
     PATH_add ${nodePkgs.nodejs-16}/bin
     export NODE_OPTIONS="--openssl-legacy-provider"
   '';
@@ -102,8 +102,8 @@ in {
         local ORIGINAL_DIR=$(pwd)
         
         # Change to the deployments directory
-        cd "${cgltPath}/deployments" || {
-          echo "Error: Could not change to deployments directory"
+        cd "${cgltPath}/monorepo" || {
+          echo "Error: Could not change to monorepo directory"
           return 1
         }
         
@@ -112,9 +112,9 @@ in {
 
         # Declare and populate groups
         typeset -A DEPLOY_GROUPS
-        DEPLOY_GROUPS["All Instances"]="satchel-ref satchel-alabama satchel-ap satchel-appub satchel-azed satchel-caselabs satchel-cn2 satchel-carnegie satchel-commons satchel-cps satchel-edsby satchel-frogstreet satchel-mt satchel-nc satchel-sas satchel-sc satchel-wi satchel-gaprd satchel-idaho satchel-rosetta satchel-wida"
-        DEPLOY_GROUPS["All Instances (without AP Pub)"]="satchel-ref satchel-alabama satchel-ap satchel-azed satchel-caselabs satchel-cn2 satchel-carnegie satchel-commons satchel-cps satchel-edsby satchel-frogstreet satchel-mt satchel-nc satchel-sas satchel-sc satchel-wi satchel-gaprd satchel-idaho satchel-rosetta satchel-wida"
-        DEPLOY_GROUPS["All Instances (without Georgia or AP Pub)"]="satchel-ref satchel-alabama satchel-ap satchel-azed satchel-caselabs satchel-cn2 satchel-carnegie satchel-commons satchel-cps satchel-edsby satchel-frogstreet satchel-mt satchel-nc satchel-sas satchel-sc satchel-wi satchel-idaho satchel-rosetta satchel-wida"
+        DEPLOY_GROUPS["All Instances"]="satchel-ref satchel-alabama satchel-ap satchel-appub satchel-azed satchel-caselabs satchel-cn2 satchel-carnegie satchel-commons satchel-cps satchel-edsby satchel-frogstreet satchel-mt satchel-nc satchel-sas satchel-sc satchel-wi satchel-gaprd satchel-idaho satchel-rosetta satchel-wida satchel-ok satchel-staging"
+        DEPLOY_GROUPS["All Instances (without AP Pub)"]="satchel-ref satchel-alabama satchel-ap satchel-azed satchel-caselabs satchel-cn2 satchel-carnegie satchel-commons satchel-cps satchel-edsby satchel-frogstreet satchel-mt satchel-nc satchel-sas satchel-sc satchel-wi satchel-gaprd satchel-idaho satchel-rosetta satchel-wida satchel-ok satchel-staging"
+        DEPLOY_GROUPS["All Instances (without Georgia or AP Pub)"]="satchel-ref satchel-alabama satchel-ap satchel-azed satchel-caselabs satchel-cn2 satchel-carnegie satchel-commons satchel-cps satchel-edsby satchel-frogstreet satchel-mt satchel-nc satchel-sas satchel-sc satchel-wi satchel-idaho satchel-rosetta satchel-wida satchel-ok satchel-staging"
         
         # All available instances
         DEPLOY_INSTANCES=(
@@ -140,6 +140,9 @@ in {
           satchel-idaho
           satchel-rosetta
           satchel-wida
+          satchel-gcps
+          satchel-ok
+          satchel-staging
         )
 
         # Process flags
@@ -183,7 +186,7 @@ in {
         fi
 
         # Construct and execute the deploy command
-        local CMD="python3 deploy.py"
+        local CMD="pnpm run deploy:satchel"
         [[ $BUILD == true ]] && CMD="$CMD --build"
         CMD="$CMD $ARGS $INSTANCES_TO_DEPLOY"
 
