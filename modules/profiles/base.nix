@@ -17,4 +17,6 @@
   environment.systemPackages = with pkgs; [
     git     # for version control
   ];
+
+  programs.zsh.enable = true;
 }
