@@ -32,7 +32,7 @@
       };
 
     mkDarwin = modules:
-      darwin.lib.darwinSystem {
+      nix-darwin.lib.darwinSystem {
         system = "aarch64-darwin";
         specialArgs = { inherit home-manager; };
         modules = [ hostFile ];
