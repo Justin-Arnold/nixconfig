@@ -6,7 +6,7 @@
       ../../modules/profiles/base.nix
       ../../modules/profiles/server.nix
       ../../modules/roles/terraform.nix
-      ../../modules/platform/nixos.nix
+      ../../modules/platforms/nixos.nix
     ];
 
   networking.hostName = "terraform-controller";
