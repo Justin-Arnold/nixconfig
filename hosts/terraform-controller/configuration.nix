@@ -34,8 +34,7 @@
     format   = "dotenv"; 
     mode = "0400";
     owner = "justin";
-    path  = "/run/secrets/proxmox.env";
-    neededForUsers = true; 
+    group    = "users";
   };
 
   

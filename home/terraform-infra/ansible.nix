@@ -16,7 +16,9 @@ in {
   home.file."${proj}/providers.tf".text = ''
     terraform {
       required_providers {
-        proxmox = { source = "bpg/proxmox" }
+        proxmox = {
+          source  = "Telmate/proxmox"
+        }
       }
     }
     provider "proxmox" {}
@@ -30,7 +32,7 @@ in {
 
   home.file."${proj}/main.tf".text = ''
     variable "node"       { default = "proxmox4" }
-    variable "template"   { default = "9000" }
+    variable "template"   { default = "nixos-25.05pre-git" }
     variable "name"       { default = "ansible-controller" }
     variable "vm_ip"      { default = "10.0.0.41/24" }
     variable "gw"         { default = "10.0.0.1" }
@@ -44,7 +46,7 @@ in {
       name        = var.name
       target_node = var.node
       clone       = var.template
-      full        = true
+      full_clone  = true
 
       cores  = 2
       memory = 4096
@@ -63,7 +65,7 @@ in {
 
       os_type   = "cloud-init"
       ciuser    = "justin"
-      sshkeys   = file(var.sshkey)
+      sshkeys   = file(pathexpand(var.sshkey))  # "~" expansion
       ipconfig0 = format("ip=%s,gw=%s", var.vm_ip, var.gw)
       nameserver = "10.0.0.1"
     }
