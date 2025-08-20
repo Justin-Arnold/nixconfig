@@ -18,6 +18,8 @@
     openssh.authorizedKeys.keys = [
       # Mac Mini
       "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIA80MbGDPmyq9NruBH2oS0vVzFDXSH0oT+YqxrIW89Da hello@justin-arnold.com"
+      # Terraform Controller
+      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKTJF6UBOrXQSdBKJqcVdkaLYikLfj6Su+YQ0eXII9vq tf-controller"
     ];
   };
   security.sudo.wheelNeedsPassword = false;
