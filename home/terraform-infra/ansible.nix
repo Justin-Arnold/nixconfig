@@ -56,7 +56,10 @@ in {
         size    = var.disk_size
       }
 
-      network { model = "virtio"; bridge = "vmbr0" }
+      network {
+        model  = "virtio"
+        bridge = "vmbr0"
+      }
 
       os_type   = "cloud-init"
       ciuser    = "justin"
