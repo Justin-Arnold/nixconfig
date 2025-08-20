@@ -17,7 +17,8 @@ in {
     terraform {
       required_providers {
         proxmox = {
-          source  = "Telmate/proxmox"
+          source  = "bpg/proxmox"
+          version = ">= 0.55.0"
         }
       }
     }
@@ -31,43 +32,72 @@ in {
   '';
 
   home.file."${proj}/main.tf".text = ''
-    variable "node"       { default = "proxmox4" }
-    variable "template"   { default = "nixos-25.05pre-git" }
-    variable "name"       { default = "ansible-controller" }
-    variable "vm_ip"      { default = "10.0.0.41/24" }
-    variable "gw"         { default = "10.0.0.1" }
-    variable "sshkey"     { default = "~/.ssh/id_ed25519.pub" }
-    variable "storage"    { default = "local-lvm" }
-    variable "disk_size"  { default = "40G" }
-    variable "bootdisk"   { default = "virtio0" }
-    variable "disk_bus"   { default = "virtio" }
+    variable "node"         { default = "proxmox4" }
+    variable "name"         { default = "ansible-controller" }
+    variable "template_id"  { default = 9000}
+    variable "cpu_cores"    { default = 2 }
+    variable "memory_mb"    { default = 4096 }
+    variable "datastore"    { default = "local-lvm" }
+    variable "disk_size_gb" { default = 40 }
+    variable "ip_cidr"      { default = "10.0.0.41/24" }
+    variable "gateway"      { default = "10.0.0.1" } 
+    variable "dns_servers"  { default = ["10.0.0.1"] }
+    variable "ci_user"      { default = "justin" }
+    variable "ssh_pubkey"   { default = "~/.ssh/id_ed25519.pub" }
 
-    resource "proxmox_vm_qemu" "ansible" {
-      name        = var.name
-      target_node = var.node
-      clone       = var.template
-      full_clone  = true
+    resource "proxmox_virtual_environment_vm" "ansible" {
+      name      = var.name
+      node_name = var.node
+      on_boot   = true
 
-      cores  = 2
-      memory = 4096
+      boot_order = ["virtio0", "ide2", "net0"]
 
-      bootdisk = var.bootdisk
+      clone {
+        vm_id = var.template_id
+        full  = true
+      }
+
+      cpu {
+        cores = var.cpu_cores
+      }
+      
+      memory {
+        dedicated = var.memory_mb
+      }
+
       disk {
-        type    = var.disk_bus
-        storage = var.storage
-        size    = var.disk_size
+        datastore_id = var.datastore
+        interface    = "virtio0"
+        size         = var.disk_size_gb
       }
 
-      network {
-        model  = "virtio"
+      network_device {
         bridge = "vmbr0"
+        model  = "virtio"
       }
 
-      os_type   = "cloud-init"
-      ciuser    = "justin"
-      sshkeys   = file(pathexpand(var.sshkey))  # "~" expansion
-      ipconfig0 = format("ip=%s,gw=%s", var.vm_ip, var.gw)
-      nameserver = "10.0.0.1"
+      agent {
+        enabled = true
+      }
+
+      initialization {
+        dns {
+          servers = var.dns_servers
+        }
+
+        ip_config {
+          ipv4 {
+            address = var.ip_cidr
+            gateway = var.gateway
+          }
+        }
+
+        user_account {
+          username = var.ci_user
+          # read the SSH public key from your workstation user; if the file isn't present this will error
+          keys = [file(pathexpand(var.ssh_pubkey))]
+        }
+      } 
     }
   '';
 
