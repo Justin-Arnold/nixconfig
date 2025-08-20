@@ -42,7 +42,7 @@
   home-manager.useGlobalPkgs = true;
   home-manager.useUserPackages = true;
   home-manager.backupFileExtension = "backup";
-  users.users.justin.home = "/Users/justin";
+  users.users.justin.home = "/home/justin";
   home-manager.users.justin = { ... }: {
     imports = [ 
         ../../home/terraform-infra/ansible.nix
