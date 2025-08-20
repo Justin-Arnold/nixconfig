@@ -3,6 +3,7 @@
 {
   imports =
     [ 
+      ./hardware-configuration.nix
       ../../modules/profiles/base.nix
       ../../modules/profiles/server.nix
       ../../modules/roles/terraform.nix
