@@ -2,7 +2,7 @@
   ############################################################
   ## Identity
   ############################################################
-  time.timeZone       = "America/New_York";
+  time.timeZone = "America/New_York";
 
   ############################################################
   ## Nix and Flakes
@@ -19,4 +19,8 @@
   ];
 
   programs.zsh.enable = true;
+
+  fonts.packages = with pkgs; [
+    nerd-fonts.fira-code
+  ];
 }
