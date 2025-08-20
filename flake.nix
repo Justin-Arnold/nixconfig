@@ -2,8 +2,8 @@
   description = "Personal Nix Configuration";
 
   inputs = {
-    # nixpkgs.url        = "github:NixOS/nixpkgs/nixos-25.05";
-    nixpkgs.url          = "github:NixOS/nixpkgs/nixos-unstable";
+    nixpkgs.url        = "github:NixOS/nixpkgs/nixos-25.05";
+    # nixpkgs.url          = "github:NixOS/nixpkgs/nixos-unstable";
     zen-browser.url      = "github:MarceColl/zen-browser-flake";
     nix-homebrew.url     = "github:zhaofengli-wip/nix-homebrew";
     sops-nix.url         = "github:Mic92/sops-nix";

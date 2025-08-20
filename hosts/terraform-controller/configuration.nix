@@ -1,4 +1,4 @@
-{ config, pkgs, lib, sops-nix, ... }:
+{ config, pkgs, lib, sops-nix, home-manager, ... }:
 
 {
   imports =
@@ -8,11 +8,14 @@
       ../../modules/profiles/server.nix
       ../../modules/roles/terraform.nix
       ../../modules/platforms/nixos.nix
+
+      home-manager.nixosModules.home-manager
       sops-nix.nixosModules.sops
+      
     ];
 
   networking.hostName = "terraform-controller";
-  system.stateVersion = "25.05";
+  system.stateVersion = "24.05";
 
   ############################################################
   ## Bootloader Configuration
@@ -33,5 +36,16 @@
     owner = "justin";
     path  = "/run/secrets/proxmox.env";
     neededForUsers = true; 
+  };
+
+  
+  home-manager.useGlobalPkgs = true;
+  home-manager.useUserPackages = true;
+  home-manager.backupFileExtension = "backup";
+  users.users.justin.home = "/Users/justin";
+  home-manager.users.justin = { ... }: {
+    imports = [ 
+        ../../home/terraform-infra/ansible.nix
+    ];
   };
 }
