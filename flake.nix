@@ -6,6 +6,7 @@
     nixpkgs.url          = "github:NixOS/nixpkgs/nixos-unstable";
     zen-browser.url      = "github:MarceColl/zen-browser-flake";
     nix-homebrew.url     = "github:zhaofengli-wip/nix-homebrew";
+    sops-nix.url         = "github:Mic92/sops-nix";
     home-manager = {
       url = "github:nix-community/home-manager";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -20,14 +21,14 @@
     };
   };
 
-  outputs = { self, nixpkgs, nix-darwin, home-manager, zen-browser, nix-homebrew, secrets, ... }:
+  outputs = { self, nixpkgs, nix-darwin, home-manager, zen-browser, nix-homebrew, secrets, sops-nix, ... }:
   let
     lib = nixpkgs.lib;
 
     mkNixos = hostFile:
       lib.nixosSystem {
         system = "x86_64-linux";
-        specialArgs = { inherit home-manager; };
+        specialArgs = { inherit home-manager sops-nix; };
         modules = [ hostFile ];
       };
 
