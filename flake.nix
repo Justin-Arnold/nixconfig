@@ -31,7 +31,7 @@
         modules = [ hostFile ];
       };
 
-    mkDarwin = modules:
+    mkDarwin = hostFile:
       nix-darwin.lib.darwinSystem {
         system = "aarch64-darwin";
         specialArgs = { inherit home-manager; };
