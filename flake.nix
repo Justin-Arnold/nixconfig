@@ -41,6 +41,7 @@
   in {
       nixosConfigurations = {
         terraform-controller = mkNixos ./hosts/terraform-controller/configuration.nix;
+        ansible-controller = mkNixos ./hosts/ansible-controller/configuration.nix;
         slim7i = mkNixos ./hosts/slim7i/configuration.nix;
       };
       darwinConfigurations = {
