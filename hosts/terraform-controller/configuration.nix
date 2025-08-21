@@ -4,28 +4,18 @@
   imports =
     [ 
       ./hardware-configuration.nix
-      ../../modules/profiles/base.nix
-      ../../modules/profiles/server.nix
+      ../../modules/common
       ../../modules/roles/terraform.nix
-      ../../modules/platforms/nixos.nix
 
       home-manager.nixosModules.home-manager
       sops-nix.nixosModules.sops
-      
     ];
 
-  networking.hostName = "terraform-controller";
-  system.stateVersion = "24.05";
-
-  ############################################################
-  ## Bootloader Configuration
-  ############################################################
-  # turn off systemd-boot/EFI
-  boot.loader.systemd-boot.enable = lib.mkForce false;
-  boot.loader.efi.canTouchEfiVariables = lib.mkForce false;
-  # enable GRUB for BIOS
-  boot.loader.grub.enable = true;
-  boot.loader.grub.devices = [ "/dev/vda" ];
+  systemProfile = {
+    hostname = "terraform-controller";
+    stateVersion = "25.05";
+    isServer = true;
+  };
 
   sops.age.keyFile = "/home/justin/.config/sops/age/keys.txt";
 
@@ -40,6 +30,8 @@
   home-manager.users.justin = { ... }: {
     imports = [ 
         ../../home/terraform-infra/ansible.nix
+        ../../home/apps/neovim.nix
+        ../../home/apps/zsh.nix
     ];
   };
 }

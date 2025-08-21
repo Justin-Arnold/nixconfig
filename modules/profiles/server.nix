@@ -1,72 +1,85 @@
-{ pkgs, ... }: {
-  ############################################################
-  ## Network Configuration
-  ############################################################
-  networking.firewall.enable = true;
-  networking.firewall.allowedTCPPorts = [
-    22 # SSH
-  ];
-  networking.useNetworkd = true; 
+{ pkgs, config, lib, ... }:
+{
+  config = lib.mkIf config.systemProfile.isServer {
+    ############################################################
+    ## Bootloader Configuration
+    ############################################################
+    # turn off systemd-boot/EFI
+    boot.loader.systemd-boot.enable = lib.mkForce false;
+    boot.loader.efi.canTouchEfiVariables = lib.mkForce false;
+    # enable GRUB for BIOS
+    boot.loader.grub.enable = true;
+    boot.loader.grub.devices = [ "/dev/vda" ];
 
-  ############################################################
-  ## User Configuration
-  ############################################################
-  users.users.justin = {
-    isNormalUser = true; 
-    shell = pkgs.zsh;
-    extraGroups = [ "wheel" ];
-    openssh.authorizedKeys.keys = [
-      # Mac Mini
-      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIA80MbGDPmyq9NruBH2oS0vVzFDXSH0oT+YqxrIW89Da hello@justin-arnold.com"
-      # Terraform Controller
-      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKTJF6UBOrXQSdBKJqcVdkaLYikLfj6Su+YQ0eXII9vq tf-controller"
+    ############################################################
+    ## Network Configuration
+    ############################################################
+    networking.firewall.enable = true;
+    networking.firewall.allowedTCPPorts = [
+      22 # SSH
     ];
-  };
-  security.sudo.wheelNeedsPassword = false;
+    networking.useNetworkd = true; 
 
-  ############################################################
-  ## Nix
-  ############################################################
-  nix.settings.trusted-users = [ "justin" ];
-
-  ############################################################
-  ## System Packages
-  ############################################################
-  environment.systemPackages = with pkgs; [
-    curl    # for fetching resources
-    wget    # for downloading files
-    htop    # for system monitoring
-    jq      # for JSON processing
-    ripgrep # for searching text
-    fd      # for finding files
-    lsof    # for listing open files
-  ];
-
-  ############################################################
-  ## SSH
-  ############################################################
-  services.openssh = {
-    enable = true;
-    settings = {
-      PasswordAuthentication = false;
-      KbdInteractiveAuthentication = false;
-      PermitRootLogin = "no";
+    ############################################################
+    ## User Configuration
+    ############################################################
+    users.users."${config.systemProfile.username}" = {
+      extraGroups = [ "wheel" ];
+      openssh.authorizedKeys.keys = [
+        # Mac Mini
+        "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIA80MbGDPmyq9NruBH2oS0vVzFDXSH0oT+YqxrIW89Da hello@justin-arnold.com"
+        # Terraform Controller
+        "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKTJF6UBOrXQSdBKJqcVdkaLYikLfj6Su+YQ0eXII9vq tf-controller"
+      ];
     };
-  };
+    security.sudo.wheelNeedsPassword = false;
 
-  ############################################################
-  ## Proxmox VM & Cloud-Init
-  ############################################################
-  services.qemuGuest.enable = true;
-  services.cloud-init.enable = true;
+    ############################################################
+    ## Nix
+    ############################################################
+    nix.settings.trusted-users = [
+      "${config.systemProfile.username}"
+    ];
 
-  ############################################################
-  ## Auto Upgrades
-  ############################################################
-  system.autoUpgrade = {
-    enable = true;
-    allowReboot = true;
-    dates = "03:30";
+    ############################################################
+    ## System Packages
+    ############################################################
+    environment.systemPackages = with pkgs; [
+      curl    # for fetching resources
+      wget    # for downloading files
+      htop    # for system monitoring
+      jq      # for JSON processing
+      ripgrep # for searching text
+      fd      # for finding files
+      lsof    # for listing open files
+    ];
+
+    ############################################################
+    ## SSH
+    ############################################################
+    services.openssh = {
+      enable = true;
+      settings = {
+        PasswordAuthentication = false;
+        KbdInteractiveAuthentication = false;
+        PermitRootLogin = "no";
+      };
+    };
+
+    ############################################################
+    ## Proxmox VM & Cloud-Init
+    ############################################################
+    services.qemuGuest.enable = true;
+    services.cloud-init.enable = true;
+
+    ############################################################
+    ## Auto Upgrades
+    ############################################################
+    system.autoUpgrade = {
+      enable = true;
+      allowReboot = true;
+      dates = "03:30";
+    };
   };
   # system.autoUpgrade.flake = "/etc/nixos#hostname"; # Local flake
   # or
