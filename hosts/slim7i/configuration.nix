@@ -3,7 +3,7 @@
 {
   imports =
     [ 
-      # ./hardware-configuration.nix
+      ./hardware-configuration.nix
       ../../modules/common
       ../../modules/desktop
     ];
@@ -18,26 +18,32 @@
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
 
-  # networking.networkmanager.enable = true;
+  boot.kernelPackages = pkgs.linuxPackages_latest;
 
-  services.xserver = {
-    enable = true;
-    xkb = {
-      layout = "us";
-      variant = "";
-    };
-  };
+  networking.networkmanager.enable = true;
+
+  services.displayManager.cosmic-greeter.enable = true;
+  services.desktopManager.cosmic.enable = true;
+
+  # services.xserver = {
+  #   enable = true;
+  #   xkb = {
+  #     layout = "us";
+  #     variant = "";
+  #   };
+
+  # };
 
   # services.printing.enable = true;
 
-  # hardware.pulseaudio.enable = false;
-  # security.rtkit.enable = true;
-  # services.pipewire = {
-  #   enable = true;
-  #   alsa.enable = true;
-  #   alsa.support32Bit = true;
-  #   pulse.enable = true;
-  # };
+  hardware.pulseaudio.enable = false;
+  security.rtkit.enable = true;
+  services.pipewire = {
+    enable = true;
+    alsa.enable = true;
+    alsa.support32Bit = true;
+    pulse.enable = true;
+  };
 
   # services.libinput.touchpad.naturalScrolling = true;
 

@@ -39,6 +39,7 @@
   users.users."${config.systemProfile.username}" = {
     isNormalUser = true; 
     shell = pkgs.zsh;
+    extraGroups = [ "wheel" "networkmanager" ];
   };
 
   #############################################################
