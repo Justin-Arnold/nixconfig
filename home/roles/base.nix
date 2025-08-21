@@ -1,7 +1,7 @@
 { lib, pkgs, config, ... }:
 {
   imports = [
-    ../../apps
+    ../apps
   ];
 
   home.username = lib.mkDefault "justin";
