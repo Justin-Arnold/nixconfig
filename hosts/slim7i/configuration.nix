@@ -3,7 +3,7 @@
 {
   imports =
     [ 
-      ./hardware-configuration.nix
+      # ./hardware-configuration.nix
       ../../modules/common
       ../../modules/desktop
     ];
@@ -15,10 +15,10 @@
     };
 
   # Bootloader
-  boot.loader.systemd-boot.enable = true;
-  boot.loader.efi.canTouchEfiVariables = true;
+  # boot.loader.systemd-boot.enable = true;
+  # boot.loader.efi.canTouchEfiVariables = true;
 
-  networking.networkmanager.enable = true;
+  # networking.networkmanager.enable = true;
 
   services.xserver = {
     enable = true;
@@ -28,24 +28,24 @@
     };
   };
 
-  services.printing.enable = true;
+  # services.printing.enable = true;
 
-  hardware.pulseaudio.enable = false;
-  security.rtkit.enable = true;
-  services.pipewire = {
-    enable = true;
-    alsa.enable = true;
-    alsa.support32Bit = true;
-    pulse.enable = true;
-  };
+  # hardware.pulseaudio.enable = false;
+  # security.rtkit.enable = true;
+  # services.pipewire = {
+  #   enable = true;
+  #   alsa.enable = true;
+  #   alsa.support32Bit = true;
+  #   pulse.enable = true;
+  # };
 
-  services.libinput.touchpad.naturalScrolling = true;
+  # services.libinput.touchpad.naturalScrolling = true;
 
-  programs.firefox.enable = true;
+  # programs.firefox.enable = true;
 
-  services.xserver.videoDrivers = [ "modedriver" ];
-  services.xserver.deviceSection = ''
-    Option "DRI" "2"
-    Option "TearFree" "true"
-  '';  
+  # services.xserver.videoDrivers = [ "modedriver" ];
+  # services.xserver.deviceSection = ''
+  #   Option "DRI" "2"
+  #   Option "TearFree" "true"
+  # '';  
 }
