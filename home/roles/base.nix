@@ -1,6 +1,8 @@
 { lib, pkgs, config, ... }:
 {
-  # options.my.isDesktop = lib.mkEnableOption "Enable GUI/desktop HM apps.";
+  imports = [
+    ../../apps
+  ];
 
   home.username = lib.mkDefault "justin";
   home.homeDirectory = lib.mkDefault (

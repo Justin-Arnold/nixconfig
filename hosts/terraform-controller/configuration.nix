@@ -29,9 +29,10 @@
 
   home-manager.users.justin = { ... }: {
     imports = [ 
-        ../../home/terraform-infra/ansible.nix
-        ../../home/apps/neovim.nix
-        ../../home/apps/zsh.nix
+      ../../home/terraform-infra/ansible.nix
+      ../../home/apps/neovim.nix
+      ../../home/apps/zsh.nix
+      ../../home/apps/alacritty.nix
     ];
   };
 }

@@ -1,41 +1,42 @@
-{ config, pkgs, self, zen-browser, ... }:
+{ config, pkgs, self, home-manager, ... }:
 
 {
   imports =
     [ 
       ./hardware-configuration.nix
       ../../modules/common
-      ../../modules/desktop
     ];
 
-    systemProfile = {
-      hostname = "slim7i";
-      stateVersion = "24.05";
-      hasGui = true;
-    };
+  ############################################################
+  ## System Profile
+  ############################################################
+  systemProfile = {
+    hostname = "slim7i";
+    stateVersion = "24.05";
+    hasGui = true;
+  };
 
-  # Bootloader
+  ############################################################
+  ## Boot Configuration
+  ############################################################
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
-
   boot.kernelPackages = pkgs.linuxPackages_latest;
 
+  ############################################################
+  ## Networking
+  ############################################################
   networking.networkmanager.enable = true;
 
+  #############################################################
+  ## GUI/Display Manager
+  #############################################################
   services.displayManager.cosmic-greeter.enable = true;
   services.desktopManager.cosmic.enable = true;
 
-  # services.xserver = {
-  #   enable = true;
-  #   xkb = {
-  #     layout = "us";
-  #     variant = "";
-  #   };
-
-  # };
-
-  # services.printing.enable = true;
-
+  ##############################################################
+  ## Audio
+  ##############################################################
   hardware.pulseaudio.enable = false;
   security.rtkit.enable = true;
   services.pipewire = {
@@ -45,13 +46,17 @@
     pulse.enable = true;
   };
 
-  # services.libinput.touchpad.naturalScrolling = true;
+  ##############################################################
+  ## Trackpad
+  ##############################################################
+  services.libinput.touchpad.naturalScrolling = true;
 
-  # programs.firefox.enable = true;
-
-  # services.xserver.videoDrivers = [ "modedriver" ];
-  # services.xserver.deviceSection = ''
-  #   Option "DRI" "2"
-  #   Option "TearFree" "true"
-  # '';  
+  ##############################################################
+  ## Home Manager Configuration
+  ##############################################################
+  home-manager.users.justin = { ... }: {
+    imports = [ 
+      ../../home/roles/base.nix
+    ];
+  };
 }
