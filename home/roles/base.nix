@@ -11,6 +11,8 @@
       else "/home/${config.home.username}"
   );
 
+  home.stateVersion = config.systemProfile.stateVersion;
+
   programs.home-manager.enable = lib.mkDefault true;
 
   programs.git = {
@@ -18,4 +20,6 @@
     userName = "Justin Arnold";
     userEmail = "hello@justin-arnold.com";
   };
+
+  
 }
