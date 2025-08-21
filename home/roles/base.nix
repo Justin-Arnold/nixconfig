@@ -1,24 +1,20 @@
-{ lib, pkgs, config, ... }:
+{ lib, pkgs, osConfig, ... }:
 {
   imports = [
     ../apps
   ];
 
-  home.username = lib.mkDefault "justin";
-  home.homeDirectory = lib.mkDefault (
-    if pkgs.stdenv.hostPlatform.isDarwin
-      then "/Users/${config.home.username}"
-      else "/home/${config.home.username}"
-  );
+  home.username = osConfig.systemProfile.username;
+  home.homeDirectory = osConfig.systemProfile.homeDirectory;
 
-  home.stateVersion = config.systemProfile.stateVersion;
+  home.stateVersion = osConfig.systemProfile.stateVersion;
 
   programs.home-manager.enable = lib.mkDefault true;
 
   programs.git = {
     enable = true;
     userName = "Justin Arnold";
-    userEmail = "hello@justin-arnold.com";
+    userEmail = osConfig.systemProfile.email;
   };
 
   

@@ -1,4 +1,4 @@
-{ lib, pkgs, config, ... }:
+{ lib, pkgs, osConfig, ... }:
 {
   imports = [
     ./alacritty.nix

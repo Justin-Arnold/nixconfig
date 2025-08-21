@@ -38,7 +38,7 @@
       description = "The home directory path for the primary user.";
       default =
         let
-          user = config.hostSpec.username;
+          user = config.systemProfile.username;
         in
           if pkgs.stdenv.hostPlatform.isDarwin
           then "/Users/${user}"

@@ -1,6 +1,6 @@
-{ config,lib, ... }:
+{ osConfig,lib, ... }:
 {
-  config = lib.mkIf config.systemProfile.hasGUI {
+  config = lib.mkIf osConfig.systemProfile.hasGui {
     programs.alacritty = {
       enable = true;
       settings = {
