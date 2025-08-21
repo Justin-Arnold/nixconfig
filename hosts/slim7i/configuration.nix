@@ -29,9 +29,7 @@
   };
 
   services.printing.enable = true;
-  environment.systemPackages =  [
-    zen-browser.packages."x86_64-linux".default
-  ];
+
   hardware.pulseaudio.enable = false;
   security.rtkit.enable = true;
   services.pipewire = {
