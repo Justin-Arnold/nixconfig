@@ -5,5 +5,5 @@
   # is being applied correctly.
   home.packages = [
     pkgs.hello
-  ]
+  ];
 }
