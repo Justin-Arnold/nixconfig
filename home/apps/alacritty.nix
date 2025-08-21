@@ -1,4 +1,4 @@
-{ config, ... }:
+{ config,lib, ... }:
 {
   config = lib.mkIf config.systemProfile.hasGUI {
     programs.alacritty = {
