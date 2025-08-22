@@ -2,7 +2,10 @@
 let ollamaPkg = pkgs.ollama.override { cudaSupport = true; };
 in {
   hardware.graphics.enable = true;
-  
+  services.xserver.videoDrivers = [ "nvidia" ];
+
+  boot.blacklistedKernelModules = [ "nouveau" "nvidiafb" ];
+
   hardware.nvidia = {
     modesetting.enable = true;
     powerManagement.enable = true;  # Critical for headless
@@ -13,7 +16,12 @@ in {
     prime.offload.enable = false;
   };
 
-  boot.kernelParams = [ "nvidia-drm.modeset=1" ];
+  boot.kernelParams = [
+    "nvidia-drm.modeset=1"
+    "nvidia.NVreg_PreserveVideoMemoryAllocations=1"
+    "nvidia.NVreg_TemporaryFilePath=/var/tmp"
+  ];
+
   boot.kernelModules = [ "nvidia" "nvidia_modeset" "nvidia_uvm" "nvidia_drm" ];
 
   environment.systemPackages = with pkgs; [
