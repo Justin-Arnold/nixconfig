@@ -2,12 +2,6 @@
 let
   proj = "infra/tf/ansible-vm";
 in {
-  home.stateVersion = "25.05";
-
-
-  programs.direnv.enable = true;
-  programs.direnv.nix-direnv.enable = true;
-
   # Create the project directory and files (symlinked from the Nix store)
   home.file."${proj}/.envrc".text = ''
     dotenv "/run/secrets/proxmox.env"

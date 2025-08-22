@@ -1,34 +1,22 @@
 { config, pkgs, lib, sops-nix, home-manager, ... }:
-
 {
   imports =
     [ 
       ./hardware-configuration.nix
       ../../modules/common
-      ../../modules/roles/terraform.nix
+      ../../modules/roles/ollama.nix
 
       sops-nix.nixosModules.sops
     ];
 
   systemProfile = {
-    hostname = "terraform-controller";
+    hostname = "ollama";
     stateVersion = "25.05";
     isServer = true;
   };
 
-  sops.age.keyFile = "/home/justin/.config/sops/age/keys.txt";
-
-  sops.secrets."proxmox.env" = {
-    sopsFile = ../../secrets/proxmox.env;
-    format   = "dotenv"; 
-    mode = "0400";
-    owner = "justin";
-    group    = "users";
-  };
-
   home-manager.users.justin = { ... }: {
     imports = [ 
-      ../../home/apps/terraform
       ../../home/roles/base.nix
     ];
   };

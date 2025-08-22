@@ -3,22 +3,21 @@
   imports =
     [ 
       ./hardware-configuration.nix
-      ../../modules/profiles/base.nix
-      ../../modules/profiles/server.nix
+      ../../modules/common
       ../../modules/roles/ansible.nix
-      ../../modules/platforms/nixos.nix
+
+      sops-nix.nixosModules.sops
     ];
 
-  networking.hostName = "ansible-controller";
-  system.stateVersion = "25.05";
+  systemProfile = {
+    hostname = "ansible-controller";
+    stateVersion = "25.05";
+    isServer = true;
+  };
 
-  ############################################################
-  ## Bootloader Configuration
-  ############################################################
-  # turn off systemd-boot/EFI
-  boot.loader.systemd-boot.enable = lib.mkForce false;
-  boot.loader.efi.canTouchEfiVariables = lib.mkForce false;
-  # enable GRUB for BIOS
-  boot.loader.grub.enable = true;
-  boot.loader.grub.devices = [ "/dev/vda" ];  # virtio disk in your VM
+  home-manager.users.justin = { ... }: {
+    imports = [ 
+      ../../home/roles/base.nix
+    ];
+  };
 }
