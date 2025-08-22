@@ -2,32 +2,38 @@
 let ollamaPkg = pkgs.ollama.override { cudaSupport = true; };
 in {
   hardware.graphics.enable = true;
-
+  
   hardware.nvidia = {
     modesetting.enable = true;
+    powerManagement.enable = true;  # Critical for headless
     package = config.boot.kernelPackages.nvidiaPackages.stable;
-    cudaSupport = true;          # pulls in CUDA userspace
-    open = false;                # proprietary driver (best for 3090 + CUDA)
-    nvidiaPersistenced = true;   # keep the GPU initialized between runs
+    open = false;
+    nvidiaPersistenced = true;
+    forceFullCompositionPipeline = true;
+    prime.offload.enable = false;
   };
 
-  services.nvidia-persistenced.enable = true;
+  boot.kernelParams = [ "nvidia-drm.modeset=1" ];
+  boot.kernelModules = [ "nvidia" "nvidia_modeset" "nvidia_uvm" "nvidia_drm" ];
 
   environment.systemPackages = with pkgs; [
-    pciutils           # lspci
-    nvtopPackages.full # nvtop
-    nvidia-smi         # comes via driver; explicit is fine
+    pciutils
+    nvtopPackages.full
     cudaPackages.cudatoolkit
+    # cudaPackages.cuda_samples  # For testing
   ];
 
-  # First-class Ollama service (uses a dedicated user in the right groups)
   services.ollama = {
     enable = true;
-    acceleration = "cuda";       # <- makes it link against CUDA
-    host = "0.0.0.0";            # listen on all interfaces
+    acceleration = "cuda";
+    host = "0.0.0.0";
     port = 11434;
-    # environmentVariables = { OLLAMA_NUM_GPU = "1"; }; # optional
+    environmentVariables = {
+      OLLAMA_NUM_GPU = "1";
+      CUDA_HOME = "${pkgs.cudaPackages.cudatoolkit}";
+    };
   };
-  
+
+  users.users.justin.extraGroups = [ "video" "render" ];
   networking.firewall.allowedTCPPorts = [ 11434 ];
 }
