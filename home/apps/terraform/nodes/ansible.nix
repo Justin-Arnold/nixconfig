@@ -28,7 +28,7 @@ in {
   home.file."${proj}/main.tf".text = ''
     variable "node"         { default = "proxmox4" }
     variable "name"         { default = "ansible-controller" }
-    variable "template_id"  { default = 9000}
+    variable "template_id"  { default = 9401}
     variable "cpu_cores"    { default = 2 }
     variable "memory_mb"    { default = 4096 }
     variable "datastore"    { default = "local-lvm" }
