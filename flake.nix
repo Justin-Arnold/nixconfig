@@ -44,6 +44,7 @@
         terraform-controller = mkNixos ./hosts/terraform-controller/configuration.nix;
         ansible-controller = mkNixos ./hosts/ansible-controller/configuration.nix;
         slim7i = mkNixos ./hosts/slim7i/configuration.nix;
+        ollama = mkNixos ./hosts/ollama/configuration.nix;
       };
       darwinConfigurations = {
         macbook16 = nix-darwin.lib.darwinSystem {
