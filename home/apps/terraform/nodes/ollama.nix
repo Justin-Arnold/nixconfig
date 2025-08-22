@@ -40,7 +40,7 @@ in {
 
     # GPU passthrough: prefer a Proxmox Resource Mapping name (e.g., "GPU0"),
     # otherwise set an explicit PCI ID like "0000:65:00.0".
-    variable "gpu_mapping"  { default = "" }
+    variable "gpu_mapping"  { default = "gtx3090" }
     variable "gpu_pci_id"   { default = "0000:01:00.0" }
   '';
 
@@ -51,7 +51,7 @@ in {
       on_boot   = true
 
       # Good defaults for GPU passthrough
-      bios    = "ovmf"
+      bios    = "seabios"
       machine = "q35"
 
       boot_order = ["virtio0", "ide2", "net0"]
