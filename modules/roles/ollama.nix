@@ -1,22 +1,33 @@
 { config, pkgs, ... }:
 let ollamaPkg = pkgs.ollama.override { cudaSupport = true; };
 in {
-  hardware.opengl.enable = true;
+  hardware.graphics.enable = true;
+
   hardware.nvidia = {
     modesetting.enable = true;
     package = config.boot.kernelPackages.nvidiaPackages.stable;
+    cudaSupport = true;          # pulls in CUDA userspace
+    open = false;                # proprietary driver (best for 3090 + CUDA)
+    nvidiaPersistenced = true;   # keep the GPU initialized between runs
   };
+
   services.nvidia-persistenced.enable = true;
 
-  systemd.services.ollama = {
-    description = "Ollama";
-    wantedBy = [ "multi-user.target" ];
-    after = [ "network.target" ];
-    serviceConfig = {
-      ExecStart = "${ollamaPkg}/bin/ollama serve";
-      Environment = [ "OLLAMA_HOST=0.0.0.0:11434" ];
-      Restart = "always"; RestartSec = 2;
-    };
+  environment.systemPackages = with pkgs; [
+    pciutils           # lspci
+    nvtopPackages.full # nvtop
+    nvidia-smi         # comes via driver; explicit is fine
+    cudaPackages.cudatoolkit
+  ];
+
+  # First-class Ollama service (uses a dedicated user in the right groups)
+  services.ollama = {
+    enable = true;
+    acceleration = "cuda";       # <- makes it link against CUDA
+    host = "0.0.0.0";            # listen on all interfaces
+    port = 11434;
+    # environmentVariables = { OLLAMA_NUM_GPU = "1"; }; # optional
   };
+  
   networking.firewall.allowedTCPPorts = [ 11434 ];
 }
