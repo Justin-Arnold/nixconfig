@@ -26,7 +26,7 @@ in {
 
   home.file."${proj}/variables.tf".text = ''
     variable "node"         { default = "proxmox2" }
-    variable "name"         { default = "ollama-gpu" }
+    variable "name"         { default = "ollama" }
     variable "template_id"  { default = 9201 }
     variable "cpu_cores"    { default = 16 }
     variable "memory_mb"    { default = 122880 } # 124 GiB
