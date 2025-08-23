@@ -4,8 +4,7 @@
     [ 
       ./hardware-configuration.nix
       ../../modules/common
-      ../../modules/profiles/base.nix
-      ../../modules/profiles/server.nix
+      ../../modules/profiles
       ../../modules/platforms/nixos.nix
       ../../modules/roles/ansible.nix
 
