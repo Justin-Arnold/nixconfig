@@ -23,7 +23,6 @@
 sops.secrets."ssh/ansible_controller/private" = {
   sopsFile = ../../secrets/ssh.yaml;
   format   = "yaml";
-  key      = "ssh.ansible_controller.private";
   path     = "/home/justin/.ssh/ansible_controller"; #todo use systemProfile.username
   mode     = "0400";
   owner    = "justin"; #todo use systemProfile.username
@@ -35,7 +34,6 @@ sops.secrets."ssh/ansible_controller/private" = {
 sops.secrets."ssh/ansible_controller/public" = {
   sopsFile = ../../secrets/ssh.yaml;
   format   = "yaml";
-  key      = ''["ssh"]["ansible_controller"]["public"]'';
   path     = "/home/justin/.ssh/ansible_controller.pub"; #todo use systemProfile.username
   mode     = "0644";
   owner    = "justin"; #todo use systemProfile.username
