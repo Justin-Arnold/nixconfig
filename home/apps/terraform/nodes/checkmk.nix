@@ -47,7 +47,7 @@ in {
 
     # Match your BIOS style to the template (use seabios if your template is BIOS)
     bios       = "seabios"
-    boot_order = ["scsi0"]
+    boot_order = ["virtio0"]
 
     clone {
       vm_id = var.template_id 
