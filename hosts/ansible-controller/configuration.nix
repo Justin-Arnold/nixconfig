@@ -19,15 +19,29 @@
 
   sops.age.keyFile = "/home/justin/.config/sops/age/keys.txt";
 
-  sops.secrets."ssh/ansible_controller/private" = {
-    sopsFile = ../../secrets/ssh.yaml;
-    format   = "yaml";
-    key      = "ssh.ansible_controller.private";
-    path     = "/home/justin/.ssh/ansible_controller";
-    mode     = "0400";
-    owner    = "justin";
-    group    = "users";
-  };
+  # private key -> ~/.ssh/ansible_controller (0400)
+sops.secrets."ssh/ansible_controller/private" = {
+  sopsFile = ../../secrets/ssh.yaml;
+  format   = "yaml";
+  key      = ''["ssh"]["ansible_controller"]["private"]'';
+  path     = "/home/justin/.ssh/ansible_controller";
+  mode     = "0400";
+  owner    = "justin";
+  group    = "users";
+  neededForUsers = true;
+};
+
+# public key -> ~/.ssh/ansible_controller.pub (0644)
+sops.secrets."ssh/ansible_controller/public" = {
+  sopsFile = ../../secrets/ssh.yaml;
+  format   = "yaml";
+  key      = ''["ssh"]["ansible_controller"]["public"]'';
+  path     = "/home/justin/.ssh/ansible_controller.pub";
+  mode     = "0644";
+  owner    = "justin";
+  group    = "users";
+  neededForUsers = true;
+};
 
   home-manager.users.justin = { ... }: {
     imports = [ 
