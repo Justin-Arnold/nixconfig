@@ -2,8 +2,7 @@
 {
   imports = [
     ./hardware-configuration.nix
-    ../../modules/profiles/base.nix
-    ../../modules/profiles/server.nix
+    ../../modules/profiles
     ../../modules/platforms/nixos.nix
     ../../modules/roles/docker.nix
     ../../modules/roles/checkmk.nix

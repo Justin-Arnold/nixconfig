@@ -4,6 +4,9 @@
     [ 
       ./hardware-configuration.nix
       ../../modules/common
+      ../../modules/profiles/base.nix
+      ../../modules/profiles/server.nix
+      ../../modules/platforms/nixos.nix
       ../../modules/roles/ansible.nix
 
       sops-nix.nixosModules.sops
