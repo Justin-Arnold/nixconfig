@@ -1,4 +1,4 @@
-{ pkgs, config, lib, ... }:
+{ pkgs, config, lib, sops-nix, ... }:
 {
   config = lib.mkIf config.systemProfile.isServer {
     ############################################################
@@ -30,6 +30,8 @@
         "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIA80MbGDPmyq9NruBH2oS0vVzFDXSH0oT+YqxrIW89Da hello@justin-arnold.com"
         # Terraform Controller
         "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKTJF6UBOrXQSdBKJqcVdkaLYikLfj6Su+YQ0eXII9vq tf-controller"
+        # Ansible Controller
+        "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHV8PNnNJ9KwJfGC1+Z5AFPPMgW+Vjr0/eHOLg2WIofh ansible-controller"
       ];
     };
     security.sudo.wheelNeedsPassword = false;
