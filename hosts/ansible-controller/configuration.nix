@@ -27,7 +27,6 @@
     mode     = "0600";
     owner    = "justin"; #todo use systemProfile.username
     group    = "users";
-    neededForUsers = true;
   };
 
   # public key -> ~/.ssh/ansible_controller.pub (0644)
@@ -38,7 +37,6 @@
     mode     = "0644";
     owner    = "justin"; #todo use systemProfile.username
     group    = "users";
-    neededForUsers = true;
   };
 
   # Ansible default to this key

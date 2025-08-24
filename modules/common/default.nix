@@ -50,6 +50,11 @@
   ];
 
   programs.ssh.startAgent = true;
+  programs.ssh.extraConfig = ''
+    Host *
+        AddKeysToAgent yes
+        IdentitiesOnly yes
+  '';
 }
 
 
