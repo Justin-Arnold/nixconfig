@@ -25,18 +25,18 @@ in {
   '';
 
   home.file."${proj}/variables.tf".text = ''
-    variable "node"     { type = string  default = "proxmox4" }
-    variable "name"         { type = string  default = "checkmk" }
-    variable "template_id"  { type = number  default = 9401 }      # your NixOS template
-    variable "cpu_cores"    { type = number  default = 4 }
-    variable "memory_mb"    { type = number  default = 8192 }
-    variable "datastore"    { type = string  default = "local-lvm" }
-    variable "disk_size_gb" { type = number  default = 120 }
-    variable "ip_cidr"      { type = string  default = "10.0.0.68/24" }
-    variable "gateway"      { type = string  default = "10.0.0.1" }
-    variable "dns_servers"  { type = list(string) default = ["10.0.0.1"] }
-    variable "ci_user"      { type = string  default = "justin" }
-    variable "ssh_pubkey"   { type = string  default = "~/.ssh/id_ed25519.pub" }
+    variable "node"         { default = "proxmox4" }
+    variable "name"         { default = "checkmk" }
+    variable "template_id"  { default = 9401 }      # your NixOS template
+    variable "cpu_cores"    { default = 4 }
+    variable "memory_mb"    { default = 8192 }
+    variable "datastore"    { default = "local-lvm" }
+    variable "disk_size_gb" { default = 120 }
+    variable "ip_cidr"      { default = "10.0.0.68/24" }
+    variable "gateway"      { default = "10.0.0.1" }
+    variable "dns_servers"  { default = ["10.0.0.1"] }
+    variable "ci_user"      { default = "justin" }
+    variable "ssh_pubkey"   { default = "~/.ssh/id_ed25519.pub" }
   '';
 
   home.file."${proj}/main.tf".text = ''
@@ -64,7 +64,7 @@ in {
     }
 
     network_device {
-      bridge = "vmbr0";
+      bridge = "vmbr0"
       model = "virtio"
     }
 
@@ -72,7 +72,12 @@ in {
 
     initialization {
       dns { servers = var.dns_servers }
-      ip_config { ipv4 { address = var.ip_cidr  gateway = var.gateway } }
+      ip_config {
+        ipv4 {
+          address = var.ip_cidr
+          gateway = var.gateway
+        }
+      }
       user_account {
         username = var.ci_user
         keys     = [file(pathexpand(var.ssh_pubkey))]
