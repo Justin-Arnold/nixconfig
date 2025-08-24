@@ -52,6 +52,7 @@
   home-manager.users.justin = { ... }: {
     imports = [ 
       ../../home/roles/base.nix
+      ../../home/apps/ansible
     ];
   };
 }
