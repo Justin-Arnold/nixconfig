@@ -21,6 +21,7 @@ in {
     };
 
     # use Docker as the backend for oci-containers
+    setOciBackend = lib.mkOption {
       type = lib.types.bool;
       default = true;
       description = "Set virtualisation.oci-containers.backend = \"docker\".";

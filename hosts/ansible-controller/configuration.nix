@@ -41,6 +41,14 @@
     neededForUsers = true;
   };
 
+  # Ansible default to this key
+  environment.etc."ansible/ansible.cfg".text = ''
+    [defaults]
+    private_key_file = /home/justin/.ssh/ansible_controller
+    host_key_checking = False
+    interpreter_python = auto_silent
+  '';
+
   home-manager.users.justin = { ... }: {
     imports = [ 
       ../../home/roles/base.nix
