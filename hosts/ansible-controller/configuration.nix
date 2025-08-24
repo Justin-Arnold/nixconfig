@@ -24,7 +24,7 @@
     sopsFile = ../../secrets/ssh.yaml;
     format   = "yaml";
     path     = "/home/justin/.ssh/ansible_controller"; #todo use systemProfile.username
-    mode     = "0400";
+    mode     = "0600";
     owner    = "justin"; #todo use systemProfile.username
     group    = "users";
     neededForUsers = true;
