@@ -4,6 +4,7 @@
     [
       ./nodes/ansible.nix
       ./nodes/ollama.nix
+      ./nodes/checkmk.nix
     ];
 
   home.stateVersion = "25.05";
