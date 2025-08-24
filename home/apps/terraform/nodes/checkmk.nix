@@ -36,10 +36,32 @@ in {
     variable "gateway"      { default = "10.0.0.1" }
     variable "dns_servers"  { default = ["10.0.0.1"] }
     variable "ci_user"      { default = "justin" }
-    variable "ssh_pubkey"   { default = "~/.ssh/id_ed25519.pub" }
   '';
 
   home.file."${proj}/main.tf".text = ''
+    variable "ssh_pubkey_files" {
+      description = "Paths on the TF controller to .pub files (e.g. Mac, Ansible, controller)"
+      type        = list(string)
+      default     = [
+        "~/.ssh/id_ed25519.pub",           # controller
+        "~/.ssh/macbook.pub",      # your Mac
+        "~/.ssh/ansible_controller.pub"       # a dedicated Ansible key (optional)
+      ]
+    }
+
+    variable "ssh_pubkeys" {
+      description = "Inline public key strings (use if you don't want to manage files)"
+      type        = list(string)
+      default     = []
+    }
+
+    locals {
+      key_strings = concat(
+        [ for f in var.ssh_pubkey_files : file(pathexpand(f)) ],
+        var.ssh_pubkeys
+      )
+    }
+
     resource "proxmox_virtual_environment_vm" "checkmk" {
     name      = var.name
     node_name = var.node
@@ -80,7 +102,7 @@ in {
       }
       user_account {
         username = var.ci_user
-        keys     = [file(pathexpand(var.ssh_pubkey))]
+        keys     = local.key_strings
       }
     }
   }
