@@ -42,9 +42,9 @@ in {
       description = "Paths on the TF controller to .pub files (e.g. Mac, Ansible, controller)"
       type        = list(string)
       default     = [
-        "~/.ssh/id_ed25519.pub",           # controller
-        "~/.ssh/macbook.pub",      # your Mac
-        "~/.ssh/ansible_controller.pub"       # a dedicated Ansible key (optional)
+        "~/.ssh/id_ed25519.pub",         # controller
+        "~/.ssh/macbook.pub",            # your Mac
+        "~/.ssh/ansible_controller.pub"  # a dedicated Ansible key (optional)
       ]
     }
 

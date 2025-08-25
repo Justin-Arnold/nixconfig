@@ -44,8 +44,8 @@ in {
       type        = list(string)
       default     = [
         "~/.ssh/id_ed25519.pub",           # controller
-        "~/.ssh/macbook.pub",      # your Mac
-        "~/.ssh/ansible_controller.pub"       # a dedicated Ansible key (optional)
+        "~/.ssh/macbook.pub",              # your Mac
+        "~/.ssh/ansible_controller.pub"    # a dedicated Ansible key (optional)
       ]
     }
 

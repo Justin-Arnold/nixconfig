@@ -23,7 +23,7 @@
   sops.secrets."ssh/ansible_controller/private" = {
     sopsFile = ../../secrets/ssh.yaml;
     format   = "yaml";
-    path     = "/home/justin/.ssh/ansible_controller"; #todo use systemProfile.username
+    path     = "/home/justin/.ssh/id_ed25519"; #todo use systemProfile.username
     mode     = "0600";
     owner    = "justin"; #todo use systemProfile.username
     group    = "users";
@@ -33,7 +33,7 @@
   sops.secrets."ssh/ansible_controller/public" = {
     sopsFile = ../../secrets/ssh.yaml;
     format   = "yaml";
-    path     = "/home/justin/.ssh/ansible_controller.pub"; #todo use systemProfile.username
+    path     = "/home/justin/.ssh/id_ed25519.pub"; #todo use systemProfile.username
     mode     = "0644";
     owner    = "justin"; #todo use systemProfile.username
     group    = "users";
@@ -42,7 +42,7 @@
   # Ansible default to this key
   environment.etc."ansible/ansible.cfg".text = ''
     [defaults]
-    private_key_file = /home/justin/.ssh/ansible_controller
+    private_key_file = /home/justin/.ssh/id_ed25519
     host_key_checking = False
     interpreter_python = auto_silent
   '';
