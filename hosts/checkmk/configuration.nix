@@ -1,4 +1,4 @@
-{ config, pkgs, lib, ... }:
+{ config, pkgs, lib, home-manager, ... }:
 let
   site = "monitoring";      # your Checkmk site name
   httpPort = 8080;          # host port -> container :5000
@@ -68,4 +68,10 @@ in {
   };
 
   networking.firewall.allowedTCPPorts = [ httpPort ];
+
+  home-manager.users.justin = { ... }: {
+    imports = [ 
+      ../../home/roles/base.nix
+    ];
+  };
 }

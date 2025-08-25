@@ -37,9 +37,8 @@ in {
 
         - name: Ensure age dir exists with strict perms
           raw: |
-            sudo mkdir -p "$(dirname "{{ sops_age_key_dest }}")"
-            sudo chown justin:users "$(dirname "{{ sops_age_key_dest }}")"
-            sudo chmod 700 "$(dirname "{{ sops_age_key_dest }}")"
+              sudo -u justin mkdir -p "{{ sops_age_key_dest | dirname }}"
+              sudo chmod 700 "{{ sops_age_key_dest | dirname }}"
 
         - name: Copy age private key from controller
           raw: |
