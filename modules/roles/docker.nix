@@ -5,28 +5,28 @@ let
 in {
   options.roles.docker = {
     enable = lib.mkEnableOption "Docker engine and tooling";
-
+    
     # users to add to the 'docker' group (no passwords/sudo needed for docker)
     users = lib.mkOption {
       type = with lib.types; listOf str;
       default = [ config.systemProfile.username ];
       description = "Users to add to the docker group.";
     };
-
+    
     # install docker-compose CLI too
     enableCompose = lib.mkOption {
       type = lib.types.bool;
       default = true;
       description = "Install docker-compose on the PATH.";
     };
-
+    
     # use Docker as the backend for oci-containers
     setOciBackend = lib.mkOption {
       type = lib.types.bool;
       default = true;
       description = "Set virtualisation.oci-containers.backend = \"docker\".";
     };
-
+    
     # optional extra daemon.json settings (in native Nix form)
     daemonSettings = lib.mkOption {
       type = lib.types.attrs;
@@ -34,7 +34,7 @@ in {
       example = { "log-driver" = "json-file"; "log-opts" = { "max-size" = "50m"; }; };
       description = "Extra Docker daemon settings.";
     };
-
+    
     # opt into rootless docker (usually keep false on servers)
     rootless = lib.mkOption {
       type = lib.types.bool;
@@ -64,11 +64,11 @@ in {
       [ pkgs.docker ]
       ++ lib.optional cfg.enableCompose pkgs.docker-compose;
 
-    users.users.justin.extraGroups = [ "docker" ];
-
-    # Add each listed user to the docker group (merges cleanly with other user defs)
-    config = lib.mkMerge (map (u: {
-      users.users.${u}.extraGroups = (config.users.users.${u}.extraGroups or []) ++ [ "docker" ];
-    }) cfg.users);
+    # Add all users (including default and specified ones) to docker group
+    users.users = lib.mkMerge (
+      map (u: {
+        ${u}.extraGroups = [ "docker" ];
+      }) cfg.users
+    );
   };
 }
