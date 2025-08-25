@@ -9,7 +9,6 @@ in {
     ../../modules/profiles
     ../../modules/platforms/nixos.nix
     ../../modules/roles/docker.nix
-    ../../modules/roles/checkmk.nix
   ];
 
   systemProfile = {
