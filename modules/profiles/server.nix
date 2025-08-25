@@ -54,6 +54,7 @@
       ripgrep # for searching text
       fd      # for finding files
       lsof    # for listing open files
+      python3  # for running Python scripts
     ];
 
     ############################################################
