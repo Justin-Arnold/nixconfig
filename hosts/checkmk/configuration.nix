@@ -63,7 +63,6 @@ in {
     extraOptions = [
       # site tmpfs improves performance; matches container docs
       "--tmpfs" "/opt/omd/sites/cmk/tmp:uid=1000,gid=1000"
-      "--restart=unless-stopped"
     ];
   };
 
