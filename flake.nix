@@ -44,6 +44,7 @@
         terraform-controller = mkNixos ./hosts/terraform-controller/configuration.nix;
         ansible-controller = mkNixos ./hosts/ansible-controller/configuration.nix;
         slim7i = mkNixos ./hosts/slim7i/configuration.nix;
+        desktop = mkNixos ./hosts/desktop/configuration.nix;
         ollama = mkNixos ./hosts/ollama/configuration.nix;
         checkmk = mkNixos ./hosts/checkmk/configuration.nix;
       };
