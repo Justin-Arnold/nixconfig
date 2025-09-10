@@ -47,6 +47,7 @@
         desktop = mkNixos ./hosts/desktop/configuration.nix;
         ollama = mkNixos ./hosts/ollama/configuration.nix;
         checkmk = mkNixos ./hosts/checkmk/configuration.nix;
+        gitea = mkNixos ./hosts/gitea/configuration.nix;
       };
       darwinConfigurations = {
         macbook16 = nix-darwin.lib.darwinSystem {
