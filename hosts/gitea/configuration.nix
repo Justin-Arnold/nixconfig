@@ -17,15 +17,6 @@ in {
     isServer = true;
   };
 
-  roles.docker = {
-    enable = true;
-  };
-
-  systemd.tmpfiles.rules = [
-    "d /var/lib/gitea 0750 1000 1000 -"
-    "d /var/log/gitea 0750 root root -"
-  ];
-
   virtualisation.oci-containers.containers.monitoring = {
     image = "docker.gitea.com/gitea:latest";
     autoStart = true;
