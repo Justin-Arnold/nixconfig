@@ -113,6 +113,8 @@ in {
       - ufw allow ssh
       - ufw allow 80/tcp
       - ufw allow 443/tcp
+      - ufw allow 51820/udp
+      - ufw allow 21820/udp
       - ufw --force enable
       - systemctl enable fail2ban
       - systemctl start fail2ban
