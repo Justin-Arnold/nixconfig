@@ -34,6 +34,15 @@
     group = "users";
   };
 
+  sops.secrets."nocodb.env" = {
+    sopsFile = ../../secrets/nocodb.env;
+    format = "dotenv";
+    mode = "0400";
+    owner = "justin";
+    group = "users";
+  };
+
+
   sops.secrets."ssh/ansible_controller/public" = {
     sopsFile = ../../secrets/ssh.yaml;
     format = "yaml";

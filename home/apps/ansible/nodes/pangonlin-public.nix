@@ -13,19 +13,27 @@ in {
     pipelining = True
     ssh_args = -o ControlMaster=auto -o ControlPersist=60s
   '';
-  #todo centralize the ip and user - also do with terraform steps
+
   home.file."${proj}/inventory.ini".text = ''
     [pangolin]
     pangolin-public ansible_host=5.161.26.162 ansible_user=justin
   '';
+
   home.file."${proj}/site.yml".text = ''
-    # site.yml
+    ---
     - name: Setup Pangolin Public Server
       hosts: pangolin
       become: yes
       vars:
         pangolin_install_dir: /opt/pangolin
         pangolin_user: pangolin
+        # Configuration variables - customize these for your setup
+        pangolin_base_domain: "yourdomain.com"
+        pangolin_dashboard_domain: "pangolin.yourdomain.com"
+        pangolin_letsencrypt_email: "your-email@yourdomain.com"
+        pangolin_install_gerbil: "yes"
+        pangolin_enable_smtp: "no"
+        pangolin_install_crowdsec: "no"
         
       tasks:
         - name: Update system packages
@@ -42,7 +50,16 @@ in {
               - fail2ban
               - htop
               - git
+              - expect
+              - docker.io
+              - docker-compose
             state: present
+
+        - name: Start and enable Docker
+          systemd:
+            name: docker
+            enabled: yes
+            state: started
 
         - name: Configure firewall rules
           ufw:
@@ -69,6 +86,7 @@ in {
             shell: /bin/false
             home: "{{ pangolin_install_dir }}"
             create_home: no
+            groups: docker
 
         - name: Create pangolin directory
           file:
@@ -94,25 +112,30 @@ in {
             creates: "{{ pangolin_install_dir }}/installer"
           become_user: "{{ pangolin_user }}"
 
-        - name: Run pangolin installer
-          shell: |
-            cd {{ pangolin_install_dir }}
-            sudo ./installer
+        - name: Run pangolin installer interactively
+          expect:
+            command: sudo ./installer
+            chdir: "{{ pangolin_install_dir }}"
+            responses:
+              'Base Domain.*': "{{ pangolin_base_domain }}"
+              'Dashboard Domain.*': "{{ pangolin_dashboard_domain }}"
+              'Let.*s Encrypt Email.*': "{{ pangolin_letsencrypt_email }}"
+              'install Gerbil.*': "{{ pangolin_install_gerbil }}"
+              'enable SMTP email.*': "{{ pangolin_enable_smtp }}"
+              'install and start.*': "yes"
+              'install CrowdSec.*': "{{ pangolin_install_crowdsec }}"
+            timeout: 300
           args:
-            creates: "{{ pangolin_install_dir }}/pangolin"
+            creates: "{{ pangolin_install_dir }}/docker-compose.yml"
 
-        - name: Create pangolin systemd service
-          template:
-            src: pangolin.service.j2
-            dest: /etc/systemd/system/pangolin.service
-          notify: restart pangolin
+        - name: Verify pangolin installation
+          stat:
+            path: "{{ pangolin_install_dir }}/docker-compose.yml"
+          register: pangolin_compose
 
-        - name: Enable and start pangolin service
-          systemd:
-            name: pangolin
-            enabled: yes
-            state: started
-            daemon_reload: yes
+        - name: Display installation status
+          debug:
+            msg: "Pangolin installation {{ 'completed successfully' if pangolin_compose.stat.exists else 'failed' }}"
 
         - name: Configure fail2ban
           systemd:
@@ -120,35 +143,17 @@ in {
             enabled: yes
             state: started
 
-      handlers:
-        - name: restart pangolin
-          systemd:
-            name: pangolin
-            state: restarted
-            daemon_reload: yes
+        - name: Check if pangolin containers are running
+          shell: cd {{ pangolin_install_dir }} && docker-compose ps
+          register: container_status
+          when: pangolin_compose.stat.exists
+
+        - name: Display container status
+          debug:
+            msg: "{{ container_status.stdout_lines }}"
+          when: pangolin_compose.stat.exists
   '';
 
-  home.file."${proj}/templates/pangolin.service.j2".text = ''
-    [Unit]
-    Description=Pangolin Tunnel Service
-    After=network.target
-    Wants=network.target
-
-    [Service]
-    Type=simple
-    User={{ pangolin_user }}
-    Group={{ pangolin_user }}
-    WorkingDirectory={{ pangolin_install_dir }}
-    ExecStart={{ pangolin_install_dir }}/pangolin
-    Restart=always
-    RestartSec=5
-    StandardOutput=journal
-    StandardError=journal
-
-    [Install]
-    WantedBy=multi-user.target
-  '';
-  
   programs.zsh.shellAliases = {
     ans-pangolin = "cd ~/${proj} && ansible-playbook site.yml";
   };
