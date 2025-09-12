@@ -7,6 +7,7 @@
     zen-browser.url      = "github:MarceColl/zen-browser-flake";
     nix-homebrew.url     = "github:zhaofengli-wip/nix-homebrew";
     sops-nix.url         = "github:Mic92/sops-nix";
+    nocodb.url           = "github:nocodb/nocodb";
     home-manager = {
       url = "github:nix-community/home-manager";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -21,7 +22,18 @@
     };
   };
 
-  outputs = { self, nixpkgs, nix-darwin, home-manager, zen-browser, nix-homebrew, secrets, sops-nix, ... }:
+  outputs = { 
+    self,
+    nixpkgs,
+    nix-darwin,
+    home-manager,
+    zen-browser,
+    nix-homebrew,
+    secrets,
+    sops-nix,
+    nocodb,
+    ...
+  } :
   let
     lib = nixpkgs.lib;
 
@@ -29,7 +41,10 @@
       lib.nixosSystem {
         system = "x86_64-linux";
         specialArgs = { inherit home-manager sops-nix; };
-        modules = [ hostFile ];
+        modules = [
+          hostFile,
+          nocodb 
+        ];
       };
 
     mkDarwin = hostFile:
@@ -48,6 +63,7 @@
         ollama = mkNixos ./hosts/ollama/configuration.nix;
         checkmk = mkNixos ./hosts/checkmk/configuration.nix;
         gitea = mkNixos ./hosts/gitea/configuration.nix;
+        nocodb = mkNixos ./hosts/nocodb/configuration.nix;
       };
       darwinConfigurations = {
         macbook16 = nix-darwin.lib.darwinSystem {
