@@ -34,8 +34,8 @@
     group = "users";
   };
 
-  sops.secrets."nocodb.env" = {
-    sopsFile = ../../secrets/nocodb.env;
+  sops.secrets."onepassword.env" = {
+    sopsFile = ../../secrets/onepassword.env;
     format = "dotenv";
     mode = "0400";
     owner = "justin";

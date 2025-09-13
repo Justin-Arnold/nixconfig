@@ -42,8 +42,8 @@
         system = "x86_64-linux";
         specialArgs = { inherit home-manager sops-nix; };
         modules = [
-          hostFile,
-          nocodb 
+          hostFile
+          nocodb.nixosModules.nocodb
         ];
       };
 

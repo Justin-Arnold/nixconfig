@@ -6,6 +6,7 @@
       ./nodes/ollama.nix
       ./nodes/checkmk.nix
       ./nodes/pangolin-public.nix
+      ./nodes/nocodb.nix
     ];
 
   home.stateVersion = "25.05";

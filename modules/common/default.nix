@@ -29,6 +29,7 @@
   ############################################################
   environment.systemPackages = with pkgs; [
     git
+    _1password-cli
   ];
 
   programs.zsh.enable = true;
