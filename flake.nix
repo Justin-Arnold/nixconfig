@@ -64,6 +64,7 @@
         checkmk = mkNixos ./hosts/checkmk/configuration.nix;
         gitea = mkNixos ./hosts/gitea/configuration.nix;
         nocodb = mkNixos ./hosts/nocodb/configuration.nix;
+        onepassword-connect = mkNixos ./hosts/onepassword-connect/configuration.nix;
       };
       darwinConfigurations = {
         macbook16 = nix-darwin.lib.darwinSystem {
