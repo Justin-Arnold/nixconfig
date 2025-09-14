@@ -7,6 +7,7 @@
       ./nodes/checkmk.nix
       ./nodes/pangolin-public.nix
       ./nodes/nocodb.nix
+      ./nodes/1password-connect.nix
     ];
 
   home.stateVersion = "25.05";
