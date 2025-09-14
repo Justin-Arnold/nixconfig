@@ -3,8 +3,12 @@
   imports =
     [
       ./nodes/checkmk.nix
+      ./nodes/nocodb.nix
     ];
-  home.packages = [ pkgs.ansible ];
+  home.packages = [
+    pkgs.ansible
+    pkgs.python3Packages.requests
+  ];
   
   home.stateVersion = "25.05";
 

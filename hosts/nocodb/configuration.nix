@@ -11,36 +11,53 @@
     isServer = true;
   };
 
-  services.postgresql = {
-    enable = true;
-
-    ensureDatabases = [ "nocodb" ];
-    ensureUsers = [{
-      name = config.systemProfile.username;
-      ensureDBOwnership = true;
-    }];
-
-    package = with pkgs; postgresql_15;
-    authentication = lib.mkForce ''
-        #type database DBuser  origin-address auth-method
-        # unix socket
-        local all      all                    trust
-        # ipv4
-        host  all      all     127.0.0.1/32   trust
-        # ipv6
-        host  all      all     ::1/128        trust
-    '';
-
-    settings.log_timezone = config.systemProfile.timeZone;
-  };
-
-  services.nocodb = {
-    enable = true;
-    environments = {
-      DB_URL="postgres:///nocodb?host=/run/postgresql";
-      NC_PUBLIC_URL="http://nocodb.internal";
+  virtualisation.oci-containers.containers.root_db = {
+    image = "postgres:16.6";
+    autoStart = true;
+    environment = {
+      POSTGRES_DB = "root_db";
+      POSTGRES_PASSWORD = "password";
+      POSTGRES_USER = "postgres";
     };
+    volumes = [
+      "db_data:/var/lib/postgresql/data"
+    ];
+    # Note: Health checks and restart policies are handled automatically by systemd
   };
+
+  virtualisation.oci-containers.containers.nocodb = {
+    image = "nocodb/nocodb:latest";
+    autoStart = true;
+    ports = [
+      "8080:8080"
+    ];
+    environment = {
+      NC_DB = "pg://root_db:5432?u=postgres&p=password&d=root_db";
+    };
+    volumes = [
+      "nc_data:/usr/app/data"
+    ];
+    # Dependencies are handled by systemd ordering - see below
+  };
+
+  # Set up proper service dependencies
+  systemd.services.podman-nocodb = {
+    after = [ "podman-root_db.service" ];
+    requires = [ "podman-root_db.service" ];
+  };
+
+  systemd.services.podman-root_db.preStart = ''
+    ${pkgs.podman}/bin/podman network exists nocodb-network || \
+    ${pkgs.podman}/bin/podman network create nocodb-network
+  '';
+
+  virtualisation.oci-containers.containers.root_db.extraOptions = [
+    "--network=nocodb-network"
+  ];
+
+  virtualisation.oci-containers.containers.nocodb.extraOptions = [
+    "--network=nocodb-network"
+  ];
 
   networking.firewall.allowedTCPPorts = [ 8080 ];
 
