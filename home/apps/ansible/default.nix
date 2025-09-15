@@ -4,6 +4,7 @@
     [
       ./nodes/checkmk.nix
       ./nodes/nocodb.nix
+      ./nodes/omada-controller.nix
     ];
   home.packages = [
     pkgs.ansible

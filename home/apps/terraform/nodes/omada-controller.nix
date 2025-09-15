@@ -34,7 +34,7 @@ in {
 
   home.file."${proj}/variables.tf".text = ''
     variable "node"         { default = "proxmox4" }
-    variable "name"         { default = "nocodb" }
+    variable "name"         { default = "omada-controller" }
     variable "template_id"  { default = 9401 }
     variable "cpu_cores"    { default = 2 }
     variable "memory_mb"    { default = 4096 }
@@ -79,7 +79,7 @@ in {
       program = ["bash", "-c", "PUBLIC_KEY=$(op read \"op://${defaults.vault_id}/ssh-host-${defaults.name}/public key\") && echo \"{\\\"public_key\\\": \\\"$${PUBLIC_KEY}\\\"}\""]
     }
 
-    resource "proxmox_virtual_environment_vm" "nocodb" {
+    resource "proxmox_virtual_environment_vm" "omada-controller" {
       name      = var.name
       node_name = var.node
       on_boot   = true
