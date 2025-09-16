@@ -124,7 +124,7 @@ in {
 
   # Add DNS record to AdGuard after VM is created
     resource "null_resource" "add_dns_record" {
-      depends_on = [proxmox_virtual_environment_vm.omada-controller]
+      depends_on = [proxmox_virtual_environment_vm.checkmk]
       
       provisioner "local-exec" {
         command = <<-EOF
