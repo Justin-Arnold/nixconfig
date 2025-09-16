@@ -5,7 +5,7 @@ let
 in {
   imports =
     [ 
-      #./nvim.nix
+      ./nvim.nix
       ./modules/alacritty.nix
       ./modules/vscode.nix
       ./modules/obsidian.nix
