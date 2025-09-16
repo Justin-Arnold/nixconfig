@@ -24,11 +24,14 @@ local opts = {
 
 require("lazy").setup("plugins", opts)
 
-require("mason").setup()
 
 local builtin = require('telescope.builtin')
 vim.keymap.set('n', '<leader>ff', builtin.find_files, {})
 vim.keymap.set('n', '<leader>ft', ':Neotree filesystem toggle left<CR>')
+
+vim.keymap.set("n", "<leader>th", function()
+  vim.lsp.inlay_hint.enable(not vim.lsp.inlay_hint.is_enabled())
+end, { desc = "Toggle inlay hints" })
 
 vim.o.termguicolors = true
 vim.cmd.colorscheme("nord")
