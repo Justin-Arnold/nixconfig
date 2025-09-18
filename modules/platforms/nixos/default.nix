@@ -1,22 +1,37 @@
-{ home-manager, pkgs, lib, sops-nix, ... }:
+{ home-manager, pkgs, lib, sops-nix, config, ... }:
 {
-  config = lib.mkIf config.systemProfile.isNixos {
-    imports = [ 
-      home-manager.nixosModules.home-manager
-    ];
+  imports = [ 
+    home-manager.nixosModules.home-manager
+  ];
 
-    system.stateVersion = config.systemProfile.stateVersion;
-    
-    home-manager.useGlobalPkgs = true;
-    home-manager.useUserPackages = true;
-    home-manager.backupFileExtension = "backup";
-    home-manager.sharedModules = [
-      sops-nix.homeManagerModules.sops
+  system.stateVersion = config.systemProfile.stateVersion;
+
+  ############################################################
+  ## User Configuration
+  ############################################################
+  users.users."${config.systemProfile.username}" = {
+    isNormalUser = true; 
+    shell = pkgs.zsh;
+    extraGroups = [ "wheel" "networkmanager" ];
+  };
+
+  programs.ssh.startAgent = true;
+  programs.ssh.extraConfig = ''
+    Host *
+        AddKeysToAgent yes
+        IdentitiesOnly yes
+  '';
+  
+  home-manager.useGlobalPkgs = true;
+  home-manager.useUserPackages = true;
+  home-manager.backupFileExtension = "backup";
+  home-manager.extraSpecialArgs = { inherit zen-browser; };
+  home-manager.sharedModules = [
+    sops-nix.homeManagerModules.sops
+  ];
+  home-manager.users.${config.systemProfile.username} = {...}: {
+    imports = [
+      ../../../home/roles/base.nix
     ];
-    home-manager.users.${config.systemProfile.username} = {...}: {
-      imports = [
-        ../../home/roles/base.nix
-      ];
-    };
   };
 }

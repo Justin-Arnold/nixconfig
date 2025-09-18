@@ -1,4 +1,4 @@
-{ pkgs, ... }:
+{ pkgs, lib, osConfig, ... }:
 
 {
   config = lib.mkIf osConfig.systemProfile.hasGui {

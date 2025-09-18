@@ -5,7 +5,7 @@
   ];
 
   home.username = osConfig.systemProfile.username;
-  home.homeDirectory = osConfig.systemProfile.homeDirectory;
+  home.homeDirectory = lib.mkForce (/. + osConfig.systemProfile.homeDirectory);
   home.stateVersion = osConfig.systemProfile.stateVersion;
 
   programs.home-manager.enable = lib.mkDefault true;

@@ -78,12 +78,12 @@
     isDarwin = lib.mkOption {
       type = lib.types.bool;
       description = "Indicates if the system is running macOS.";
-      default = false
+      default = false;
     };
     isNixos = lib.mkOption {
       type = lib.types.bool;
       description = "Indicates if the system is running NixOS.";
-      default = false
+      default = false;
     };
   };
 }

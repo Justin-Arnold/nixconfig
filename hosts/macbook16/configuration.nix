@@ -5,7 +5,6 @@
   imports =
     [
       # ../../modules/common/secrets.nix
-      ../../modules/darwin
     ];
 
   environment.systemPackages = [

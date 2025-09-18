@@ -2,8 +2,6 @@
 {
   imports = [
     ./systemProfile.nix
-    ../platforms
-    ../profiles
   ];
   ############################################################
   ## Identity
@@ -33,28 +31,10 @@
     age
   ];
 
-  programs.zsh.enable = true;
-
-  ############################################################
-  ## User Configuration
-  ############################################################
-  users.users."${config.systemProfile.username}" = {
-    isNormalUser = true; 
-    shell = pkgs.zsh;
-    extraGroups = [ "wheel" "networkmanager" ];
-  };
-
   #############################################################
   ## Fonts
   #############################################################
   fonts.packages = with pkgs; [
     nerd-fonts.fira-code
   ];
-
-  programs.ssh.startAgent = true;
-  programs.ssh.extraConfig = ''
-    Host *
-        AddKeysToAgent yes
-        IdentitiesOnly yes
-  '';
 }

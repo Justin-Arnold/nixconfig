@@ -3,7 +3,7 @@
 {
   imports = [ 
     ../../modules/common
-    ../../modules/darwin
+    ../../modules/platforms/darwin
   ];
 
   ############################################################
@@ -12,6 +12,7 @@
   systemProfile = {
     hostname = "macmini";
     stateVersionDarwin = 5;
+    stateVersion = "24.05";
     hasGui = true;
     isDarwin = true;
     forCglt = true;

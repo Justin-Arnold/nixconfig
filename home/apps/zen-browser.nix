@@ -1,9 +1,10 @@
-{ lib, zen-browser, ...}:
+{ lib, zen-browser, osConfig, ...}:
 {
+  imports = [
+    zen-browser.homeModules.twilight
+  ];
+
   config = lib.mkIf osConfig.systemProfile.hasGui {
-    imports = [
-      zen-browser.homeModules.twilight
-    ];
 
     programs.zen-browser = {
       enable = true;
