@@ -1,7 +1,6 @@
 { pkgs, ... }:
-
 {
   home.packages = [
-    pkgs.postman
+    pkgs.lazygit
   ];
 }

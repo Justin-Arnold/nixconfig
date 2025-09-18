@@ -2,6 +2,6 @@
 
 {
   home.packages = [
-    pkgs.obs-studio
+    pkgs.bun
   ];
 }

@@ -2,7 +2,7 @@
 {
   imports = [
     ./systemProfile.nix
-    ../platforms/nixos.nix
+    ../platforms
     ../profiles
   ];
   ############################################################
@@ -10,7 +10,6 @@
   ############################################################
   time.timeZone = config.systemProfile.timeZone;
   networking.hostName = config.systemProfile.hostname;
-  system.stateVersion = config.systemProfile.stateVersion;
 
   ############################################################
   ## Nix and Flakes
@@ -30,6 +29,8 @@
   environment.systemPackages = with pkgs; [
     git
     _1password-cli
+    sops
+    age
   ];
 
   programs.zsh.enable = true;
@@ -57,13 +58,3 @@
         IdentitiesOnly yes
   '';
 }
-
-
-#  programs._1password.enable = true;
-  # programs._1password-gui = {
-  #   enable = true;
-  #   polkitPolicyOwners = [ "justin" ];
-  # };
-  # programs.ssh.startAgent = true;
-
-  # boot.kernelPackages = pkgs.linuxPackages_latest;

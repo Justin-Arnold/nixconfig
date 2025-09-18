@@ -6,7 +6,6 @@
 
   home.username = osConfig.systemProfile.username;
   home.homeDirectory = osConfig.systemProfile.homeDirectory;
-
   home.stateVersion = osConfig.systemProfile.stateVersion;
 
   programs.home-manager.enable = lib.mkDefault true;
@@ -18,5 +17,4 @@
   };
 
   programs.direnv.enable = true;
-  programs.direnv.nix-direnv.enable = true;
 }

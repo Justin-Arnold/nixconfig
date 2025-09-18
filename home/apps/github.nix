@@ -1,4 +1,4 @@
-{ pkgs, secrets, ... }:
+{ pkgs, config, ... }:
 
 {
   # Add the GitHub CLI tool
@@ -9,6 +9,14 @@
     pkgs.jq
     pkgs.fzf
   ];
+
+  sops.secrets.github-cli-token = {
+    defaultSopsFile = ../../secrets/secrets.yaml;  # Adjust path as needed
+    age.keyFile = "${config.home.homeDirectory}/.config/sops/age/keys.txt";
+
+    key = "github/cli_token";
+    mode = "0400";
+  };
 
   programs.zsh = {
     shellAliases = {
@@ -23,7 +31,7 @@
           awk '{print $2}' | \
           xargs git clone
       }
-      export GH_TOKEN="${secrets.github.cli_token}"
+      export GH_TOKEN="$(cat ${config.sops.secrets.github-cli-token.path})"
     '';
   };
 }

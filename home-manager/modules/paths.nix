@@ -1,3 +1,0 @@
-{
-    codePath = "Code";
-}

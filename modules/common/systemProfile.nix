@@ -53,6 +53,10 @@
       type = lib.types.str;
       description = "The NixOS state version, indicating the system's configuration version.";
     };
+    stateVersionDarwin = lib.mkOption {
+      type = lib.types.int;
+      description = "The nix-darwin state version, indicating the system's configuration version.";
+    };
     ############################################################
     ## Configuration Flags
     ############################################################
@@ -70,6 +74,16 @@
       type = lib.types.bool;
       description = "Indicates if the system is a server or vm.";
       default = false;
+    };
+    isDarwin = lib.mkOption {
+      type = lib.types.bool;
+      description = "Indicates if the system is running macOS.";
+      default = false
+    };
+    isNixos = lib.mkOption {
+      type = lib.types.bool;
+      description = "Indicates if the system is running NixOS.";
+      default = false
     };
   };
 }

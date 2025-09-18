@@ -1,4 +1,4 @@
-{ pkgs, ... }:
+{ pkgs, config ... }:
 
 {
 
@@ -10,7 +10,7 @@
     enableRosetta = true;
 
     # User owning the Homebrew prefix
-    user = "justin";
+    user = config.systemProfile.username;
 
     # Optional: Declarative tap management
     # taps = {
@@ -36,7 +36,6 @@
 #     brews = [ "cowsay" ];
 #     casks = [
 #       "slite"
-#       "zen-browser"
 #       "1password"
 #       "discord"
 #       "betterdisplay"

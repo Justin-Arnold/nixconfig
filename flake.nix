@@ -4,7 +4,7 @@
   inputs = {
     nixpkgs.url        = "github:NixOS/nixpkgs/nixos-25.05";
     # nixpkgs.url          = "github:NixOS/nixpkgs/nixos-unstable";
-    zen-browser.url      = "github:MarceColl/zen-browser-flake";
+    zen-browser.url      = "github:0xc000022070/zen-browser-flake";
     nix-homebrew.url     = "github:zhaofengli-wip/nix-homebrew";
     sops-nix.url         = "github:Mic92/sops-nix";
     nocodb.url           = "github:nocodb/nocodb";
@@ -40,7 +40,7 @@
     mkNixos = hostFile:
       lib.nixosSystem {
         system = "x86_64-linux";
-        specialArgs = { inherit home-manager sops-nix; };
+        specialArgs = { inherit home-manager sops-nix zen-browser; };
         modules = [
           hostFile
           nocodb.nixosModules.nocodb
@@ -50,8 +50,12 @@
     mkDarwin = hostFile:
       nix-darwin.lib.darwinSystem {
         system = "aarch64-darwin";
-        specialArgs = { inherit home-manager; };
-        modules = [ hostFile ];
+        specialArgs = { inherit home-manager sops-nix zen-browser; };
+        modules = [ 
+          nix-homebrew.darwinModules.nix-homebrew
+          home-manager.darwinModules.home-manager
+          hostFile
+        ];
       };
 
   in {
@@ -68,6 +72,7 @@
         omada-controller = mkNixos ./hosts/omada-controller/configuration.nix;
       };
       darwinConfigurations = {
+        macmini = mkDarwin ./hosts/macmini/configuration.nix;
         macbook16 = nix-darwin.lib.darwinSystem {
           system = "aarch64-darwin";
           modules = [
@@ -93,8 +98,7 @@
             }
           ];
         };
-        macmini = nix-darwin.lib.darwinSystem {
-          system = "aarch64-darwin";
+        macmini-old = nix-darwin.lib.darwinSystem {
           modules = [
             nix-homebrew.darwinModules.nix-homebrew
             ./hosts/macmini/configuration.nix
