@@ -1,4 +1,4 @@
-{ lib, pkgs, osConfig, ... }:
+{ lib, pkgs, osConfig, zen-browser, ... }:
 {
   imports = [
     ./alacritty.nix
@@ -13,5 +13,6 @@
     ./pnpm.nix
     ./discord.nix
     ./aerospace.nix
+    ./zen-browser.nix
   ];
 }

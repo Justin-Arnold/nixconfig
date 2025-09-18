@@ -1,4 +1,4 @@
-{ home-manager, pkgs, lib, sops-nix, ... }:
+{ home-manager, pkgs, lib, sops-nix, zen-browser, ... }:
 {
   config = lib.mkIf config.systemProfile.isDarwin {
     imports = [ 
