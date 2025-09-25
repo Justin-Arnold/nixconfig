@@ -14,5 +14,6 @@
     ./discord.nix
     ./aerospace.nix
     ./zen-browser.nix
+    ./utm.nix
   ];
 }
