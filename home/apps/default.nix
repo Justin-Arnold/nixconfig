@@ -1,19 +1,20 @@
 { lib, pkgs, osConfig, zen-browser, ... }:
 {
   imports = [
+    ./aerospace.nix
     ./alacritty.nix
-    ./zsh.nix
+    ./bun.nix
+    ./discord.nix
+    ./github.nix
+    ./gitkraken.nix
     ./hello.nix
     ./neovim.nix
-    ./vscode.nix
     ./obsidian.nix
-    ./slack.nix
-    ./gitkraken.nix
-    ./bun.nix
     ./pnpm.nix
-    ./discord.nix
-    ./aerospace.nix
-    ./zen-browser.nix
+    ./slack.nix
     ./utm.nix
+    ./vscode.nix
+    ./zen-browser.nix
+    ./zsh.nix
   ];
 }
