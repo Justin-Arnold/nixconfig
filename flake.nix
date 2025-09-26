@@ -2,12 +2,13 @@
   description = "Personal Nix Configuration";
 
   inputs = {
-    # nixpkgs.url        = "github:NixOS/nixpkgs/nixos-25.05";
-    nixpkgs.url          = "github:NixOS/nixpkgs/nixos-unstable";
-    zen-browser.url      = "github:0xc000022070/zen-browser-flake";
-    nix-homebrew.url     = "github:zhaofengli-wip/nix-homebrew";
-    sops-nix.url         = "github:Mic92/sops-nix";
-    nocodb.url           = "github:nocodb/nocodb";
+    # nixpkgs.url                = "github:NixOS/nixpkgs/nixos-25.05";
+    nixpkgs.url                  = "github:NixOS/nixpkgs/nixos-unstable";
+    zen-browser.url              = "github:0xc000022070/zen-browser-flake";
+    nix-homebrew.url             = "github:zhaofengli-wip/nix-homebrew";
+    sops-nix.url                 = "github:Mic92/sops-nix";
+    nocodb.url                   = "github:nocodb/nocodb";
+    _1password-shell-plugins.url = "github:1Password/shell-plugins";
     home-manager = {
       url = "github:nix-community/home-manager";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -22,7 +23,7 @@
     };
   };
 
-  outputs = { 
+  outputs = inputs@{ 
     self,
     nixpkgs,
     nix-darwin,
