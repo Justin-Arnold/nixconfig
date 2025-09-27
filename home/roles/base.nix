@@ -1,4 +1,4 @@
-{ lib, pkgs, osConfig, zen-browser, ... }:
+{ lib, pkgs, inputs, osConfig, zen-browser, ... }:
 {
   imports = [
     ../apps
