@@ -41,7 +41,7 @@
     mkNixos = hostFile:
       lib.nixosSystem {
         system = "x86_64-linux";
-        specialArgs = { inherit home-manager sops-nix zen-browser; };
+        specialArgs = { inherit inputs home-manager sops-nix zen-browser; };
         modules = [
           hostFile
           nocodb.nixosModules.nocodb
