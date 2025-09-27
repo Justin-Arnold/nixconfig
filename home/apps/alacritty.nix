@@ -44,7 +44,7 @@
         window = {
           padding = {
             x = 16;
-            y = 0;
+            y = 16;
           };
         };
 
