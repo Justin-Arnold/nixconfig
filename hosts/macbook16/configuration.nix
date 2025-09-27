@@ -1,36 +1,20 @@
 { config, pkgs, self, zen-browser, ... }:
 
 {
-
-  imports =
-    [
-      # ../../modules/common/secrets.nix
-    ];
-
-  environment.systemPackages = [
-    pkgs.alacritty
+  imports = [ 
+    ../../modules/common
+    ../../modules/platforms/darwin
   ];
 
-  # Default browser not currently working, I need a new solution or to manually run that command
-  #system.activationScripts.extraActivation.text = ''
-  #  softwareupdate --install-rosetta --agree-to-license
-  #  "defaultbrowser browser"
-  #'';
-  programs.zsh.enable = true;
-  
-  networking.hostName = "macbook16";
-
-  time.timeZone = "America/New_York";
-
-  nixpkgs.config.allowUnfree = true;
-
-  nix.settings.experimental-features = [ "nix-command" "flakes" ];
-
-  system.stateVersion = 5;
-
-  # services.aerospace = {
-  #   enable = true;
-  #   # settings.start-at-login = true;
-  # };
+  ############################################################
+  ## System Profile
+  ############################################################
+  systemProfile = {
+    hostname = "macbook16";
+    stateVersionDarwin = 5;
+    stateVersion = "24.05";
+    hasGui = true;
+    isDarwin = true;
+    forCglt = true;
+  };
 }
-

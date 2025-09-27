@@ -74,7 +74,9 @@
       };
       darwinConfigurations = {
         macmini = mkDarwin ./hosts/macmini/configuration.nix;
-        macbook16 = nix-darwin.lib.darwinSystem {
+        macbook16 = mkDarwin ./hosts/macbook16/configuration.nix;
+        
+        macbook16-old = nix-darwin.lib.darwinSystem {
           system = "aarch64-darwin";
           modules = [
             nix-homebrew.darwinModules.nix-homebrew

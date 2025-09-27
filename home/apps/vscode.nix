@@ -11,13 +11,13 @@
         tamasfe.even-better-toml
         streetsidesoftware.code-spell-checker
         dbaeumer.vscode-eslint
+        github.copilot-chat
         oderwat.indent-rainbow
         esbenp.prettier-vscode
         bradlc.vscode-tailwindcss
         arcticicestudio.nord-visual-studio-code
         jnoortheen.nix-ide
         github.copilot
-        github.copilot-chat
       ];
 
       userSettings = {
