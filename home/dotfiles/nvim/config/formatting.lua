@@ -1,4 +1,4 @@
-local mason_registery = require('mason-registery')
+local mason_registery = require('mason-registry')
 local formatters = {
   'stylua'
 }
