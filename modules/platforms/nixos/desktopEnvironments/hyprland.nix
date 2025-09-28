@@ -1,4 +1,4 @@
-{pkgs, lib, congif, ...}:
+{pkgs, lib, config, ...}:
 
 let
   cfg = config.modules.roles.nixos.desktopEnvironments.hyprland;
@@ -7,7 +7,7 @@ in {
     enable = lib.mkEnableOption "Hyprland desktop environment";
   };
 
-  config = lib.mkif cfg.enable {
+  config = lib.mkIf cfg.enable {
     programs.hyprland = {
       enable = true;
       withUWSM = true;
