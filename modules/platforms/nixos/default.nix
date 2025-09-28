@@ -2,6 +2,7 @@
 {
   imports = [ 
     home-manager.nixosModules.home-manager
+    ./desktopEnvironments
   ];
 
   system.stateVersion = config.systemProfile.stateVersion;
@@ -15,9 +16,17 @@
     extraGroups = [ "wheel" "networkmanager" ];
   };
 
-  modules.apps.onepassword = {
-    enable = true;
-    polkit.enable = true
+  modules = {
+    apps.onepassword = {
+      enable = true;
+      polkit.enable = true
+    };
+    
+    platforms.nixos.desktopEnvironments = {
+      hyprland = {
+        enable = config.systemProfile.hasGui;
+      }
+    }
   };
 
   programs.zsh.enable = true;
