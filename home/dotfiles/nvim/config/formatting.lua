@@ -1,6 +1,5 @@
 local mason_registery = require('mason-registry')
 local formatters = {
-  'stylua'
 }
 
 for _, formatter in ipairs(formatters) do

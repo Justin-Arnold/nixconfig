@@ -1,14 +1,14 @@
 { config, lib, pkgs, self, zen-browser, home-manager, inputs, ... }:
 
 {
-  imports =
-    [ 
-      ./hardware-configuration.nix
-      ../../modules/common
-      ../../modules/platforms/nixos
-      ../../modules/profiles/desktop.nix
-    ];
-  
+  imports = [
+    ./hardware-configuration.nix
+    ../../modules/common
+    ../../modules/platforms/nixos
+    ../../modules/profiles/desktop.nix
+  ];
+  environment.systemPackages = with pkgs; [ lua-language-server stylua ];
+
   boot.kernelModules = [ "uinput" ];
   hardware.uinput.enable = true;
   services.udev.extraRules = ''
@@ -16,18 +16,13 @@
   '';
   users.groups.uinput = { };
   systemd.services.kanata-internalKeyboard.serviceConfig = {
-    SupplementaryGroups = [
-      "input"
-      "uinput"
-    ];
+    SupplementaryGroups = [ "input" "uinput" ];
   };
   services.kanata = {
     enable = true;
     keyboards = {
       internalKeyboard = {
-        devices = [
-	  "/dev/input/by-path/platform-i8042-serio-0-event-kbd"
-        ];
+        devices = [ "/dev/input/by-path/platform-i8042-serio-0-event-kbd" ];
         extraDefCfg = "process-unmapped-keys yes";
         config = ''
           (defsrc
@@ -41,7 +36,7 @@
           (deflayer base
             @swapped-alt @swapped-super
           )
-        '';    
+        '';
       };
     };
   };
@@ -71,7 +66,7 @@
   #############################################################
   services.displayManager.cosmic-greeter.enable = true;
   services.desktopManager.cosmic.enable = true;
-  
+
   services.logind.settings.Login.HandlePowerKey = "ignore";
 
   programs.hyprland = {
@@ -95,7 +90,7 @@
   ## Trackpad
   ##############################################################
   services.libinput.touchpad.naturalScrolling = true;
-  services.libinput.touchpad.tapping  = true;
+  services.libinput.touchpad.tapping = true;
 
   services.xserver.xkb.options = "altwin:swap_lalt_lwin";
   services.libinput.touchpad.tappingButtonMap = "lrm";
@@ -103,8 +98,6 @@
   ## Home Manager Configuration
   ##############################################################
   home-manager.users.justin = { ... }: {
-    imports = [ 
-      ../../home/roles/base.nix
-    ];
+    imports = [ ../../home/roles/base.nix ];
   };
 }

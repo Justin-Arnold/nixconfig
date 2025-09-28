@@ -1,11 +1,12 @@
-{ lib, pkgs, osConfig, zen-browser, ... }:
-{
+{ lib, pkgs, osConfig, zen-browser, ... }: {
   imports = [
     ../apps/krusader.nix
     ../apps/anyrun.nix
     ../apps/hyprpaper.nix
     ../apps/hyprpanel.nix
   ];
+
+  home.packages = with pkgs; [ luarocks unzip ];
 
   home.file = {
     ".config/hypr/hyprland.conf".source = ../dotfiles/hyprland/hyprland.conf;

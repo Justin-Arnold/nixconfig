@@ -8,7 +8,7 @@ vim.api.nvim_create_autocmd('LspAttach', {
         end
     end,
 })
-
+vim.opt.foldlevel = 99  -- Don't auto-fold anything
 vim.api.nvim_create_autocmd('LspDetach', { command = 'setl foldexpr<' })
 
 
