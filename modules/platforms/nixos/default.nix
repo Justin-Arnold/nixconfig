@@ -22,7 +22,7 @@
       polkit.enable = true;
     };
     
-    platforms.nixos.desktopEnvironments = {
+    roles.nixos.desktopEnvironments = {
       hyprland = {
         enable = config.systemProfile.hasGui;
       };
