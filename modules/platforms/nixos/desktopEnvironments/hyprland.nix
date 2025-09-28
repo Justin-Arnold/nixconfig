@@ -3,7 +3,7 @@
 let
   cfg = config.modules.roles.nixos.desktopEnvironments.hyprland;
 in {
-  options.modules.roles.nixos.desktopEnvironments.hyprland = lib.mkOption {
+  options.modules.roles.nixos.desktopEnvironments.hyprland = {
     enable = lib.mkEnableOption "Hyprland desktop environment";
   };
 
