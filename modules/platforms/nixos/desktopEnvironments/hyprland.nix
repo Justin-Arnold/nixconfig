@@ -17,7 +17,7 @@ in {
     home-manager.users.${config.systemProfile.username} = {...}: {
       imports = [
         ../../../../home/apps/hyprland.nix
-        ../../../../home/apps/hyrpaper.nix
+        ../../../../home/apps/hyprpaper.nix
         ../../../../home/apps/hyprpanel.nix
       ];
     };
