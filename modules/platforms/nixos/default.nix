@@ -19,14 +19,14 @@
   modules = {
     apps.onepassword = {
       enable = true;
-      polkit.enable = true
+      polkit.enable = true;
     };
     
     platforms.nixos.desktopEnvironments = {
       hyprland = {
         enable = config.systemProfile.hasGui;
-      }
-    }
+      };
+    };
   };
 
   programs.zsh.enable = true;
@@ -36,7 +36,7 @@
    #     AddKeysToAgent yes
    #     IdentitiesOnly yes
   #'';
-  
+
   home-manager.useGlobalPkgs = true;
   home-manager.useUserPackages = true;
   home-manager.backupFileExtension = "backup";

@@ -21,5 +21,5 @@ in {
         ../../../../home/apps/hyprpanel.nix
       ];
     };
-  }  
+  };
 }
