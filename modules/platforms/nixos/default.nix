@@ -14,6 +14,12 @@
     shell = pkgs.zsh;
     extraGroups = [ "wheel" "networkmanager" ];
   };
+
+  modules.apps.onepassword = {
+    enable = true;
+    polkit.enable = true
+  };
+
   programs.zsh.enable = true;
   #programs.ssh.startAgent = true;
   #programs.ssh.extraConfig = ''

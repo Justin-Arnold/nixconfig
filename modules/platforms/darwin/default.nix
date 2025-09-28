@@ -12,6 +12,8 @@
   system.stateVersion = config.systemProfile.stateVersionDarwin;
   system.primaryUser = config.systemProfile.username;
 
+  modules.apps.onepassword.enable = true;
+  
   home-manager.useGlobalPkgs = true;
   home-manager.useUserPackages = true;
   home-manager.backupFileExtension = "backup";
