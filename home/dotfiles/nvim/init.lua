@@ -25,6 +25,10 @@ local opts = {
 require("lazy").setup("plugins", opts)
 
 require("mason").setup()
+require('config.folding')
+require('config.lsp')
+require('config.formatting')
+require('config.linting')
 
 local builtin = require('telescope.builtin')
 vim.keymap.set('n', '<leader>ff', builtin.find_files, {})
