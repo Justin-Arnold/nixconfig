@@ -1,8 +1,5 @@
 { lib, pkgs, osConfig, zen-browser, ... }: {
-  imports = [
-    ../apps/krusader.nix
-    ../apps/anyrun.nix
-  ];
+  imports = [ ../apps/krusader.nix ../apps/anyrun.nix ../apps/aichat.nix ];
 
   home.packages = with pkgs; [ luarocks unzip ];
 
