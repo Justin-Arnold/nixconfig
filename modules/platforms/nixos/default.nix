@@ -20,7 +20,7 @@
       };
       zoxide = {
         enable = true;
-        replaceCD = true;
+        replaceCd = true;
       };
     };
 
