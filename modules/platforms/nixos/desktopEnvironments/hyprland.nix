@@ -12,7 +12,7 @@ in {
       enable = true;
       withUWSM = true;
       xwayland.enable = true;
-    };
+    }; 
 
     home-manager.users.${config.systemProfile.username} = {...}: {
       imports = [
