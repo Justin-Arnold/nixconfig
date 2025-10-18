@@ -1,9 +1,9 @@
 {
   description = "Personal Nix Configuration";
 
-  inputs = {
-    # nixpkgs.url                = "github:NixOS/nixpkgs/nixos-25.05";
+  inputs = {             
     nixpkgs.url                  = "github:NixOS/nixpkgs/nixos-unstable";
+    #                            = "github:NixOS/nixpkgs/nixos-25.05";
     zen-browser.url              = "github:0xc000022070/zen-browser-flake";
     nix-homebrew.url             = "github:zhaofengli-wip/nix-homebrew";
     sops-nix.url                 = "github:Mic92/sops-nix";
@@ -48,6 +48,16 @@
         ];
       };
 
+    mkNixos64 = hostFile:
+      lib.nixosSystem {
+        system = "aarch64-linux";
+        specialArgs = { inherit inputs home-manager sops-nix zen-browser; };
+        modules = [
+          hostFile
+        ];
+      };
+    
+
     mkDarwin = hostFile:
       nix-darwin.lib.darwinSystem {
         system = "aarch64-darwin";
@@ -62,69 +72,20 @@
   in {
       nixosConfigurations = {
         terraform-controller = mkNixos ./hosts/terraform-controller/configuration.nix;
-        ansible-controller = mkNixos ./hosts/ansible-controller/configuration.nix;
-        slim7i = mkNixos ./hosts/slim7i/configuration.nix;
-        desktop = mkNixos ./hosts/desktop/configuration.nix;
-        ollama = mkNixos ./hosts/ollama/configuration.nix;
-        checkmk = mkNixos ./hosts/checkmk/configuration.nix;
-        gitea = mkNixos ./hosts/gitea/configuration.nix;
-        nocodb = mkNixos ./hosts/nocodb/configuration.nix;
-        onepassword-connect = mkNixos ./hosts/onepassword-connect/configuration.nix;
-        omada-controller = mkNixos ./hosts/omada-controller/configuration.nix;
+        ansible-controller   = mkNixos ./hosts/ansible-controller/configuration.nix;
+        slim7i               = mkNixos ./hosts/slim7i/configuration.nix;
+        desktop              = mkNixos ./hosts/desktop/configuration.nix;
+        ollama               = mkNixos ./hosts/ollama/configuration.nix;
+        checkmk              = mkNixos ./hosts/checkmk/configuration.nix;
+        gitea                = mkNixos ./hosts/gitea/configuration.nix;
+        nocodb               = mkNixos ./hosts/nocodb/configuration.nix;
+        onepassword-connect  = mkNixos ./hosts/onepassword-connect/configuration.nix;
+        omada-controller     = mkNixos ./hosts/omada-controller/configuration.nix;
+        parallels            = mkNixos64 ./hosts/parallels/configuration.nix;
       };
       darwinConfigurations = {
-        macmini = mkDarwin ./hosts/macmini/configuration.nix;
-        macbook16 = mkDarwin ./hosts/macbook16/configuration.nix;
-        
-        macbook16-old = nix-darwin.lib.darwinSystem {
-          system = "aarch64-darwin";
-          modules = [
-            nix-homebrew.darwinModules.nix-homebrew
-            ./hosts/macbook16/configuration.nix
-            home-manager.darwinModules.home-manager
-            {  # This is a separate module
-              _module.args = {
-                secrets = secrets.lib;
-              };
-            }
-            {
-              home-manager.useGlobalPkgs = true;
-              home-manager.useUserPackages = true;
-              home-manager.backupFileExtension = "backup";
-              users.users.justin.home = "/Users/justin";
-              home-manager.users.justin = {... }: {
-                imports = [ 
-                  ./home-manager/darwin-home.nix
-                ];
-                _module.args.secrets = secrets.lib."aarch64-darwin";
-              };
-            }
-          ];
-        };
-        macmini-old = nix-darwin.lib.darwinSystem {
-          modules = [
-            nix-homebrew.darwinModules.nix-homebrew
-            ./hosts/macmini/configuration.nix
-            home-manager.darwinModules.home-manager
-            {  # This is a separate module
-              _module.args = {
-                secrets = secrets.lib;
-              };
-            }
-            {
-              home-manager.useGlobalPkgs = true;
-              home-manager.useUserPackages = true;
-              home-manager.backupFileExtension = "backup";
-              users.users.justin.home = "/Users/justin";
-              home-manager.users.justin = {... }: {
-                imports = [ 
-                  ./home-manager/darwin-home.nix
-                ];
-                _module.args.secrets = secrets.lib."aarch64-darwin";
-              };
-            }
-          ];
-        };
+        macmini              = mkDarwin ./hosts/macmini/configuration.nix;
+        macbook16            = mkDarwin ./hosts/macbook16/configuration.nix;
       };
     };
 }

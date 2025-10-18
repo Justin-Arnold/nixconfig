@@ -1,5 +1,4 @@
 { config, pkgs, self, zen-browser, ... }:
-
 {
   imports = [ 
     ../../modules/common

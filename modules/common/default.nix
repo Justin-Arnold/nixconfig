@@ -17,9 +17,11 @@
     "nix-command"
     "flakes"
   ];
+
   nix.settings.trusted-users = [
     config.systemProfile.username
   ];
+
   nixpkgs.config.allowUnfree = true;
 
   ############################################################

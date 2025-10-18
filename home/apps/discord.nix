@@ -2,7 +2,7 @@
 {
   config = lib.mkIf osConfig.systemProfile.hasGui {
     home.packages = [
-      pkgs.discord
+      # pkgs.discord
     ];
   };
 }
