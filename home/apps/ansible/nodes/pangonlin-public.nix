@@ -23,14 +23,13 @@ in {
     ---
     - name: Setup Pangolin Public Server
       hosts: pangolin
-      become: yes
-      become_method: sudo
-      become_user: root
       vars:
         pangolin_install_dir: /opt/pangolin
         pangolin_user: pangolin
-        pangolin_base_domain: "yourdomain.com"
-        pangolin_dashboard_domain: "hello@justin-arnold.com"
+        # Configuration variables - customize these for your setup
+        pangolin_base_domain: "servicestack.yxz"
+        pangolin_dashboard_domain: "tunnel.servicestack.yxz"
+        pangolin_letsencrypt_email: "hello@justin-arnold.com"
         pangolin_install_gerbil: "yes"
         pangolin_enable_smtp: "no"
         pangolin_install_crowdsec: "no"
