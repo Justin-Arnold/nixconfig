@@ -16,7 +16,7 @@ in {
 
   home.file."${proj}/inventory.ini".text = ''
     [pangolin]
-    pangolin-public ansible_host=5.161.26.162 ansible_user=justin
+    pangolin-public ansible_host=pangolin-public.host.internal ansible_user=justin
   '';
 
   home.file."${proj}/site.yml".text = ''
@@ -27,10 +27,8 @@ in {
       vars:
         pangolin_install_dir: /opt/pangolin
         pangolin_user: pangolin
-        # Configuration variables - customize these for your setup
         pangolin_base_domain: "yourdomain.com"
-        pangolin_dashboard_domain: "pangolin.yourdomain.com"
-        pangolin_letsencrypt_email: "your-email@yourdomain.com"
+        pangolin_dashboard_domain: "hello@justin-arnold.com"
         pangolin_install_gerbil: "yes"
         pangolin_enable_smtp: "no"
         pangolin_install_crowdsec: "no"
