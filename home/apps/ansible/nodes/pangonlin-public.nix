@@ -27,8 +27,8 @@ in {
         pangolin_install_dir: /opt/pangolin
         pangolin_user: pangolin
         # Configuration variables - customize these for your setup
-        pangolin_base_domain: "servicestack.yxz"
-        pangolin_dashboard_domain: "tunnel.servicestack.yxz"
+        pangolin_base_domain: "servicestack.xyz"
+        pangolin_dashboard_domain: "tunnel.servicestack.xyz"
         pangolin_letsencrypt_email: "hello@justin-arnold.com"
         pangolin_install_gerbil: "yes"
         pangolin_enable_smtp: "no"
@@ -51,7 +51,7 @@ in {
               - git
               - expect
               - docker.io
-              - docker-compose
+              - docker-compose-v2
             state: present
 
         - name: Start and enable Docker
@@ -110,20 +110,35 @@ in {
           args:
             creates: "{{ pangolin_install_dir }}/installer"
           become_user: "{{ pangolin_user }}"
+        
+        - name: Check if docker-compose.yml exists
+          stat:
+            path: "{{ pangolin_install_dir }}/docker-compose.yml"
+          register: pangolin_compose
+
+        - name: Stop existing Pangolin containers if running
+          shell: cd {{ pangolin_install_dir }} && docker compose down
+          ignore_errors: yes
+          when: pangolin_compose.stat.exists
 
         - name: Run pangolin installer interactively
           expect:
             command: sudo ./installer
             chdir: "{{ pangolin_install_dir }}"
             responses:
-              'Base Domain.*': "{{ pangolin_base_domain }}"
-              'Dashboard Domain.*': "{{ pangolin_dashboard_domain }}"
-              'Let.*s Encrypt Email.*': "{{ pangolin_letsencrypt_email }}"
-              'install Gerbil.*': "{{ pangolin_install_gerbil }}"
-              'enable SMTP email.*': "{{ pangolin_enable_smtp }}"
-              'install and start.*': "yes"
+              'Enter your base domain.*': "{{ pangolin_base_domain }}"
+              'Enter the domain for the Pangolin dashboard.*': "{{ pangolin_dashboard_domain }}"
+              'Enter email for Let.*s Encrypt certificates.*': "{{ pangolin_letsencrypt_email }}"
+              'Do you want to use Gerbil.*': "{{ pangolin_install_gerbil }}"
+              'Enable email functionality.*SMTP.*': "{{ pangolin_enable_smtp }}"
+              'Is your server IPv6 capable.*': "yes"
+              'Do you want to download the MaxMind GeoLite2 database.*': "yes"
               'install CrowdSec.*': "{{ pangolin_install_crowdsec }}"
+              'Would you like to install and start the containers.*': "yes"
+              'Would you like to run Pangolin as Docker or Podman containers.*': "docker"
+                      
             timeout: 300
+            echo: yes
           args:
             creates: "{{ pangolin_install_dir }}/docker-compose.yml"
 
@@ -142,15 +157,11 @@ in {
             enabled: yes
             state: started
 
-        - name: Check if pangolin containers are running
-          shell: cd {{ pangolin_install_dir }} && docker-compose ps
-          register: container_status
+        - name: Ensure Pangolin containers are running
+          shell: cd {{ pangolin_install_dir }} && docker compose up -d
           when: pangolin_compose.stat.exists
-
-        - name: Display container status
-          debug:
-            msg: "{{ container_status.stdout_lines }}"
-          when: pangolin_compose.stat.exists
+          register: compose_result
+          changed_when: "'Started' in compose_result.stdout or 'Created' in compose_result.stdout"
   '';
 
   programs.zsh.shellAliases = {
