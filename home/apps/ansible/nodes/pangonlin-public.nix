@@ -16,7 +16,7 @@ in {
 
   home.file."${proj}/inventory.ini".text = ''
     [pangolin]
-    pangolin-public ansible_host=pangolin-public.host.internal ansible_user=justin
+    pangolin-public ansible_host=pangolin-public.host.internal ansible_user=root
   '';
 
   home.file."${proj}/site.yml".text = ''
@@ -24,6 +24,8 @@ in {
     - name: Setup Pangolin Public Server
       hosts: pangolin
       become: yes
+      become_method: sudo
+      become_user: root
       vars:
         pangolin_install_dir: /opt/pangolin
         pangolin_user: pangolin
