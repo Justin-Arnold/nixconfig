@@ -5,6 +5,7 @@
       ./nodes/checkmk.nix
       ./nodes/nocodb.nix
       ./nodes/omada-controller.nix
+      ./nodes/pangonlin-public.nix
     ];
   home.packages = [
     pkgs.ansible

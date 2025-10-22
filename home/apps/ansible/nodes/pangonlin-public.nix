@@ -153,6 +153,6 @@ in {
   '';
 
   programs.zsh.shellAliases = {
-    ans-pangolin = "cd ~/${proj} && ansible-playbook site.yml";
+    ans-pangolin-public = "cd ~/${proj} && ansible-playbook site.yml";
   };
 }
