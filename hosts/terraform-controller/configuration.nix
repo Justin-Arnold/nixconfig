@@ -5,6 +5,8 @@
     [ 
       ./hardware-configuration.nix
       ../../modules/common
+      ../../modules/profiles/server.nix
+      ../../modules/platforms/nixos
       ../../modules/roles/terraform.nix
 
       sops-nix.nixosModules.sops
