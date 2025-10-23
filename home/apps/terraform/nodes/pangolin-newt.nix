@@ -10,8 +10,8 @@ let
   };
 in {
   home.file."${proj}/.envrc".text = ''
-    dotenv "/run/secrets/proxmox.env"
-    dotenv "/run/secrets/onepassword.env"
+    dotenv "/run/secrets-env/proxmox.env"
+    dotenv "/run/secrets-env/onepassword.env"
   '';
 
   home.file."${proj}/providers.tf".text = ''

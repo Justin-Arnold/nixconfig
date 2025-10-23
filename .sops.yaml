@@ -2,17 +2,6 @@ age_recipients: &age_recipients
   - age1ljfvx33psxcat4wwjpq6u26f5fv9jzntg8z266mhykpxh78upalqxfflz3
 
 creation_rules:
-  # dotenv files
-  - path_regex: ^secrets/.*\.(env|dotenv)$
-    key_groups:
-      - age: *age_recipients
-
-  # YAML secrets (includes both .yaml and .yml)
   - path_regex: ^secrets/.*\.ya?ml$
-    key_groups:
-      - age: *age_recipients
-
-  # (Optional) JSON secrets
-  - path_regex: ^secrets/.*\.json$
     key_groups:
       - age: *age_recipients
