@@ -23,6 +23,7 @@
   sops.secrets."proxmox.env" = {
     sopsFile = ../../secrets/proxmox.env;
     format   = "dotenv"; 
+    path = "/run/secrets/proxmox.env";
     mode = "0400";
     owner = "justin";
     group    = "users";
@@ -39,6 +40,7 @@
   sops.secrets."onepassword.env" = {
     sopsFile = ../../secrets/onepassword.env;
     format = "dotenv";
+    path = "/run/secrets/onepassword.env";
     mode = "0400";
     owner = "justin";
     group = "users";
