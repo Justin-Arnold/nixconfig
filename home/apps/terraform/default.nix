@@ -9,6 +9,7 @@
       ./nodes/nocodb.nix
       ./nodes/1password-connect.nix
       ./nodes/omada-controller.nix
+      ./nodes/pangolin-newt.nix
     ];
 
   home.stateVersion = "25.05";
