@@ -81,6 +81,7 @@
         onepassword-connect  = mkNixos ./hosts/onepassword-connect/configuration.nix;
         omada-controller     = mkNixos ./hosts/omada-controller/configuration.nix;
         parallels            = mkNixos64 ./hosts/parallels/configuration.nix;
+        pangolin-newt        = mkNixos ./hosts/pangolin-newt/configuration.nix;
       };
       darwinConfigurations = {
         macmini              = mkDarwin ./hosts/macmini/configuration.nix;
