@@ -3,7 +3,6 @@
 
   inputs = {             
     nixpkgs.url                  = "github:NixOS/nixpkgs/nixos-unstable";
-    #                            = "github:NixOS/nixpkgs/nixos-25.05";
     zen-browser.url              = "github:0xc000022070/zen-browser-flake";
     nix-homebrew.url             = "github:zhaofengli-wip/nix-homebrew";
     sops-nix.url                 = "github:Mic92/sops-nix";
