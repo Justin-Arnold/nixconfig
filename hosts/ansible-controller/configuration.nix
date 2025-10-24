@@ -18,25 +18,19 @@
   };
 
   sops.age.keyFile = "/home/justin/.config/sops/age/keys.txt";
+  sops.defaultSopsFile = ../../secrets/secrets.yaml;
 
-  # private key -> ~/.ssh/ansible_controller (0400)
-  sops.secrets."ssh/ansible_controller/private" = {
-    sopsFile = ../../secrets/ssh.yaml;
-    format   = "yaml";
-    path     = "/home/justin/.ssh/id_ed25519"; #todo use systemProfile.username
-    mode     = "0600";
-    owner    = "justin"; #todo use systemProfile.username
-    group    = "users";
-  };
-
-  # public key -> ~/.ssh/ansible_controller.pub (0644)
-  sops.secrets."ssh/ansible_controller/public" = {
-    sopsFile = ../../secrets/ssh.yaml;
-    format   = "yaml";
-    path     = "/home/justin/.ssh/id_ed25519.pub"; #todo use systemProfile.username
-    mode     = "0644";
-    owner    = "justin"; #todo use systemProfile.username
-    group    = "users";
+  sops.secrets = {
+    "ssh/ansible_controller/private" = {
+      mode = "0600";
+      owner = "justin";
+      group = "users";
+    };
+    "ssh/ansible_controller/public" = {
+      mode = "0644";
+      owner = "justin";
+      group = "users";
+    };
   };
 
   # Ansible default to this key
