@@ -24,13 +24,16 @@
   sops.age.keyFile = "/home/justin/.config/sops/age/keys.txt";
   sops.defaultSopsFile = ../../secrets/secrets.yaml;
 
-  sops.secrets."pangolin/newt/id" = {
-    mode = "0440";
-    group = "keys";
-  };
+  sops.secrets."pangolin/newt/id" = {};
+  sops.secrets."pangolin/newt/secret-key" = {};
 
-  sops.secrets."pangolin/newt/secret-key" = {
+  sops.templates."fosrl-newt.env" = {
+    content = ''
+      NEWT_ID=${config.sops.placeholder."pangolin/newt/id"}
+      NEWT_SECRET=${config.sops.placeholder."pangolin/newt/secret-key"}
+    '';
     mode = "0440";
+    owner = "root";
     group = "keys";
   };
 
