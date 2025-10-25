@@ -39,7 +39,7 @@
 
     serviceConfig = {
       ExecStart = pkgs.writeShellScript "fosrl-newt-start" ''
-        exec fosrl-newt \
+        exec ${pkgs.fosrl-newt}/bin/fosrl-newt \
           --id $(cat ${config.sops.secrets."pangolin/newt/id".path}) \
           --secret $(cat ${config.sops.secrets."pangolin/newt/secret-key".path}) \
           --endpoint https://tunnel.servicestack.xyz
