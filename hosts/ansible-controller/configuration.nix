@@ -21,6 +21,10 @@
   sops.defaultSopsFile = ../../secrets/secrets.yaml;
 
   sops.secrets = {
+    "onepassword/OP_API_TOKEN" = { };
+    "onepassword/OP_SERVICE_ACCOUNT_TOKEN" = { };
+    "onepassword/OP_CONNECT_TOKEN" = { };
+
     "ssh/ansible_controller/private" = {
       mode = "0600";
       owner = "justin";
@@ -46,5 +50,11 @@
       ../../home/roles/base.nix
       ../../home/apps/ansible
     ];
+
+    programs.zsh.initExtra = ''
+      export OP_API_TOKEN=$(cat ${config.sops.secrets."onepassword/OP_API_TOKEN".path})
+      export OP_SERVICE_ACCOUNT_TOKEN=$(cat ${config.sops.secrets."onepassword/OP_SERVICE_ACCOUNT_TOKEN".path})
+      export OP_CONNECT_TOKEN=$(cat ${config.sops.secrets."onepassword/OP_CONNECT_TOKEN".path})
+    '';
   };
 }
