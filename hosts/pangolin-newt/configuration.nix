@@ -11,7 +11,7 @@
       sops-nix.nixosModules.sops
     ];
 
-  systemPackages = with pkgs; [
+  environment.systemPackages = with pkgs; [
     fosrl-newt
   ];
 
