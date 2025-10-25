@@ -43,12 +43,12 @@
     after = [ "network.target" ];
 
     serviceConfig = {
-      ExecStart = pkgs.writeShellScript "fosrl-newt-start" ''
-        exec ${pkgs.fosrl-newt}/bin/newt \
-          --id $(cat ${config.sops.secrets."pangolin/newt/id".path}) \
-          --secret $(cat ${config.sops.secrets."pangolin/newt/secret-key".path}) \
-          --endpoint https://tunnel.servicestack.xyz
-      '';
+      # Load environment variables from the template
+      EnvironmentFile = config.sops.templates."fosrl-newt.env".path;
+      
+      # Use the environment variables
+      ExecStart = "${pkgs.fosrl-newt}/bin/newt --id \${NEWT_ID} --secret \${NEWT_SECRET} --endpoint https://tunnel.servicestack.xyz";
+      
       Restart = "always";
       RestartSec = "10s";
       
