@@ -79,9 +79,9 @@
     ];
 
     programs.zsh.initContent = ''
-      export OP_API_TOKEN=$(cat ${config.sops.secrets."onepassword/OP_API_TOKEN".path})
-      export OP_SERVICE_ACCOUNT_TOKEN=$(cat ${config.sops.secrets."onepassword/OP_SERVICE_ACCOUNT_TOKEN".path})
-      export OP_CONNECT_TOKEN=$(cat ${config.sops.secrets."onepassword/OP_CONNECT_TOKEN".path})
+      if [ -f ${config.sops.templates."onepassword-env.sh".path} ]; then
+        source ${config.sops.templates."onepassword-env.sh".path}
+      fi
     '';
   };
 }
