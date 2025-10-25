@@ -21,9 +21,24 @@
   sops.defaultSopsFile = ../../secrets/secrets.yaml;
 
   sops.secrets = {
-    "onepassword/OP_API_TOKEN" = { };
-    "onepassword/OP_SERVICE_ACCOUNT_TOKEN" = { };
-    "onepassword/OP_CONNECT_TOKEN" = { };
+    "onepassword/OP_API_TOKEN" = { 
+      mode = "0400";
+      owner = "justin";
+      group = "users";
+      path = "/run/secrets/op-api-token";
+    };
+    "onepassword/OP_SERVICE_ACCOUNT_TOKEN" = { 
+      mode = "0400";
+      owner = "justin";
+      group = "users";
+      path = "/run/secrets/op-service-account-token";
+    };
+    "onepassword/OP_CONNECT_TOKEN" = { 
+      mode = "0400";
+      owner = "justin";
+      group = "users";
+      path = "/run/secrets/op-connect-token";
+    };
 
     "ssh/ansible_controller/private" = {
       mode = "0600";
