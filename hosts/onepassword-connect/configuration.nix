@@ -17,13 +17,12 @@
   };
 
   sops.age.keyFile = "/home/justin/.config/sops/age/keys.txt";
+  sops.defaultSopsFile = ../../secrets/secrets.yaml;
 
-  sops.secrets."onepassword.env" = {
-    sopsFile = ../../secrets/onepassword.env;
-    format = "dotenv";
-    mode = "0400";
-    owner = "justin";
-    group = "users";
+  sops.secrets = {
+    "onepassword/OP_API_TOKEN" = { };
+    "onepassword/OP_SERVICE_ACCOUNT_TOKEN" = { };
+    "onepassword/OP_CONNECT_TOKEN" = { };
   };
 
   virtualisation.oci-containers.containers.onepassword-connect-api = {
@@ -57,5 +56,11 @@
       ../../home/roles/base.nix
       ../../home/apps/1password-connect.nix
     ];
+
+    programs.zsh.initExtra = ''
+      export OP_API_TOKEN=$(cat ${config.sops.secrets."onepassword/OP_API_TOKEN".path})
+      export OP_SERVICE_ACCOUNT_TOKEN=$(cat ${config.sops.secrets."onepassword/OP_SERVICE_ACCOUNT_TOKEN".path})
+      export OP_CONNECT_TOKEN=$(cat ${config.sops.secrets."onepassword/OP_CONNECT_TOKEN".path})
+    '';
   };
 }
