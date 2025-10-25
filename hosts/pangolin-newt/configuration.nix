@@ -43,9 +43,9 @@
     after = [ "network.target" ];
 
     serviceConfig = {
-      EnvironmentFile = config.sops.templates."fosrl-newt.env".path;
-      
-      ExecStart = pkgs.writeShellScript "fosrl-newt-start" ''
+     ExecStart = pkgs.writeShellScript "fosrl-newt-start" ''
+        source ${config.sops.templates."fosrl-newt.env".path}
+        
         exec ${pkgs.fosrl-newt}/bin/newt \
           --id "$NEWT_ID" \
           --secret "$NEWT_SECRET" \
