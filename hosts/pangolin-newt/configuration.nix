@@ -26,10 +26,12 @@
 
   sops.secrets."pangolin/newt/id" = {
     mode = "0440";
+    group = "keys";
   };
-  
+
   sops.secrets."pangolin/newt/secret-key" = {
     mode = "0440";
+    group = "keys";
   };
 
   systemd.services.fosrl-newt = {
