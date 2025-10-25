@@ -24,9 +24,13 @@
   sops.age.keyFile = "/home/justin/.config/sops/age/keys.txt";
   sops.defaultSopsFile = ../../secrets/secrets.yaml;
 
-  sops.secrets."pangolin/newt/id" = {};
+  sops.secrets."pangolin/newt/id" = {
+    mode = "0440";
+  };
   
-  sops.secrets."pangolin/newt/secret-key" = {};
+  sops.secrets."pangolin/newt/secret-key" = {
+    mode = "0440";
+  };
 
   systemd.services.fosrl-newt = {
     description = "FOSRL Newt Service";
