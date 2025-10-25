@@ -42,7 +42,6 @@
       export OP_API_TOKEN="${config.sops.placeholder."onepassword/OP_API_TOKEN"}"
       export OP_SERVICE_ACCOUNT_TOKEN="${config.sops.placeholder."onepassword/OP_SERVICE_ACCOUNT_TOKEN"}"
       export OP_CONNECT_TOKEN="${config.sops.placeholder."onepassword/OP_CONNECT_TOKEN"}"
-      export OP_CONNECT_HOST="http://localhost:8080"
     '';
     mode = "0400";
     owner = "justin";
