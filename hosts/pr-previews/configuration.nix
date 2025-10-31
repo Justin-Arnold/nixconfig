@@ -349,6 +349,11 @@ in {
         exposedByDefault = false;
         network = "preview-network";
       };
+
+      providers.file = {
+        filename = "/etc/traefik/dynamic.yml";
+        watch = true;
+      };
     };
   };
 
