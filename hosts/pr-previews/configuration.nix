@@ -268,7 +268,6 @@ in {
     ../../modules/platforms/nixos
   ];
 
-  # System packages
   environment.systemPackages = with pkgs; [
     git
     docker-compose
@@ -276,7 +275,7 @@ in {
     jq
     rsync
     nodejs_20
-    # Make scripts available globally
+
     deployScript
     cleanupScript
     syncDataScript
@@ -290,13 +289,11 @@ in {
     isServer = true;
   };
 
-  # Firewall
   networking.firewall = {
     enable = true;
     allowedTCPPorts = [ 22 80 443 ];
   };
 
-  # Docker setup
   virtualisation.docker = {
     enable = true;
     autoPrune = {
@@ -306,7 +303,6 @@ in {
     };
   };
 
-  # Traefik reverse proxy
   services.traefik = {
     enable = true;
     
@@ -333,7 +329,7 @@ in {
       
       api = {
         dashboard = true;
-        insecure = true;  # Only accessible on localhost:8080
+        insecure = true;
       };
       
       providers.docker = {
@@ -343,7 +339,6 @@ in {
     };
   };
 
-  # Create Docker network for previews
   systemd.services.docker-network-preview = {
     description = "Create Docker preview network";
     after = [ "docker.service" ];
@@ -370,14 +365,12 @@ in {
     ];
   };
 
-  # Create required directories with proper permissions
   systemd.tmpfiles.rules = [
     "d /var/lib/pr-previews 0755 root root -"
     "d /var/lib/pr-previews/.cache 0755 root root -"
     "d ${turboCacheDir} 0755 root root -"
   ];
 
-  # Optional: Increase inotify limits for file watching (useful for development)
   boot.kernel.sysctl = {
     "fs.inotify.max_user_watches" = 524288;
     "fs.inotify.max_user_instances" = 512;
