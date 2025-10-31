@@ -10,6 +10,7 @@
       ./nodes/1password-connect.nix
       ./nodes/omada-controller.nix
       ./nodes/pangolin-newt.nix
+      ./nodes/pr-previews.nix
     ];
 
   home.stateVersion = "25.05";
