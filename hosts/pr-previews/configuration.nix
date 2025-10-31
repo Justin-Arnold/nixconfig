@@ -346,7 +346,7 @@ in {
     serviceConfig = {
       Type = "oneshot";
       RemainAfterExit = true;
-      ExecStart = "${pkgs.bash}/bin/bash -c '${pkgs.docker}/bin/docker network create preview-network || true'";
+      ExecStart = "${pkgs.docker}/bin/docker network create preview-network || true";
     };
   };
 
