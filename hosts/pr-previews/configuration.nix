@@ -351,15 +351,13 @@ in {
     serviceConfig = {
       Type = "oneshot";
       RemainAfterExit = true;
-      ExecStart = "${pkgs.docker}/bin/docker network create preview-network || true";
+      ExecStart = "${pkgs.bash}/bin/bash -c '${pkgs.docker}/bin/docker network create preview-network || true'";
     };
   };
 
-  # Ensure Traefik starts after Docker network
   systemd.services.traefik.after = [ "docker-network-preview.service" ];
   systemd.services.traefik.requires = [ "docker-network-preview.service" ];
 
-  # Cron jobs for maintenance
   services.cron = {
     enable = true;
     systemCronJobs = [
