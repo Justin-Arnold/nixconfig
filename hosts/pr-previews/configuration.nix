@@ -1,10 +1,9 @@
 { config, pkgs, ... }:
 
 let
-  # Shared turbo cache directory
   turboCacheDir = "/var/lib/pr-previews/.turbo-cache";
+  monorepoGitUrl = "git@github.com:commongoodlt/CGLT-Monorepo.git";
   
-  # Data sync script - checks version and downloads if needed
   syncDataScript = pkgs.writeScriptBin "sync-preview-data" ''
     #!${pkgs.bash}/bin/bash
     set -euo pipefail
@@ -65,7 +64,7 @@ let
     PR_NUMBER=$1
     WORKSPACE=$2
     BRANCH=$3
-    REPO_URL=$4
+    REPO_URL="''${4:-$monorepoGitUrl}"
     
     PREVIEW_DIR="/var/lib/pr-previews/pr-''${PR_NUMBER}-''${WORKSPACE}"
     SCRIPTS_DIR="/var/lib/pr-previews/scripts"
