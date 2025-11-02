@@ -153,6 +153,123 @@ in {
               Error: {{ ssh_test.stderr }}
   '';
 
+  home.file."${proj}/deploy-remote-ssh-keys.yml".text = ''
+    ---
+    - name: Deploy SSH keys to remote machine from 1Password
+      hosts: pr-previews
+      gather_facts: true
+      vars:
+        op_connect_host: "http://10.0.0.70:8080"
+        op_vault_name: "Lab 0118"
+        op_connect_token: "{{ lookup('env', 'OP_API_TOKEN') }}"
+        
+        # Configuration for the keys to deploy
+        ssh_keys_to_deploy:
+          - item_name: "ssh-service-github"
+            dest_path: "/home/justin/.ssh/ssh-service-github"
+            description: "SSH key for accessing github"
+          - item_name: "satchel-staging-ssh"
+            dest_path: "/home/justin/.ssh/satchel-staging-ssh"
+            description: "SSH key for accessing staging server"
+      
+      tasks:
+        - name: Get list of vaults from 1Password Connect
+          uri:
+            url: "{{ op_connect_host }}/v1/vaults"
+            method: GET
+            headers:
+              Authorization: "Bearer {{ op_connect_token }}"
+              Accept: "application/json"
+          delegate_to: localhost
+          register: vaults_response
+
+        - name: Find vault ID
+          set_fact:
+            vault_id: "{{ vaults_response.json | selectattr('name', 'equalto', op_vault_name) | map(attribute='id') | first }}"
+          delegate_to: localhost
+
+        - name: Get items from vault
+          uri:
+            url: "{{ op_connect_host }}/v1/vaults/{{ vault_id }}/items"
+            method: GET
+            headers:
+              Authorization: "Bearer {{ op_connect_token }}"
+              Accept: "application/json"
+          delegate_to: localhost
+          register: items_response
+
+        - name: Process each SSH key
+          include_tasks: deploy-single-key.yml
+          loop: "{{ ssh_keys_to_deploy }}"
+          loop_control:
+            loop_var: key_config
+  '';
+
+  home.file."${proj}/deploy-single-key.yml".text = ''
+    ---
+    - name: "Find item ID for {{ key_config.item_name }}"
+      set_fact:
+        current_item_id: "{{ items_response.json | selectattr('title', 'equalto', key_config.item_name) | map(attribute='id') | first }}"
+      delegate_to: localhost
+
+    - name: "Get {{ key_config.item_name }} details from 1Password"
+      uri:
+        url: "{{ op_connect_host }}/v1/vaults/{{ vault_id }}/items/{{ current_item_id }}"
+        method: GET
+        headers:
+          Authorization: "Bearer {{ op_connect_token }}"
+          Accept: "application/json"
+      delegate_to: localhost
+      register: key_response
+      no_log: true
+
+    - name: "Extract private key for {{ key_config.item_name }}"
+      set_fact:
+        current_private_key: "{{ key_response.json.fields | selectattr('label', 'equalto', 'private key') | map(attribute='value') | first }}"
+      no_log: true
+      delegate_to: localhost
+
+    - name: "Ensure .ssh directory exists on remote"
+      file:
+        path: "/home/justin/.ssh"
+        state: directory
+        mode: '0700'
+        owner: justin
+        group: users
+
+    - name: "Deploy {{ key_config.description }} to remote"
+      copy:
+        content: "{{ current_private_key }}"
+        dest: "{{ key_config.dest_path }}"
+        mode: '0600'
+        owner: justin
+        group: users
+      no_log: true
+
+    - name: "Generate public key for {{ key_config.item_name }}"
+      command: "ssh-keygen -y -f {{ key_config.dest_path }}"
+      register: public_key_output
+      changed_when: false
+
+    - name: "Save public key for {{ key_config.item_name }}"
+      copy:
+        content: "{{ public_key_output.stdout }}\n"
+        dest: "{{ key_config.dest_path }}.pub"
+        mode: '0644'
+        owner: justin
+        group: users
+
+    - name: "Verify {{ key_config.item_name }} was deployed"
+      stat:
+        path: "{{ key_config.dest_path }}"
+      register: key_stat
+
+    - name: "Display status for {{ key_config.item_name }}"
+      debug:
+        msg: "{{ key_config.description }} deployed successfully to {{ key_config.dest_path }}"
+      when: key_stat.stat.exists
+  '';
+
   home.file."${proj}/site.yml".text = ''
     ---
     # Main playbook that first sets up SSH keys, then deploys
