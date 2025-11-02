@@ -351,7 +351,7 @@ in {
       };
     };
 
-     dynamicConfigOptions = {
+    dynamicConfigOptions = {
       http = {
         routers = {
           catchall = {
