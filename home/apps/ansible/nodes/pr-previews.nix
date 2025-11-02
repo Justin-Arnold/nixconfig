@@ -352,13 +352,39 @@ in {
       cd ~/${proj}
       ansible-playbook site.yml "$@"
     '';
-    executable = true;  # This makes it executable without chmod
+    executable = true;
+  };
+
+  home.file."${proj}/run-deploy-keys.sh" = {
+    text = ''
+      #!/usr/bin/env bash
+      set -e
+
+      # Check if OP_API_TOKEN is set
+      if [ -z "$OP_API_TOKEN" ]; then
+          echo "Error: OP_API_TOKEN environment variable is not set"
+          echo "Please run: export OP_API_TOKEN=your-connect-token"
+          exit 1
+      fi
+
+      # Source SSH agent environment if it exists
+      if [ -f /tmp/ssh_agent_env ]; then
+          source /tmp/ssh_agent_env
+          export SSH_AUTH_SOCK SSH_AGENT_PID
+      fi
+
+      # Run just the key deployment playbook
+      cd ~/${proj}
+      ansible-playbook deploy-remote-ssh-keys.yml "$@"
+    '';
+    executable = true;
   };
 
   programs.zsh.shellAliases = {
     ans-pr-previews = "cd ~/${proj} && ./run-ansible.sh";
     ans-pr-previews-check = "cd ~/${proj} && ./run-ansible.sh --check";
     ans-pr-previews-setup = "cd ~/${proj} && ansible-playbook setup-ssh.yml";
+    ans-pr-previews-keys = "cd ~/${proj} && ./run-deploy-keys.sh";
   };
 
   programs.zsh.initExtra = ''
