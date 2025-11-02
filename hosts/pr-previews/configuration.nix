@@ -360,7 +360,7 @@ in {
       http = {
         routers = {
           catchall = {
-            rule = "HostRegexp(`{host:.+}`)";
+            rule = "PathPrefix(`/`)";
             service = "notfound";
             priority = 1;
             entryPoints = [ "web" ];
