@@ -355,6 +355,28 @@ in {
         watch = true;
       };
     };
+
+     dynamicConfigOptions = {
+      http = {
+        routers = {
+          catchall = {
+            rule = "HostRegexp(`{host:.+}`)";
+            service = "notfound";
+            priority = 1;
+            entryPoints = [ "web" ];
+          };
+        };
+        services = {
+          notfound = {
+            loadBalancer = {
+              servers = [
+                { url = "http://localhost:8404"; }
+              ];
+            };
+          };
+        };
+      };
+    };
   };
 
   systemd.services.docker-network-preview = {
@@ -382,23 +404,6 @@ in {
       "0 4 * * 0 root ${pkgs.findutils}/bin/find ${turboCacheDir} -type f -atime +7 -delete"
     ];
   };
-
-  environment.etc."traefik/dynamic.yml".text = ''
-    http:
-      routers:
-        catchall:
-          rule: "HostRegexp(`{host:.+}`)"
-          service: notfound
-          priority: 1
-          entryPoints:
-            - web
-
-      services:
-        notfound:
-          loadBalancer:
-            servers:
-              - url: "http://localhost:8404"
-  '';
 
   systemd.tmpfiles.rules = [
     "d /var/lib/pr-previews 0755 root root -"
