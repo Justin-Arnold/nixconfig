@@ -56,7 +56,6 @@ let
     echo "FILESTORE=$CACHE_DIR/filestore"
   '';
   
-  # Deploy script - creates/updates preview environment
   deployScript = pkgs.writeScriptBin "deploy-preview" ''
     #!${pkgs.bash}/bin/bash
     set -euo pipefail
@@ -200,8 +199,7 @@ let
     echo "Frontend: https://pr-''${PR_NUMBER}-''${WORKSPACE}.preview.commongoodlt.dev"
     echo "API: https://pr-''${PR_NUMBER}-''${WORKSPACE}-api.preview.commongoodlt.dev"
   '';
-  
-  # Cleanup script - destroys preview environment
+
   cleanupScript = pkgs.writeScriptBin "cleanup-preview" ''
     #!${pkgs.bash}/bin/bash
     set -euo pipefail
@@ -223,7 +221,6 @@ let
     echo "Cleanup complete for PR #''${PR_NUMBER}"
   '';
   
-  # Cleanup old previews (for cron)
   cleanupOldPreviewsScript = pkgs.writeScriptBin "cleanup-old-previews" ''
     #!${pkgs.bash}/bin/bash
     set -euo pipefail
@@ -246,7 +243,6 @@ let
     echo "Old preview cleanup complete"
   '';
   
-  # Clear data cache (for manual refresh)
   clearCacheScript = pkgs.writeScriptBin "clear-preview-cache" ''
     #!${pkgs.bash}/bin/bash
     set -euo pipefail
@@ -303,7 +299,6 @@ in {
     };
   };
 
-  # Custom 404 page service
   systemd.services.preview-404 = {
     description = "Preview 404 Page";
     after = [ "network.target" "docker-network-preview.service" ];
