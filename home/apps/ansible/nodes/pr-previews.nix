@@ -318,6 +318,9 @@ in {
         - name: Verify system configuration
           debug:
             msg: "NixOS system successfully bootstrapped with flake {{ flake_attr }}"
+
+    # Deploy SSH keys to the remote machine
+    - import_playbook: deploy-remote-ssh-keys.yml
   '';
 
   home.file."${proj}/run-ansible.sh" = {
