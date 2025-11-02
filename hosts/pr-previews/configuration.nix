@@ -323,10 +323,10 @@ in {
       entryPoints = {
         web = {
           address = ":80";
-          http.redirections.entrypoint = {
-            to = "websecure";
-            scheme = "https";
-          };
+          # http.redirections.entrypoint = {
+          #   to = "websecure";
+          #   scheme = "https";
+          # };
         };
         websecure = {
           address = ":443";
@@ -391,10 +391,8 @@ in {
           service: notfound
           priority: 1
           entryPoints:
-            - websecure
-          tls:
-            certResolver: letsencrypt
-      
+            - web
+
       services:
         notfound:
           loadBalancer:
