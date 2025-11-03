@@ -25,6 +25,6 @@
       name = "cglt-runner";
       tokenFile = config.sops.secrets."github/cglt_runner_token".path;
       url = "https://github.com/commongoodlt/CGLT-Monorepo";
-      
-  }
+    };
+  };
 }
