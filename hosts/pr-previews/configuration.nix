@@ -3,67 +3,25 @@
 let
   turboCacheDir = "/var/lib/pr-previews/.turbo-cache";
   monorepoGitUrl = "git@github.com:commongoodlt/CGLT-Monorepo.git";
-  
-  syncDataScript = pkgs.writeScriptBin "sync-preview-data" ''
-    #!${pkgs.bash}/bin/bash
-    set -euo pipefail
-    
-    CACHE_DIR="/var/lib/pr-previews/.cache"
-    REPO_PATH=$1
-    DB_DUMP_URL="''${2:-https://your-storage.com/dumps/latest.sql.gz}"
-    FILESTORE_URL="''${3:-https://your-storage.com/filestore.tar.gz}"
-    
-    ${pkgs.coreutils}/bin/mkdir -p "$CACHE_DIR"
-    
-    # Get version from repo
-    if [ ! -f "$REPO_PATH/db-version.txt" ]; then
-      echo "Warning: No db-version.txt found in repo, skipping version check"
-      REPO_VERSION="unknown"
-    else
-      REPO_VERSION=$(${pkgs.coreutils}/bin/cat "$REPO_PATH/db-version.txt")
-    fi
-    
-    CACHED_VERSION=""
-    if [ -f "$CACHE_DIR/db-version.txt" ]; then
-      CACHED_VERSION=$(${pkgs.coreutils}/bin/cat "$CACHE_DIR/db-version.txt")
-    fi
-    
-    # Only download if versions don't match
-    if [ "$REPO_VERSION" != "$CACHED_VERSION" ]; then
-      echo "Database version changed: $CACHED_VERSION → $REPO_VERSION"
-      echo "Downloading fresh data..."
-      
-      # Download DB dump
-      echo "Downloading database dump..."
-      ${pkgs.curl}/bin/curl -L "$DB_DUMP_URL" -o "$CACHE_DIR/latest.sql.gz"
-      
-      # Download and extract filestore
-      echo "Downloading filestore..."
-      ${pkgs.curl}/bin/curl -L "$FILESTORE_URL" -o "$CACHE_DIR/filestore.tar.gz"
-      ${pkgs.coreutils}/bin/rm -rf "$CACHE_DIR/filestore"
-      ${pkgs.gnutar}/bin/tar -xzf "$CACHE_DIR/filestore.tar.gz" -C "$CACHE_DIR"
-      
-      # Save version
-      echo "$REPO_VERSION" > "$CACHE_DIR/db-version.txt"
-      
-      echo "Data updated to version: $REPO_VERSION"
-    else
-      echo "Using cached data (version: $CACHED_VERSION)"
-    fi
-    
-    # Output paths for docker-compose
-    echo "DB_DUMP=$CACHE_DIR/latest.sql.gz"
-    echo "FILESTORE=$CACHE_DIR/filestore"
-  '';
+  repoPath = "/var/lib/pr-previews/monorepo";
+  stagingIp = "3.13.90.206"
   
   deployScript = pkgs.writeScriptBin "deploy-preview" ''
     #!${pkgs.bash}/bin/bash
     set -euo pipefail
     
     PR_NUMBER=$1
-    WORKSPACE=$2
+    WORKSPACE=$2 # Satchel - Cureum - Components
     BRANCH=$3
-    REPO_URL="''${4:-$monorepoGitUrl}"
+    REPO_URL="${repoPath}"
+
+    if [ ! -d "$REPO_PATH" ] || [ -z "$(ls -A "$REPO_PATH" 2>/dev/null)" ]; then
+      echo "Repository missing or empty, cloning ${monorepoGitUrl} → $REPO_PATH"
+      ${pkgs.coreutils}/bin/mkdir -p "$(dirname "$REPO_PATH")"
+      ${pkgs.git}/bin/git clone --depth 1 "${monorepoGitUrl}" "$REPO_PATH"
+    else
+      echo "Repository already present at $REPO_PATH"
+    fi
     
     PREVIEW_DIR="/var/lib/pr-previews/pr-''${PR_NUMBER}-''${WORKSPACE}"
     SCRIPTS_DIR="/var/lib/pr-previews/scripts"
@@ -78,22 +36,20 @@ let
     if [ ! -d "repo" ]; then
       echo "Cloning repository..."
       ${pkgs.git}/bin/git clone --depth 1 --branch "$BRANCH" "$REPO_URL" repo
+      cd repo
     else
       echo "Updating repository..."
       cd repo
       ${pkgs.git}/bin/git fetch origin "$BRANCH"
       ${pkgs.git}/bin/git reset --hard "origin/$BRANCH"
-      cd ..
     fi
     
-    # Sync data (DB dump and filestore)
-    echo "Checking data cache..."
-    eval $(${syncDataScript}/bin/sync-preview-data "$PREVIEW_DIR/repo")
-    echo "Data ready: DB=$DB_DUMP, Filestore=$FILESTORE"
-    
-    # Create data directory and link filestore
-    ${pkgs.coreutils}/bin/mkdir -p "$PREVIEW_DIR/data"
-    ${pkgs.coreutils}/bin/ln -sf "$FILESTORE" "$PREVIEW_DIR/data/filestore"
+    # run pnpn install in the monorepo root to ensure all dependencies are present
+    echo "Installing monorepo dependencies..."'
+    export HOME=/tmp/pnpm-home
+    ${pkgs.coreutils}/bin/mkdir -p $HOME
+    ${pkgs.nodejs_20}/bin/npx pnpm install --frozen-lock
+
     
     # Build with turbo (shared cache)
     echo "Building dependencies..."
@@ -271,6 +227,7 @@ in {
     jq
     rsync
     nodejs_20
+    pnpm_9
 
     deployScript
     cleanupScript
