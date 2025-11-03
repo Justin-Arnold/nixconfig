@@ -27,7 +27,10 @@
 
       extraPackages = with pkgs; [
         nodejs_22
-        pnpm_9
+        nodePackages.pnpm
+        git
+        docker
+        docker-compose
       ];
     };
   };
