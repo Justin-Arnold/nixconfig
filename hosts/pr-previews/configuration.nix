@@ -64,6 +64,8 @@ in {
     ../../modules/common
     ../../modules/profiles/server.nix
     ../../modules/platforms/nixos
+
+    sops-nix.nixosModules.sops
   ];
 
   environment.systemPackages = with pkgs; [
@@ -75,8 +77,6 @@ in {
     nodejs_22
     pnpm_9
     webhook
-
-    sops-nix.nixosModules.sops
 
     deployScript
     cleanupScript
