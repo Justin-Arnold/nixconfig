@@ -107,7 +107,6 @@ in {
     port = 9000;
     ip = "127.0.0.1";
     verbose = true;
-    hooks = "/run/webhook/hooks.json";
   };
 
   systemd.services.webhook = {
@@ -189,6 +188,8 @@ in {
       ]
       EOF
     '';
+
+    serviceConfig.ExecStart = pkgs.lib.mkForce "${pkgs.webhook}/bin/webhook -hooks /run/webhook/hooks.json -verbose -ip 127.0.0.1 -port 9000";
   };
 
   systemd.services.log-stream = {
