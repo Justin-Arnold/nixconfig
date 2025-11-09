@@ -107,6 +107,12 @@ in {
     port = 9000;
     ip = "127.0.0.1";
     verbose = true;
+
+    hooks = {
+      dummy = {
+        execute-command = "echo";
+      };
+    };
   };
 
   systemd.services.webhook = {
