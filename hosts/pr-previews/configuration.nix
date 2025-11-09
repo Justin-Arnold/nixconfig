@@ -1,216 +1,62 @@
-{ config, pkgs, ... }:
+{ config, pkgs, sops-nix, ... }:
 
 let
   turboCacheDir = "/var/lib/pr-previews/.turbo-cache";
   monorepoGitUrl = "git@github.com:commongoodlt/CGLT-Monorepo.git";
   repoPath = "/var/lib/pr-previews/monorepo";
-  stagingIp = "3.13.90.206"
-  
-  deployScript = pkgs.writeScriptBin "deploy-preview" ''
-    #!${pkgs.bash}/bin/bash
-    set -euo pipefail
-    
-    PR_NUMBER=$1
-    WORKSPACE=$2 # Satchel - Cureum - Components
-    BRANCH=$3
-    REPO_URL="${repoPath}"
+  stagingIp = "3.13.90.206";
 
-    if [ ! -d "$REPO_PATH" ] || [ -z "$(ls -A "$REPO_PATH" 2>/dev/null)" ]; then
-      echo "Repository missing or empty, cloning ${monorepoGitUrl} → $REPO_PATH"
-      ${pkgs.coreutils}/bin/mkdir -p "$(dirname "$REPO_PATH")"
-      ${pkgs.git}/bin/git clone --depth 1 "${monorepoGitUrl}" "$REPO_PATH"
-    else
-      echo "Repository already present at $REPO_PATH"
-    fi
-    
-    PREVIEW_DIR="/var/lib/pr-previews/pr-''${PR_NUMBER}-''${WORKSPACE}"
-    SCRIPTS_DIR="/var/lib/pr-previews/scripts"
-    
-    echo "=== Deploying PR #''${PR_NUMBER} - ''${WORKSPACE} ==="
-    
-    # Create preview directory
-    ${pkgs.coreutils}/bin/mkdir -p "$PREVIEW_DIR"
-    cd "$PREVIEW_DIR"
-    
-    # Clone or update repo
-    if [ ! -d "repo" ]; then
-      echo "Cloning repository..."
-      ${pkgs.git}/bin/git clone --depth 1 --branch "$BRANCH" "$REPO_URL" repo
-      cd repo
-    else
-      echo "Updating repository..."
-      cd repo
-      ${pkgs.git}/bin/git fetch origin "$BRANCH"
-      ${pkgs.git}/bin/git reset --hard "origin/$BRANCH"
-    fi
-    
-    # run pnpn install in the monorepo root to ensure all dependencies are present
-    echo "Installing monorepo dependencies..."'
-    export HOME=/tmp/pnpm-home
-    ${pkgs.coreutils}/bin/mkdir -p $HOME
-    ${pkgs.nodejs_20}/bin/npx pnpm install --frozen-lock
 
-    
-    # Build with turbo (shared cache)
-    echo "Building dependencies..."
-    cd repo
-    export HOME=/tmp/pnpm-home
-    ${pkgs.coreutils}/bin/mkdir -p $HOME
-    ${pkgs.nodejs_20}/bin/npx pnpm install --frozen-lockfile
-    
-    # Link shared turbo cache
-    ${pkgs.coreutils}/bin/ln -sf "${turboCacheDir}" .turbo
-    ${pkgs.nodejs_20}/bin/npx turbo build --filter=@yourcompany/components --filter=@yourcompany/shared
-    cd ..
-    
-    # Generate docker-compose.yml
-    ${pkgs.coreutils}/bin/cat > docker-compose.yml <<EOF
-    version: '3.8'
-
-    services:
-      frontend-''${PR_NUMBER}-''${WORKSPACE}:
-        build:
-          context: ./repo
-          dockerfile: Dockerfile.dev
-        environment:
-          - VITE_API_URL=https://pr-''${PR_NUMBER}-''${WORKSPACE}-api.preview.commongoodlt.dev
-          - WORKSPACE=''${WORKSPACE}
-        command: pnpm --filter ''${WORKSPACE} dev --host
-        volumes:
-          - ./repo:/app
-          - ./data/filestore:/app/filestore:ro
-          - /app/node_modules
-          - ${turboCacheDir}:/app/.turbo
-        labels:
-          - "traefik.enable=true"
-          - "traefik.http.routers.pr-''${PR_NUMBER}-''${WORKSPACE}-frontend.rule=Host(\`pr-''${PR_NUMBER}-''${WORKSPACE}.preview.commongoodlt.dev\`)"
-          - "traefik.http.routers.pr-''${PR_NUMBER}-''${WORKSPACE}-frontend.entrypoints=websecure"
-          - "traefik.http.routers.pr-''${PR_NUMBER}-''${WORKSPACE}-frontend.tls.certresolver=letsencrypt"
-          - "traefik.http.services.pr-''${PR_NUMBER}-''${WORKSPACE}-frontend.loadbalancer.server.port=5173"
-        networks:
-          - preview-network
-        depends_on:
-          db-''${PR_NUMBER}-''${WORKSPACE}:
-            condition: service_healthy
-
-      php-''${PR_NUMBER}-''${WORKSPACE}:
-        image: php:8.2-fpm
-        volumes:
-          - ./repo/apps/''${WORKSPACE}/backend:/var/www/html
-          - ./data/filestore:/var/www/html/filestore:ro
-        environment:
-          - DB_HOST=db-''${PR_NUMBER}-''${WORKSPACE}
-          - DB_NAME=preview_''${PR_NUMBER}
-          - DB_USER=preview
-          - DB_PASSWORD=preview123
-        labels:
-          - "traefik.enable=true"
-          - "traefik.http.routers.pr-''${PR_NUMBER}-''${WORKSPACE}-api.rule=Host(\`pr-''${PR_NUMBER}-''${WORKSPACE}-api.preview.commongoodlt.dev\`)"
-          - "traefik.http.routers.pr-''${PR_NUMBER}-''${WORKSPACE}-api.entrypoints=websecure"
-          - "traefik.http.routers.pr-''${PR_NUMBER}-''${WORKSPACE}-api.tls.certresolver=letsencrypt"
-        networks:
-          - preview-network
-
-      db-''${PR_NUMBER}-''${WORKSPACE}:
-        image: mysql:8.0
-        environment:
-          - MYSQL_DATABASE=preview_''${PR_NUMBER}
-          - MYSQL_USER=preview
-          - MYSQL_PASSWORD=preview123
-          - MYSQL_ROOT_PASSWORD=rootpass123
-        volumes:
-          - ''${DB_DUMP}:/docker-entrypoint-initdb.d/dump.sql.gz:ro
-          - db-data-''${PR_NUMBER}-''${WORKSPACE}:/var/lib/mysql
-        healthcheck:
-          test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
-          interval: 5s
-          timeout: 5s
-          retries: 20
-        networks:
-          - preview-network
-
-    volumes:
-      db-data-''${PR_NUMBER}-''${WORKSPACE}:
-
-    networks:
-      preview-network:
-        external: true
-    EOF
-    
-    # Start services
-    echo "Starting containers..."
-    ${pkgs.docker-compose}/bin/docker-compose up -d
-    
-    # Wait for database to initialize (first time only)
-    if [ ! -f ".db-initialized" ]; then
-      echo "Waiting for database initialization..."
-      until ${pkgs.docker-compose}/bin/docker-compose exec -T db-''${PR_NUMBER}-''${WORKSPACE} mysqladmin ping -h localhost --silent 2>/dev/null; do
-        ${pkgs.coreutils}/bin/sleep 2
-      done
-      ${pkgs.coreutils}/bin/sleep 10
-      ${pkgs.coreutils}/bin/touch .db-initialized
-    fi
-    
-    echo "=== Deployment complete ==="
-    echo "Frontend: https://pr-''${PR_NUMBER}-''${WORKSPACE}.preview.commongoodlt.dev"
-    echo "API: https://pr-''${PR_NUMBER}-''${WORKSPACE}-api.preview.commongoodlt.dev"
+  notFoundPage = pkgs.runCommand "404-page" {} ''
+    mkdir -p $out
+    cp ${./html/404.html} $out/index.html
   '';
 
-  cleanupScript = pkgs.writeScriptBin "cleanup-preview" ''
+    # Scripts can access config.sops.secrets here!
+  deployScript = pkgs.substituteAll {
+    src = ./scripts/deploy-preview.sh;
+    name = "deploy-preview";
+    dir = "bin";
+    isExecutable = true;
+    
+    inherit monorepoGitUrl;
+    npmToken = builtins.readFile config.sops.secrets."cglt/font-awesome-token".path;
+
+    bash  = "${pkgs.bash}/bin/bash";
+    mkdir = "${pkgs.coreutils}/bin/mkdir";
+    rm    = "${pkgs.coreutils}/bin/rm";
+    cat   = "${pkgs.coreutils}/bin/cat";
+    echo  = "${pkgs.coreutils}/bin/echo";
+    touch = "${pkgs.coreutils}/bin/touch";
+    mv    = "${pkgs.coreutils}/bin/mv";
+    tr    = "${pkgs.coreutils}/bin/tr";
+    date  = "${pkgs.coreutils}/bin/date";
+    grep  = "${pkgs.gnugrep}/bin/grep";
+    git   = "${pkgs.git}/bin/git";
+    pnpm  = "${pkgs.pnpm_9}/bin/pnpm";
+    seq   = "${pkgs.coreutils}/bin/seq";
+  };
+
+  cleanupScript = pkgs.substituteAll {
+    src = ./scripts/cleanup-preview.sh;
+    name = "cleanup-preview";
+    dir = "bin";
+    isExecutable = true;
+    
+    bash = "${pkgs.bash}/bin/bash";
+    cat  = "${pkgs.coreutils}/bin/cat";
+    rm   = "${pkgs.coreutils}/bin/rm";
+    mv   = "${pkgs.coreutils}/bin/mv";
+    grep = "${pkgs.gnugrep}/bin/grep";
+    pnpm = "${pkgs.pnpm_9}/bin/pnpm";
+  };
+
+  logStreamServer = pkgs.writeScriptBin "log-stream-server" ''
     #!${pkgs.bash}/bin/bash
-    set -euo pipefail
-    
-    PR_NUMBER=$1
-    
-    echo "Cleaning up all previews for PR #''${PR_NUMBER}"
-    
-    for dir in /var/lib/pr-previews/pr-''${PR_NUMBER}-*/; do
-      if [ -d "$dir" ]; then
-        echo "Removing: $dir"
-        cd "$dir"
-        ${pkgs.docker-compose}/bin/docker-compose down -v 2>/dev/null || true
-        cd /var/lib/pr-previews
-        ${pkgs.coreutils}/bin/rm -rf "$dir"
-      fi
-    done
-    
-    echo "Cleanup complete for PR #''${PR_NUMBER}"
+    exec ${pkgs.python3}/bin/python3 ${./scripts/log-stream-server.py}
   '';
-  
-  cleanupOldPreviewsScript = pkgs.writeScriptBin "cleanup-old-previews" ''
-    #!${pkgs.bash}/bin/bash
-    set -euo pipefail
-    
-    MAX_AGE_DAYS=7
-    PREVIEW_DIR="/var/lib/pr-previews"
-    
-    echo "Cleaning up preview environments older than $MAX_AGE_DAYS days..."
-    
-    ${pkgs.findutils}/bin/find "$PREVIEW_DIR" -maxdepth 1 -type d -name "pr-*-*" -mtime +$MAX_AGE_DAYS | while read dir; do
-      if [ -d "$dir" ]; then
-        echo "Removing old preview: $dir"
-        cd "$dir"
-        ${pkgs.docker-compose}/bin/docker-compose down -v 2>/dev/null || true
-        cd "$PREVIEW_DIR"
-        ${pkgs.coreutils}/bin/rm -rf "$dir"
-      fi
-    done
-    
-    echo "Old preview cleanup complete"
-  '';
-  
-  clearCacheScript = pkgs.writeScriptBin "clear-preview-cache" ''
-    #!${pkgs.bash}/bin/bash
-    set -euo pipefail
-    
-    CACHE_DIR="/var/lib/pr-previews/.cache"
-    
-    echo "Clearing preview data cache..."
-    ${pkgs.coreutils}/bin/rm -rf "$CACHE_DIR"/*
-    ${pkgs.coreutils}/bin/mkdir -p "$CACHE_DIR"
-    
-    echo "✅ Cache cleared. Next PR deployment will download fresh data."
-  '';
+
+  deploymentStatusPage = ./html;
 
 in {
   imports = [ 
@@ -226,14 +72,14 @@ in {
     curl
     jq
     rsync
-    nodejs_20
+    nodejs_22
     pnpm_9
+    webhook
+
+    sops-nix.nixosModules.sops
 
     deployScript
     cleanupScript
-    syncDataScript
-    cleanupOldPreviewsScript
-    clearCacheScript
   ];
 
   systemProfile = {
@@ -242,29 +88,141 @@ in {
     isServer = true;
   };
 
+  sops.age.keyFile = "/home/justin/.config/sops/age/keys.txt";
+  sops.defaultSopsFile = ../../secrets/secrets.yaml;
+  sops.secrets."cglt/font-awesome-token" = {};
+  sops.secrets."cglt/preview-api-token" = {
+    owner = "webhook";
+    group = "webhook";
+    mode = "0400";
+  };
+  
   networking.firewall = {
     enable = true;
     allowedTCPPorts = [ 22 80 443 ];
   };
 
-  virtualisation.docker = {
+  services.webhook = {
     enable = true;
-    autoPrune = {
-      enable = true;
-      dates = "weekly";
-      flags = [ "--all" "--volumes" ];
+    port = 9000;
+    ip = "127.0.0.1";
+    verbose = true;
+    hooks = "/run/webhook/hooks.json";
+  };
+
+  systemd.services.webhook = {
+    preStart = ''
+      mkdir -p /run/webhook
+
+      TOKEN=$(cat ${config.sops.secrets."cglt/preview-api-token".path})
+      
+      # Generate the webhook config with the token
+      cat > /run/webhook/hooks.json << EOF
+      [
+        {
+          "id": "deploy",
+          "execute-command": "${deployScript}/bin/deploy-preview",
+          "command-working-directory": "/var/lib/pr-previews",
+          "response-message": "Deployment started",
+          "pass-arguments-to-command": [
+            {
+              "source": "payload",
+              "name": "pr_number"
+            },
+            {
+              "source": "string",
+              "name": "Satchel"
+            },
+            {
+              "source": "payload",
+              "name": "branch"
+            }
+          ],
+          "trigger-rule": {
+            "and": [
+              {
+                "match": {
+                  "type": "value",
+                  "value": "Bearer $TOKEN",
+                  "parameter": {
+                    "source": "header",
+                    "name": "Authorization"
+                  }
+                }
+              }
+            ]
+          },
+          "pass-environment-to-command": [
+            {
+              "source": "string",
+              "envname": "HOME",
+              "name": "/tmp/webhook-home"
+            }
+          ]
+        },
+        {
+          "id": "cleanup",
+          "execute-command": "${cleanupScript}/bin/cleanup-preview",
+          "command-working-directory": "/var/lib/pr-previews",
+          "response-message": "Cleanup started",
+          "pass-arguments-to-command": [
+            {
+              "source": "payload",
+              "name": "pr_number"
+            }
+          ],
+          "trigger-rule": {
+            "and": [
+              {
+                "match": {
+                  "type": "value",
+                  "value": "Bearer $TOKEN",
+                  "parameter": {
+                    "source": "header",
+                    "name": "Authorization"
+                  }
+                }
+              }
+            ]
+          }
+        }
+      ]
+      EOF
+    '';
+  };
+
+  systemd.services.log-stream = {
+    description = "PR Preview Log Streaming Service";
+    after = [ "network.target" ];
+    wantedBy = [ "multi-user.target" ];
+    serviceConfig = {
+      Type = "simple";
+      Restart = "always";
+      ExecStart = "${logStreamServer}/bin/log-stream-server";
+      StandardOutput = "journal";
+      StandardError = "journal";
+    };
+  };
+
+  systemd.services.deployment-status = {
+    description = "Deployment Status Page Server";
+    after = [ "network.target" ];
+    wantedBy = [ "multi-user.target" ];
+    serviceConfig = {
+      Type = "simple";
+      Restart = "always";
+      ExecStart = "${pkgs.python3}/bin/python3 -m http.server 8406 --directory ${deploymentStatusPage}";
     };
   };
 
   systemd.services.preview-404 = {
     description = "Preview 404 Page";
-    after = [ "network.target" "docker-network-preview.service" ];
+    after = [ "network.target" ];
     wantedBy = [ "multi-user.target" ];
     serviceConfig = {
       Type = "simple";
       Restart = "always";
-      ExecStart = "${pkgs.python3}/bin/python3 -m http.server 8404 --directory /var/lib/pr-previews/404";
-      WorkingDirectory = "/var/lib/pr-previews/404";
+      ExecStart = "${pkgs.python3}/bin/python3 -m http.server 8404 --directory ${notFoundPage}";
     };
   };
 
@@ -275,10 +233,6 @@ in {
       entryPoints = {
         web = {
           address = ":80";
-          # http.redirections.entrypoint = {
-          #   to = "websecure";
-          #   scheme = "https";
-          # };
         };
         websecure = {
           address = ":443";
@@ -303,7 +257,7 @@ in {
       };
 
       providers.file = {
-        filename = "/etc/traefik/dynamic.yml";
+        directory = "/etc/traefik/dynamic";
         watch = true;
       };
     };
@@ -311,6 +265,33 @@ in {
     dynamicConfigOptions = {
       http = {
         routers = {
+          webhook-deploy = {
+            rule = "Host(`preview-proxy.commongoodlt.dev`) && Path(`/api/deploy`)";
+            service = "webhook";
+            entryPoints = [ "websecure" ];
+            tls.certResolver = "letsencrypt";
+            middlewares = [ "webhook-deploy-rewrite" ];
+          };
+          webhook-cleanup = {
+            rule = "Host(`preview-proxy.commongoodlt.dev`) && Path(`/api/cleanup`)";
+            service = "webhook";
+            entryPoints = [ "websecure" ];
+            tls.certResolver = "letsencrypt";
+            middlewares = [ "webhook-cleanup-rewrite" ];
+          };
+          log-stream = {
+            rule = "Host(`preview-proxy.commongoodlt.dev`) && PathPrefix(`/logs`)";
+            service = "log-stream";
+            entryPoints = [ "websecure" ];
+            tls.certResolver = "letsencrypt";
+          };
+          deployment-status = {
+            rule = "HostRegexp(`^pr-[0-9]+-[a-z]+\\.preview\\.commongoodlt\\.dev$`)";
+            service = "deployment-status";
+            priority = 5;
+            entryPoints = [ "websecure" ];
+            tls.certResolver = "letsencrypt";
+          };
           catchall = {
             rule = "PathPrefix(`/`)";
             service = "notfound";
@@ -318,7 +299,40 @@ in {
             entryPoints = [ "web" ];
           };
         };
+        middlewares = {
+          webhook-deploy-rewrite = {
+            stripPrefix = {
+              prefixes = [ "/api" ];
+            };
+          };
+          webhook-cleanup-rewrite = {
+            stripPrefix = {
+              prefixes = [ "/api" ];
+            };
+          };
+        };
         services = {
+          webhook = {
+            loadBalancer = {
+              servers = [
+                { url = "http://127.0.0.1:9000"; }
+              ];
+            };
+          };
+          log-stream = {
+            loadBalancer = {
+              servers = [
+                { url = "http://127.0.0.1:8405"; }
+              ];
+            };
+          };
+          deployment-status = {
+            loadBalancer = {
+              servers = [
+                { url = "http://127.0.0.1:8406"; }
+              ];
+            };
+          };
           notfound = {
             loadBalancer = {
               servers = [
@@ -331,179 +345,19 @@ in {
     };
   };
 
-  systemd.services.docker-network-preview = {
-    description = "Create Docker preview network";
-    after = [ "docker.service" ];
-    wantedBy = [ "multi-user.target" ];
-    serviceConfig = {
-      Type = "oneshot";
-      RemainAfterExit = true;
-      ExecStart = "${pkgs.bash}/bin/bash -c '${pkgs.docker}/bin/docker network create preview-network || true'";
-    };
-  };
-
-  systemd.services.traefik.after = [ "docker-network-preview.service" ];
-  systemd.services.traefik.requires = [ "docker-network-preview.service" ];
-
   services.cron = {
     enable = true;
     systemCronJobs = [
-      # Cleanup old previews daily at 2am
-      "0 2 * * * root ${cleanupOldPreviewsScript}/bin/cleanup-old-previews"
-      # Docker system prune weekly on Sunday at 3am
-      "0 3 * * 0 root ${pkgs.docker}/bin/docker system prune -af --volumes"
-      # Clean turbo cache weekly (keep under 10GB)
-      "0 4 * * 0 root ${pkgs.findutils}/bin/find ${turboCacheDir} -type f -atime +7 -delete"
+      "0 3 * * 0 root ${pkgs.findutils}/bin/find /var/lib/pr-previews/logs -type f -mtime +30 -delete"
     ];
   };
 
   systemd.tmpfiles.rules = [
     "d /var/lib/pr-previews 0755 root root -"
-    "d /var/lib/pr-previews/.cache 0755 root root -"
-    "d /var/lib/pr-previews/404 0755 root root -"
-    "d ${turboCacheDir} 0755 root root -"
+    "d /var/lib/pr-previews/logs 0755 root root -"
+    "d /etc/traefik/dynamic 0755 root root -"
+    "f /var/lib/pr-previews/used-ports.txt 0644 root root -"
   ];
-
-  environment.etc."pr-previews-404/index.html" = {
-    text = ''
-      <!DOCTYPE html>
-      <html lang="en">
-      <head>
-          <meta charset="UTF-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>Preview Not Found</title>
-          <style>
-              * {
-                  margin: 0;
-                  padding: 0;
-                  box-sizing: border-box;
-              }
-              
-              body {
-                  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-                  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                  min-height: 100vh;
-                  display: flex;
-                  align-items: center;
-                  justify-content: center;
-                  padding: 20px;
-              }
-              
-              .container {
-                  background: white;
-                  border-radius: 20px;
-                  padding: 60px 40px;
-                  max-width: 600px;
-                  text-align: center;
-                  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-                  animation: fadeIn 0.5s ease-in;
-              }
-              
-              @keyframes fadeIn {
-                  from {
-                      opacity: 0;
-                      transform: translateY(-20px);
-                  }
-                  to {
-                      opacity: 1;
-                      transform: translateY(0);
-                  }
-              }
-              
-              .error-code {
-                  font-size: 120px;
-                  font-weight: 700;
-                  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                  -webkit-background-clip: text;
-                  -webkit-text-fill-color: transparent;
-                  background-clip: text;
-                  margin-bottom: 20px;
-                  line-height: 1;
-              }
-              
-              h1 {
-                  font-size: 32px;
-                  color: #2d3748;
-                  margin-bottom: 15px;
-              }
-              
-              p {
-                  font-size: 18px;
-                  color: #718096;
-                  line-height: 1.6;
-                  margin-bottom: 30px;
-              }
-              
-              .info-box {
-                  background: #f7fafc;
-                  border-left: 4px solid #667eea;
-                  padding: 20px;
-                  border-radius: 8px;
-                  text-align: left;
-                  margin-top: 30px;
-              }
-              
-              .info-box h3 {
-                  color: #2d3748;
-                  margin-bottom: 10px;
-                  font-size: 16px;
-              }
-              
-              .info-box ul {
-                  list-style: none;
-                  color: #4a5568;
-                  font-size: 14px;
-                  line-height: 1.8;
-              }
-              
-              .info-box li:before {
-                  content: "→ ";
-                  color: #667eea;
-                  font-weight: bold;
-                  margin-right: 8px;
-              }
-              
-              .hostname {
-                  font-family: 'Courier New', monospace;
-                  background: #edf2f7;
-                  padding: 2px 8px;
-                  border-radius: 4px;
-                  color: #667eea;
-                  font-weight: 600;
-              }
-          </style>
-      </head>
-      <body>
-          <div class="container">
-              <div class="error-code">404</div>
-              <h1>Preview Environment Not Found</h1>
-              <p>The preview environment you're looking for doesn't exist or has been closed.</p>
-              <p>You tried to access: <span class="hostname" id="hostname"></span></p>
-              
-              <div class="info-box">
-                  <h3>Common reasons:</h3>
-                  <ul>
-                      <li>The Pull Request has been merged or closed</li>
-                      <li>The preview environment was cleaned up (older than 7 days)</li>
-                      <li>The URL may contain a typo</li>
-                      <li>The deployment is still in progress</li>
-                  </ul>
-              </div>
-          </div>
-          
-          <script>
-              document.getElementById('hostname').textContent = window.location.hostname;
-          </script>
-      </body>
-      </html>
-    '';
-    mode = "0644";
-  };
-
-  system.activationScripts.setup404Page = ''
-    mkdir -p /var/lib/pr-previews/404
-    ln -sf /etc/pr-previews-404/index.html /var/lib/pr-previews/404/index.html
-  '';
 
   boot.kernel.sysctl = {
     "fs.inotify.max_user_watches" = 524288;
