@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Deployment in Progress</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Code', 'Droid Sans Mono', 'Source Code Pro', monospace;
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            background: #2d2d30;
+            padding: 20px;
+            border-radius: 8px 8px 0 0;
+            border-bottom: 2px solid #007acc;
+        }
+        
+        h1 {
+            color: #007acc;
+            font-size: 24px;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(0, 122, 204, 0.3);
+            border-radius: 50%;
+            border-top-color: #007acc;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .info {
+            color: #858585;
+            font-size: 14px;
+        }
+        
+        .terminal {
+            background: #1e1e1e;
+            padding: 20px;
+            border-radius: 0 0 8px 8px;
+            height: calc(100vh - 200px);
+            overflow-y: auto;
+            font-size: 14px;
+            border: 1px solid #2d2d30;
+        }
+        
+        .log-line {
+            margin: 2px 0;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        
+        .log-line.error {
+            color: #f48771;
+        }
+        
+        .log-line.success {
+            color: #89d185;
+        }
+        
+        .log-line.info {
+            color: #75beff;
+        }
+        
+        .complete-message {
+            background: #89d185;
+            color: #1e1e1e;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+            text-align: center;
+            font-weight: bold;
+            display: none;
+        }
+        
+        .complete-message.show {
+            display: block;
+        }
+        
+        /* Scrollbar styling */
+        .terminal::-webkit-scrollbar {
+            width: 10px;
+        }
+        
+        .terminal::-webkit-scrollbar-track {
+            background: #1e1e1e;
+        }
+        
+        .terminal::-webkit-scrollbar-thumb {
+            background: #424242;
+            border-radius: 5px;
+        }
+        
+        .terminal::-webkit-scrollbar-thumb:hover {
+            background: #4e4e4e;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>
+                <span class="spinner" id="spinner"></span>
+                Deployment in Progress
+            </h1>
+            <p class="info" id="pr-info">Loading...</p>
+        </div>
+        
+        <div class="complete-message" id="complete-message">
+            ✓ Deployment Complete! Redirecting to your preview environment...
+        </div>
+        
+        <div class="terminal" id="terminal">
+            <div class="log-line info">Connecting to deployment logs...</div>
+        </div>
+    </div>
+    
+    <script>
+        // Extract PR info from hostname
+        const hostname = window.location.hostname;
+        const match = hostname.match(/^pr-(\d+)-(\w+)\./);
+        
+        if (match) {
+            const prNumber = match[1];
+            const workspace = match[2];
+            const workspaceCap = workspace.charAt(0).toUpperCase() + workspace.slice(1);
+            const prId = `pr-${prNumber}-${workspaceCap}`;
+            
+            document.getElementById('pr-info').textContent = 
+                `PR #${prNumber} - ${workspaceCap} | This usually takes 5-10 minutes`;
+            
+            const terminal = document.getElementById('terminal');
+            terminal.innerHTML = '';
+            
+            // Function to add log line with color coding
+            function addLogLine(line) {
+                const div = document.createElement('div');
+                div.className = 'log-line';
+                
+                // Color code based on content
+                if (line.includes('error') || line.includes('ERROR') || line.includes('failed')) {
+                    div.className += ' error';
+                } else if (line.includes('✓') || line.includes('complete') || line.includes('Complete') || line.includes('success')) {
+                    div.className += ' success';
+                } else if (line.includes('===') || line.includes('Installing') || line.includes('Building') || line.includes('Starting')) {
+                    div.className += ' info';
+                }
+                
+                div.textContent = line;
+                terminal.appendChild(div);
+                
+                // Auto-scroll to bottom
+                terminal.scrollTop = terminal.scrollHeight;
+            }
+            
+            // Connect to SSE stream
+            const logUrl = `https://${window.location.hostname}/logs/${prId}`;
+            const eventSource = new EventSource(logUrl);
+            
+            eventSource.onmessage = function(event) {
+                const data = JSON.parse(event.data);
+                
+                if (data.complete) {
+                    // Deployment complete
+                    document.getElementById('spinner').style.display = 'none';
+                    document.getElementById('complete-message').classList.add('show');
+                    eventSource.close();
+                    
+                    // Redirect after 3 seconds
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 3000);
+                } else if (data.line) {
+                    addLogLine(data.line);
+                }
+            };
+            
+            eventSource.onerror = function(error) {
+                console.error('EventSource error:', error);
+                addLogLine('Connection error. Retrying...');
+                eventSource.close();
+                
+                // Retry connection after 5 seconds
+                setTimeout(() => {
+                    window.location.reload();
+                }, 5000);
+            };
+        } else {
+            document.getElementById('pr-info').textContent = 'Invalid PR URL format';
+        }
+    </script>
+</body>
+</html>
