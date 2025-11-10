@@ -1,4 +1,4 @@
-#!@bash@
+#!/usr/bin/env bash
 set -euo pipefail
 
 PR_NUMBER=$1
