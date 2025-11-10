@@ -12,44 +12,42 @@ let
     cp ${./html/404.html} $out/index.html
   '';
 
-    # Scripts can access config.sops.secrets here!
-  deployScript = pkgs.substituteAll {
-    src = ./scripts/deploy-preview.sh;
-    name = "deploy-preview";
-    dir = "bin";
-    isExecutable = true;
+  deployScript = pkgs.runCommand "deploy-preview" {} ''
+    mkdir -p $out/bin
+  
+    ${pkgs.replaceVars}/bin/replace-vars ${./scripts/deploy-preview.sh} $out/bin/deploy-preview \
+      --replace-fail '@monorepoGitUrl@' '${monorepoGitUrl}' \
+      --replace-fail '@npmToken@' '${builtins.readFile config.sops.secrets."cglt/font-awesome-token".path}' \
+      --replace-fail '@bash@' '${pkgs.bash}/bin/bash' \
+      --replace-fail '@mkdir@' '${pkgs.coreutils}/bin/mkdir' \
+      --replace-fail '@rm@' '${pkgs.coreutils}/bin/rm' \
+      --replace-fail '@cat@' '${pkgs.coreutils}/bin/cat' \
+      --replace-fail '@echo@' '${pkgs.coreutils}/bin/echo' \
+      --replace-fail '@touch@' '${pkgs.coreutils}/bin/touch' \
+      --replace-fail '@mv@' '${pkgs.coreutils}/bin/mv' \
+      --replace-fail '@tr@' '${pkgs.coreutils}/bin/tr' \
+      --replace-fail '@date@' '${pkgs.coreutils}/bin/date' \
+      --replace-fail '@grep@' '${pkgs.gnugrep}/bin/grep' \
+      --replace-fail '@git@' '${pkgs.git}/bin/git' \
+      --replace-fail '@pnpm@' '${pkgs.pnpm_9}/bin/pnpm' \
+      --replace-fail '@seq@' '${pkgs.coreutils}/bin/seq'
     
-    inherit monorepoGitUrl;
-    npmToken = builtins.readFile config.sops.secrets."cglt/font-awesome-token".path;
+    chmod +x $out/bin/deploy-preview
+  '';
 
-    bash  = "${pkgs.bash}/bin/bash";
-    mkdir = "${pkgs.coreutils}/bin/mkdir";
-    rm    = "${pkgs.coreutils}/bin/rm";
-    cat   = "${pkgs.coreutils}/bin/cat";
-    echo  = "${pkgs.coreutils}/bin/echo";
-    touch = "${pkgs.coreutils}/bin/touch";
-    mv    = "${pkgs.coreutils}/bin/mv";
-    tr    = "${pkgs.coreutils}/bin/tr";
-    date  = "${pkgs.coreutils}/bin/date";
-    grep  = "${pkgs.gnugrep}/bin/grep";
-    git   = "${pkgs.git}/bin/git";
-    pnpm  = "${pkgs.pnpm_9}/bin/pnpm";
-    seq   = "${pkgs.coreutils}/bin/seq";
-  };
-
-  cleanupScript = pkgs.substituteAll {
-    src = ./scripts/cleanup-preview.sh;
-    name = "cleanup-preview";
-    dir = "bin";
-    isExecutable = true;
+  cleanupScript = pkgs.runCommand "cleanup-preview" {} ''
+    mkdir -p $out/bin
     
-    bash = "${pkgs.bash}/bin/bash";
-    cat  = "${pkgs.coreutils}/bin/cat";
-    rm   = "${pkgs.coreutils}/bin/rm";
-    mv   = "${pkgs.coreutils}/bin/mv";
-    grep = "${pkgs.gnugrep}/bin/grep";
-    pnpm = "${pkgs.pnpm_9}/bin/pnpm";
-  };
+    ${pkgs.replaceVars}/bin/replace-vars ${./scripts/cleanup-preview.sh} $out/bin/cleanup-preview \
+      --replace-fail '@bash@' '${pkgs.bash}/bin/bash' \
+      --replace-fail '@cat@' '${pkgs.coreutils}/bin/cat' \
+      --replace-fail '@rm@' '${pkgs.coreutils}/bin/rm' \
+      --replace-fail '@mv@' '${pkgs.coreutils}/bin/mv' \
+      --replace-fail '@grep@' '${pkgs.gnugrep}/bin/grep' \
+      --replace-fail '@pnpm@' '${pkgs.pnpm_9}/bin/pnpm'
+    
+    chmod +x $out/bin/cleanup-preview
+  '';
 
   logStreamServer = pkgs.writeScriptBin "log-stream-server" ''
     #!${pkgs.bash}/bin/bash
