@@ -302,13 +302,6 @@ in {
         service: log-stream
         priority: 100
 
-      deployment-status:
-        rule: HostRegexp(`^pr-[0-9]+-[a-z]+\.preview\.commongoodlt\.dev$`)
-        entryPoints: [ "web" ]
-        service: deployment-status
-        priority: 100
-
-      # very-low-priority catch-all on :80 → your custom 404
       catchall:
         rule: PathPrefix(`/`)
         entryPoints: [ "web" ]
