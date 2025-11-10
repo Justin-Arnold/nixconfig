@@ -275,88 +275,71 @@ in {
       };
     };
 
-    dynamicConfigOptions = {
-      http = {
-        routers = {
-          webhook-deploy = {
-            rule = "Host(`preview-proxy.commongoodlt.dev`) && Path(`/api/deploy`)";
-            service = "webhook";
-            entryPoints = [ "websecure" ];
-            tls.certResolver = "letsencrypt";
-            middlewares = [ "webhook-deploy-rewrite" ];
-          };
-          webhook-cleanup = {
-            rule = "Host(`preview-proxy.commongoodlt.dev`) && Path(`/api/cleanup`)";
-            service = "webhook";
-            entryPoints = [ "websecure" ];
-            tls.certResolver = "letsencrypt";
-            middlewares = [ "webhook-cleanup-rewrite" ];
-          };
-          log-stream = {
-            rule = "Host(`preview-proxy.commongoodlt.dev`) && PathPrefix(`/logs`)";
-            service = "log-stream";
-            entryPoints = [ "websecure" ];
-            tls.certResolver = "letsencrypt";
-          };
-          deployment-status = {
-            rule = "HostRegexp(`^pr-[0-9]+-[a-z]+\\.preview\\.commongoodlt\\.dev$`)";
-            service = "deployment-status";
-            priority = 5;
-            entryPoints = [ "websecure" ];
-            tls.certResolver = "letsencrypt";
-          };
-          catchall = {
-            rule = "PathPrefix(`/`)";
-            service = "notfound";
-            priority = 1;
-            entryPoints = [ "web" ];
-          };
-        };
-        middlewares = {
-          webhook-deploy-rewrite = {
-            stripPrefix = {
-              prefixes = [ "/api" ];
-            };
-          };
-          webhook-cleanup-rewrite = {
-            stripPrefix = {
-              prefixes = [ "/api" ];
-            };
-          };
-        };
-        services = {
-          webhook = {
-            loadBalancer = {
-              servers = [
-                { url = "http://127.0.0.1:9000"; }
-              ];
-            };
-          };
-          log-stream = {
-            loadBalancer = {
-              servers = [
-                { url = "http://127.0.0.1:8405"; }
-              ];
-            };
-          };
-          deployment-status = {
-            loadBalancer = {
-              servers = [
-                { url = "http://127.0.0.1:8406"; }
-              ];
-            };
-          };
-          notfound = {
-            loadBalancer = {
-              servers = [
-                { url = "http://localhost:8404"; }
-              ];
-            };
-          };
-        };
-      };
-    };
-  };
+  environment.etc."traefik/dynamic/base.yml".text = ''
+  http:
+    routers:
+      webhook-deploy:
+        rule: Host(`preview-proxy.commongoodlt.dev`) && Path(`/api/deploy`)
+        entryPoints: [ "web" ]
+        service: webhook
+        middlewares: [ "webhook-deploy-rewrite" ]
+        priority: 100
+
+      webhook-cleanup:
+        rule: Host(`preview-proxy.commongoodlt.dev`) && Path(`/api/cleanup`)
+        entryPoints: [ "web" ]
+        service: webhook
+        middlewares: [ "webhook-cleanup-rewrite" ]
+        priority: 100
+
+      log-stream:
+        rule: Host(`preview-proxy.commongoodlt.dev`) && PathPrefix(`/logs`)
+        entryPoints: [ "web" ]
+        service: log-stream
+        priority: 100
+
+      deployment-status:
+        rule: HostRegexp(`^pr-[0-9]+-[a-z]+\.preview\.commongoodlt\.dev$`)
+        entryPoints: [ "web" ]
+        service: deployment-status
+        priority: 100
+
+      # very-low-priority catch-all on :80 → your custom 404
+      catchall:
+        rule: PathPrefix(`/`)
+        entryPoints: [ "web" ]
+        service: notfound
+        priority: -1
+
+    middlewares:
+      webhook-deploy-rewrite:
+        stripPrefix:
+          prefixes: [ "/api" ]
+      webhook-cleanup-rewrite:
+        stripPrefix:
+          prefixes: [ "/api" ]
+
+    services:
+      webhook:
+        loadBalancer:
+          servers:
+            - url: "http://127.0.0.1:9000"
+
+      log-stream:
+        loadBalancer:
+          servers:
+            - url: "http://127.0.0.1:8405"
+
+      deployment-status:
+        loadBalancer:
+          servers:
+            - url: "http://127.0.0.1:8406"
+
+      notfound:
+        loadBalancer:
+          servers:
+            - url: "http://127.0.0.1:8404"
+  '';
 
   services.cron = {
     enable = true;
