@@ -13,42 +13,47 @@ let
   '';
 
   deployScript = pkgs.writeShellScriptBin "deploy-preview" ''
-+    set -euo pipefail
-+    # Read secret at runtime
-+    export NPM_TOKEN="$(cat ${config.sops.secrets."cglt/font-awesome-token".path})"
-+
-+    # Tool paths available as env if you still want to reference them:
-+    export BASH="${pkgs.bash}/bin/bash"
-+    export MKDIR="${pkgs.coreutils}/bin/mkdir"
-+    export RM="${pkgs.coreutils}/bin/rm"
-+    export CAT="${pkgs.coreutils}/bin/cat"
-+    export ECHO="${pkgs.coreutils}/bin/echo"
-+    export TOUCH="${pkgs.coreutils}/bin/touch"
-+    export MV="${pkgs.coreutils}/bin/mv"
-+    export TR="${pkgs.coreutils}/bin/tr"
-+    export DATE="${pkgs.coreutils}/bin/date"
-+    export GREP="${pkgs.gnugrep}/bin/grep"
-+    export GIT="${pkgs.git}/bin/git"
-+    export PNPM="${pkgs.pnpm_9}/bin/pnpm"
-+    export SEQ="${pkgs.coreutils}/bin/seq"
-+    export MONOREPO_GIT_URL="${monorepoGitUrl}"
-+
-+    exec ${pkgs.bash}/bin/bash ${./scripts/deploy-preview.sh}
-+  '';
+    set -euo pipefail
+    # Read secret at runtime
+    export NPM_TOKEN="$(cat ${config.sops.secrets."cglt/font-awesome-token".path})"
 
-  cleanupScript = pkgs.writeTextFile {
-    name = "cleanup-preview";
-    text = pkgs.replaceVars (builtins.readFile ./scripts/cleanup-preview.sh) {
-      bash = "${pkgs.bash}/bin/bash";
-      cat = "${pkgs.coreutils}/bin/cat";
-      rm = "${pkgs.coreutils}/bin/rm";
-      mv = "${pkgs.coreutils}/bin/mv";
-      grep = "${pkgs.gnugrep}/bin/grep";
-      pnpm = "${pkgs.pnpm_9}/bin/pnpm";
-    };
-    executable = true;
-    destination = "/bin/cleanup-preview";
-  };
+    # Tool paths available as env if you still want to reference them:
+    export BASH="${pkgs.bash}/bin/bash"
+    export MKDIR="${pkgs.coreutils}/bin/mkdir"
+    export RM="${pkgs.coreutils}/bin/rm"
+    export CAT="${pkgs.coreutils}/bin/cat"
+    export ECHO="${pkgs.coreutils}/bin/echo"
+    export TOUCH="${pkgs.coreutils}/bin/touch"
+    export MV="${pkgs.coreutils}/bin/mv"
+    export TR="${pkgs.coreutils}/bin/tr"
+    export DATE="${pkgs.coreutils}/bin/date"
+    export GREP="${pkgs.gnugrep}/bin/grep"
+    export GIT="${pkgs.git}/bin/git"
+    export PNPM="${pkgs.pnpm_9}/bin/pnpm"
+    export SEQ="${pkgs.coreutils}/bin/seq"
+    export MONOREPO_GIT_URL="${monorepoGitUrl}"
+
+    exec ${pkgs.bash}/bin/bash ${./scripts/deploy-preview.sh}
+  '';
+
+  cleanupScript = pkgs.writeShellScriptBin "cleanup-preview" ''
+    set -euo pipefail
+
+    # Tool paths as env vars (match your deploy wrapper’s style)
+    export BASH="${pkgs.bash}/bin/bash"
+    export RM="${pkgs.coreutils}/bin/rm"
+    export GREP="${pkgs.gnugrep}/bin/grep"
+    export MV="${pkgs.coreutils}/bin/mv"
+    export CAT="${pkgs.coreutils}/bin/cat"
+    export MKDIR="${pkgs.coreutils}/bin/mkdir"
+    export MKTEMP="${pkgs.coreutils}/bin/mktemp"
+    export PNPM="${pkgs.pnpm_9}/bin/pnpm"
+
+    # (No secrets needed for cleanup.)
+
+    exec "${pkgs.bash}/bin/bash" ${./scripts/cleanup-preview.sh} "$@"
+  '';
+
 
   logStreamServer = pkgs.writeScriptBin "log-stream-server" ''
     #!${pkgs.bash}/bin/bash
