@@ -1,7 +1,17 @@
-#!@bash@
+#!/usr/bin/env bash
 set -euo pipefail
 
-PR_NUMBER=$1
+# Use tool paths from env (exported by the Nix wrapper), with safe fallbacks for manual runs
+: "${BASH:=/usr/bin/env bash}"
+: "${CAT:=cat}"
+: "${RM:=rm}"
+: "${GREP:=grep}"
+: "${MV:=mv}"
+: "${PNPM:=pnpm}"
+: "${MKTEMP:=mktemp}"
+: "${MKDIR:=mkdir}"
+
+PR_NUMBER=${1:?missing PR number}
 
 PREVIEW_BASE="/var/lib/pr-previews"
 PORTS_FILE="${PREVIEW_BASE}/used-ports.txt"
