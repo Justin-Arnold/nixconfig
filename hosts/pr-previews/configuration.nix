@@ -283,27 +283,31 @@ in {
   http:
     routers:
       webhook-deploy:
-        rule: Host(`preview-proxy.commongoodlt.dev`) && Path(`/api/deploy`)
+        # match regardless of Host; upstream proxy can change Host
+        rule: "Path(`/api/deploy`)"
         entryPoints: [ "web" ]
         service: webhook
         middlewares: [ "webhook-deploy-rewrite" ]
         priority: 100
 
       webhook-cleanup:
-        rule: Host(`preview-proxy.commongoodlt.dev`) && Path(`/api/cleanup`)
+        rule: "Path(`/api/cleanup`)"
         entryPoints: [ "web" ]
         service: webhook
         middlewares: [ "webhook-cleanup-rewrite" ]
         priority: 100
 
       log-stream:
-        rule: Host(`preview-proxy.commongoodlt.dev`) && PathPrefix(`/logs`)
+        # this one probably *does* depend on host; keep Host() if your proxy preserves it,
+        # or relax to PathPrefix if you want it accessible regardless of Host.
+        rule: "PathPrefix(`/logs`)"
         entryPoints: [ "web" ]
         service: log-stream
         priority: 100
 
+      # ... your deployment-status router if you kept it scoped, OR just omit it ...
       catchall:
-        rule: PathPrefix(`/`)
+        rule: "PathPrefix(`/`)"
         entryPoints: [ "web" ]
         service: notfound
         priority: -1
