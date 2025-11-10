@@ -19,37 +19,51 @@ TRAEFIK_CONFIG_DIR="/etc/traefik/dynamic"
 
 echo "=== Cleaning up PR #${PR_NUMBER} ==="
 
-PORT_FILE="${PREVIEW_BASE}/pr-${PR_NUMBER}/port"
-if [ -f "$PORT_FILE" ]; then
-    PORT=$(@cat@ "$PORT_FILE")
+# Read the assigned port (if tracked) BEFORE deleting dirs
+PR_META_DIR="${PREVIEW_BASE}/pr-${PR_NUMBER}"
+PORT_FILE="${PR_META_DIR}/port"
+PORT=""
+if [ -f "${PORT_FILE}" ]; then
+  PORT="$(${CAT} "${PORT_FILE}" 2>/dev/null || true)"
+  if [ -n "${PORT}" ]; then
     echo "Found port: ${PORT}"
-    
-    @grep@ -v "^${PORT}$" "${PORTS_FILE}" > "${PORTS_FILE}.tmp" || true
-    @mv@ "${PORTS_FILE}.tmp" "${PORTS_FILE}"
+  fi
 fi
 
+# Stop Satchel if repo still exists (best-effort)
 PR_DIR="${PREVIEW_BASE}/monorepo-pr-${PR_NUMBER}"
-if [ -d "$PR_DIR" ]; then
-    echo "Stopping Satchel..."
-    cd "$PR_DIR"
-    @pnpm@ run satchel stop || true
+if [ -d "${PR_DIR}" ]; then
+  echo "Stopping Satchel..."
+  ( cd "${PR_DIR}" && ${PNPM} run satchel stop ) || true
 fi
 
-echo "Removing PR directory..."
-@rm@ -rf "$PR_DIR"
-@rm@ -rf "${PREVIEW_BASE}/pr-${PR_NUMBER}"
+echo "Removing PR directory and metadata…"
+${RM} -rf "${PR_DIR}"
+${RM} -rf "${PR_META_DIR}"
 
-echo "Removing Traefik configuration..."
-@rm@ -f "${TRAEFIK_CONFIG_DIR}/pr-${PR_NUMBER}-"*.yml
+echo "Removing Traefik configuration…"
+# Might have multiple workspaces; remove any that match this PR number
+${RM} -f "${TRAEFIK_CONFIG_DIR}/pr-${PR_NUMBER}-"*.yml || true
 
-@rm@ -f "${PREVIEW_BASE}/logs/pr-${PR_NUMBER}.log"
+echo "Removing PR log…"
+${RM} -f "${PREVIEW_BASE}/logs/pr-${PR_NUMBER}.log" || true
+
+# Free the port from the tracked list, if present
+if [ -n "${PORT}" ] && [ -f "${PORTS_FILE}" ]; then
+  TMP="$(${MKTEMP})"
+  # Remove the exact matching line for the port
+  ${GREP} -vxF "${PORT}" "${PORTS_FILE}" > "${TMP}" || true
+  ${MV} "${TMP}" "${PORTS_FILE}"
+  echo "Freed port ${PORT}"
+fi
 
 echo "Cleanup complete for PR #${PR_NUMBER}"
 
+# JSON response for webhook callers
 cat <<JSON
 {
-    "status": "success",
-    "pr_number": ${PR_NUMBER},
-    "message": "Preview environment cleaned up"
+  "status": "success",
+  "pr_number": ${PR_NUMBER},
+  "message": "Preview environment cleaned up"
 }
 JSON
