@@ -264,16 +264,17 @@ in {
         insecure = true;
       };
       
-      providers.docker = {
-        exposedByDefault = false;
-        network = "preview-network";
-      };
+      # providers.docker = {
+      #   exposedByDefault = false;
+      #   network = "preview-network";
+      # };
 
       providers.file = {
         directory = "/etc/traefik/dynamic";
         watch = true;
       };
     };
+  };
 
   environment.etc."traefik/dynamic/base.yml".text = ''
   http:
