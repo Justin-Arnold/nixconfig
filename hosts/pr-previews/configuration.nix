@@ -12,28 +12,29 @@ let
     cp ${./html/404.html} $out/index.html
   '';
 
-  deployScript = pkgs.writeTextFile {
-    name = "deploy-preview";
-    text = pkgs.replaceVars (builtins.readFile ./scripts/deploy-preview.sh) {
-      monorepoGitUrl = monorepoGitUrl;
-      npmToken = builtins.readFile config.sops.secrets."cglt/font-awesome-token".path;
-      bash = "${pkgs.bash}/bin/bash";
-      mkdir = "${pkgs.coreutils}/bin/mkdir";
-      rm = "${pkgs.coreutils}/bin/rm";
-      cat = "${pkgs.coreutils}/bin/cat";
-      echo = "${pkgs.coreutils}/bin/echo";
-      touch = "${pkgs.coreutils}/bin/touch";
-      mv = "${pkgs.coreutils}/bin/mv";
-      tr = "${pkgs.coreutils}/bin/tr";
-      date = "${pkgs.coreutils}/bin/date";
-      grep = "${pkgs.gnugrep}/bin/grep";
-      git = "${pkgs.git}/bin/git";
-      pnpm = "${pkgs.pnpm_9}/bin/pnpm";
-      seq = "${pkgs.coreutils}/bin/seq";
-    };
-    executable = true;
-    destination = "/bin/deploy-preview";
-  };
+  deployScript = pkgs.writeShellScriptBin "deploy-preview" ''
++    set -euo pipefail
++    # Read secret at runtime
++    export NPM_TOKEN="$(cat ${config.sops.secrets."cglt/font-awesome-token".path})"
++
++    # Tool paths available as env if you still want to reference them:
++    export BASH="${pkgs.bash}/bin/bash"
++    export MKDIR="${pkgs.coreutils}/bin/mkdir"
++    export RM="${pkgs.coreutils}/bin/rm"
++    export CAT="${pkgs.coreutils}/bin/cat"
++    export ECHO="${pkgs.coreutils}/bin/echo"
++    export TOUCH="${pkgs.coreutils}/bin/touch"
++    export MV="${pkgs.coreutils}/bin/mv"
++    export TR="${pkgs.coreutils}/bin/tr"
++    export DATE="${pkgs.coreutils}/bin/date"
++    export GREP="${pkgs.gnugrep}/bin/grep"
++    export GIT="${pkgs.git}/bin/git"
++    export PNPM="${pkgs.pnpm_9}/bin/pnpm"
++    export SEQ="${pkgs.coreutils}/bin/seq"
++    export MONOREPO_GIT_URL="${monorepoGitUrl}"
++
++    exec ${pkgs.bash}/bin/bash ${./scripts/deploy-preview.sh}
++  '';
 
   cleanupScript = pkgs.writeTextFile {
     name = "cleanup-preview";
