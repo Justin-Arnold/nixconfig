@@ -60,7 +60,10 @@ let
     exec ${pkgs.python3}/bin/python3 ${./scripts/log-stream-server.py}
   '';
 
-  deploymentStatusPage = ./html;
+  deploymentStatusPage = pkgs.runCommand "deployment-status-page" {} ''
+    mkdir -p $out
+    cp ${./html/deployment-status.html} $out/index.html
+  '';
 
 in {
   imports = [ 
