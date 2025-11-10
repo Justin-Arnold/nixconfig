@@ -109,31 +109,38 @@ EOF
   echo "Starting Satchel on port ${PORT}…"
   pnpm run satchel start --port "${PORT}" &
 
-  echo
-  echo "Creating Traefik configuration…"
-  cat > "${TRAEFIK_CONFIG_DIR}/pr-${PR_NUMBER}-${WORKSPACE_LOWER}.yml" <<EOF
+    echo
+    echo "Waiting for app to listen on ${PORT}…"
+    for i in $(seq 1 120); do
+    if curl -fsS "http://127.0.0.1:${PORT}/" >/dev/null 2>&1; then
+        echo "App is up."
+        break
+    fi
+    sleep 1
+    done
+
+    # Switch router to point to the app
+    cat > "${PR_FILE_STATUS}.tmp" <<EOF
 http:
   routers:
     pr-${PR_NUMBER}-${WORKSPACE_LOWER}:
       rule: "Host(\`pr-${PR_NUMBER}-${WORKSPACE_LOWER}.preview.commongoodlt.dev\`)"
-      entryPoints:
-        - websecure
+      entryPoints: [ "web" ]
       service: pr-${PR_NUMBER}-${WORKSPACE_LOWER}
-      tls:
-        certResolver: letsencrypt
-      priority: 10
+      priority: 50
   services:
     pr-${PR_NUMBER}-${WORKSPACE_LOWER}:
       loadBalancer:
         servers:
           - url: "http://127.0.0.1:${PORT}"
 EOF
+    mv "${PR_FILE_STATUS}.tmp" "${PR_FILE_STATUS}"
 
-  echo
-  echo "=== Deployment Complete ==="
-  echo "Frontend: https://pr-${PR_NUMBER}-${WORKSPACE_LOWER}.preview.commongoodlt.dev"
-  echo "Port: ${PORT}"
-  echo "Time: $(date)"
+    echo
+    echo "=== Deployment Complete ==="
+    echo "Frontend: https://pr-${PR_NUMBER}-${WORKSPACE_LOWER}.preview.commongoodlt.dev"
+    echo "Port: ${PORT}"
+    echo "Time: $(date)"
 
-  echo "complete" > "${PREVIEW_BASE}/pr-${PR_NUMBER}/.deploy-status"
+    echo "complete" > "${PREVIEW_BASE}/pr-${PR_NUMBER}/.deploy-status"
 ) &
