@@ -34,6 +34,20 @@ cat <<JSON
 }
 JSON
 
+
+PR_FILE_STATUS="${TRAEFIK_CONFIG_DIR}/pr-${PR_NUMBER}-${WORKSPACE_LOWER}.yml"
+
+cat > "${PR_FILE_STATUS}.tmp" <<EOF
+http:
+  routers:
+    pr-${PR_NUMBER}-${WORKSPACE_LOWER}:
+      rule: "Host(\`pr-${PR_NUMBER}-${WORKSPACE_LOWER}.preview.commongoodlt.dev\`)"
+      entryPoints: [ "web" ]
+      service: deployment-status
+      priority: 50
+EOF
+mv "${PR_FILE_STATUS}.tmp" "${PR_FILE_STATUS}"
+
 # Background the real work; all output → log
 (
   exec 1>>"$LOG_FILE" 2>&1
