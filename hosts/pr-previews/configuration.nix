@@ -402,11 +402,9 @@ in {
     "z /etc/traefik/dynamic 2775 root webhook -"
     "z /var/lib/pr-previews/used-ports.txt 0664 root webhook -"
 
-    "a /home/justin            - - - - u:webhook:x"
-    "a /home/justin/.ssh       - - - - u:webhook:x"
-    "a /home/justin/.ssh/known_hosts   - - - - u:webhook:r"
-    "a /home/justin/.ssh/ssh-service-github     - - - - u:webhook:r"
-    "a /home/justin/.ssh/satchel-staging-ssh    - - - - u:webhook:r"
+    "d /etc/webhook/keys 0700 webhook webhook -"
+    "C /etc/webhook/keys/ssh-service-github 0400 webhook webhook - /home/justin/.ssh/ssh-service-github"
+    "C /etc/webhook/keys/satchel-staging-ssh 0400 webhook webhook - /home/justin/.ssh/satchel-staging-ssh"
   ];
 
   boot.kernel.sysctl = {
