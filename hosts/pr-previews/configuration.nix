@@ -383,6 +383,7 @@ in {
 
       log-stream:
         loadBalancer:
+          serversTransport: "sseTransport"
           servers:
             - url: "http://127.0.0.1:8405"
 
@@ -395,6 +396,15 @@ in {
         loadBalancer:
           servers:
             - url: "http://127.0.0.1:8404"
+  serversTransports:
+    sseTransport:
+      forwardingTimeouts:
+        # "0s" is unlimited; otherwise make these comfortably large
+        dialTimeout: "5s"
+        idleConnTimeout: "0s"
+        responseHeaderTimeout: "0s"
+        readTimeout: "0s"
+        writeTimeout: "0s"
   '';
 
   services.cron = {
