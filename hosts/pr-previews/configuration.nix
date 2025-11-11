@@ -150,11 +150,11 @@ in {
   '';
 
   systemd.services.webhook = {
-    after  = [ "network.target" "sops-nix.service" ];
-    wants  = [ "sops-nix.service" ];
+    after  = [ "network.target" "sops-nix.service" "docker.service"];
+    wants  = [ "sops-nix.service" "docker.service" ];
     wantedBy = [ "multi-user.target" ];
 
-    path = [ pkgs.rsync pkgs.openssh pkgs.git pkgs.coreutils pkgs.nodejs_22 pkgs.pnpm_9 ];
+    path = [ pkgs.docker pkgs.docker-compose pkgs.rsync pkgs.openssh pkgs.git pkgs.coreutils pkgs.nodejs_22 pkgs.pnpm_9 ];
     # systemd creates /run/webhook (owned by User/Group) *before* ExecStartPre
     serviceConfig = {
       Environment = [
@@ -163,6 +163,8 @@ in {
 
       User = "webhook";
       Group = "webhook";
+
+      SupplementaryGroups = [ "docker" ];
 
       # This is the key fix:
       RuntimeDirectory = "webhook";
