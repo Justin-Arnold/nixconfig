@@ -138,7 +138,7 @@ in {
 
   Host satchel-staging
     HostName 3.13.90.206
-    User dubuntu
+    User ubuntu
     IdentitiesOnly yes
     IdentityFile /home/justin/.ssh/satchel-staging-ssh
     UserKnownHostsFile /home/justin/.ssh/known_hosts
