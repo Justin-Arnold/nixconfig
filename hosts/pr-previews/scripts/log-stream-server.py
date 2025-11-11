@@ -51,7 +51,7 @@ class LogStreamHandler(BaseHTTPRequestHandler):
         
         elif action == "logs":
             if not os.path.exists(log_file):
-                self.send_error(404, "Log file not found")
+                self.send_error(404, f"Log file not found - {pr_id} - {log_file}")
                 return
             
             self.send_response(200)
