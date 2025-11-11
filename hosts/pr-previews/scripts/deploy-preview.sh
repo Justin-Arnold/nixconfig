@@ -107,7 +107,7 @@ EOF
 
   echo
   echo "Starting Satchel on port ${PORT}…"
-  pnpm run satchel start --port "${PORT}" &
+  pnpm run satchel start --port "${PORT} -v" &
 
     echo
     echo "Waiting for app to listen on ${PORT}…"
