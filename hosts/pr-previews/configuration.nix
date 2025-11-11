@@ -374,10 +374,10 @@ in {
   };
 
   systemd.tmpfiles.rules = [
-    "d /var/lib/pr-previews 2755 root webhook -"
-    "d /var/lib/pr-previews/logs 2755 root webhook -"
-    "d /etc/traefik/dynamic 2775 root webhook -"
-    "f /var/lib/pr-previews/used-ports.txt 2644 root webhook -"
+    "z /var/lib/pr-previews 2755 root webhook -"
+    "z /var/lib/pr-previews/logs 2755 root webhook -"
+    "z /etc/traefik/dynamic 2775 root webhook -"
+    "z /var/lib/pr-previews/used-ports.txt 2644 root webhook -"
   ];
 
   boot.kernel.sysctl = {
