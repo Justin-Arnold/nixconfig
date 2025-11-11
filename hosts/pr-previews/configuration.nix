@@ -132,16 +132,16 @@ in {
     HostName github.com
     User git
     IdentitiesOnly yes
-    IdentityFile /home/justin/.ssh/ssh-service-github
-    UserKnownHostsFile /home/justin/.ssh/known_hosts
+    IdentityFile /etc/webhook/keys/ssh-service-github
+    UserKnownHostsFile /etc/ssh/ssh_known_hosts
     StrictHostKeyChecking accept-new
 
   Host satchel-staging
     HostName 3.13.90.206
     User ubuntu
     IdentitiesOnly yes
-    IdentityFile /home/justin/.ssh/satchel-staging-ssh
-    UserKnownHostsFile /home/justin/.ssh/known_hosts
+    IdentityFile /etc/webhook/keys/satchel-staging-ssh
+    UserKnownHostsFile /etc/ssh/ssh_known_hosts
     StrictHostKeyChecking accept-new
   '';
 
