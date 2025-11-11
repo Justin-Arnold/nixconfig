@@ -145,8 +145,7 @@ in {
           -verbose \
           -hooks /run/webhook/hooks.json \
           -ip 127.0.0.1 \
-          -port 9000 \
-          -urlprefix /
+          -port 9000
       '';
     };
     preStart = ''
