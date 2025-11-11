@@ -85,31 +85,21 @@ mv "${PR_FILE_STATUS}.tmp" "${PR_FILE_STATUS}"
   cd "$PR_DIR"
 
   echo
-  export HOME=/tmp/webhook-home
-  mkdir -p "$HOME"
-  export NPM_CONFIG_USERCONFIG="$PR_DIR/.npmrc"
-
-  # Fail loudly if the token is missing (with set -u this throws)
-  : "${NPM_TOKEN:?NPM_TOKEN is missing for Font Awesome auth}"
-
-  echo "Writing repo .npmrc -> $NPM_CONFIG_USERCONFIG"
+  echo "Creating .npmrc for Font Awesome auth..."
+  # Use the NPM_TOKEN exported by the wrapper; keep perms tight and clean it up later
   umask 077
-  cat > "$NPM_CONFIG_USERCONFIG" <<EOF
-  @fortawesome:registry=https://npm.fontawesome.com/
-  //npm.fontawesome.com/:_authToken=${NPM_TOKEN}
-  node-linker=hoisted
-  hoist=false
-  EOF
-  chmod 600 "$NPM_CONFIG_USERCONFIG"
+  cat > .npmrc <<EOF
+@fortawesome:registry=https://npm.fontawesome.com/
+//npm.fontawesome.com/:_authToken=${NPM_TOKEN}
+hoist=false
+node-linker=hoisted
+EOF
 
   echo
   echo "Installing dependencies (pnpm)…"
   export HOME="/tmp/pnpm-home-pr-${PR_NUMBER}"
   mkdir -p "$HOME"
-  pnpm install
-
-  # Immediately shred .npmrc so the token doesn’t linger on disk
-  shred -u .npmrc || rm -f .npmrc
+  pnpm install --loglevel debug
 
   echo
   echo "Initializing Satchel environment…"
