@@ -57,6 +57,8 @@ mv "${PR_FILE_STATUS}.tmp" "${PR_FILE_STATUS}"
   echo "Branch: $BRANCH"
   echo "Time: $(date)"
   echo
+  which ssh; ssh -V
+  which rsync; rsync --version
 
   # Choose a port (5000 + PR) with fallback scan
   PORT=$((5000 + PR_NUMBER))
