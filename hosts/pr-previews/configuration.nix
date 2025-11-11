@@ -115,8 +115,9 @@ in {
     allowedTCPPorts = [ 22 80 443 ];
   };
 
-  services.docker.enable = true;
-  services.docker.enableOnBoot = true;
+  virtualisation.docker = {
+    enable = true;
+  };
 
   services.webhook = {
     enable = true;
