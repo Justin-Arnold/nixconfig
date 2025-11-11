@@ -138,6 +138,7 @@ http:
           - url: "http://127.0.0.1:${PORT}"
 EOF
     mv "${PR_FILE_STATUS}.tmp" "${PR_FILE_STATUS}"
+    chmod 0644 "${PR_FILE_STATUS}"
 
     echo
     echo "=== Deployment Complete ==="
