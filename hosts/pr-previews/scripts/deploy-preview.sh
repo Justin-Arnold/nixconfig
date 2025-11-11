@@ -42,7 +42,7 @@ cat > "${PR_FILE_STATUS}.tmp" <<EOF
 http:
   routers:
     pr-${PR_NUMBER}-${WORKSPACE_LOWER}:
-      rule: "Host(\`pr-${PR_NUMBER}-${WORKSPACE_LOWER}.preview.commongoodlt.dev\`)"
+      rule: "Host(\`pr-${PR_NUMBER}-${WORKSPACE_LOWER}.preview.commongoodlt.dev\`) && !PathPrefix(\`/logs\`)"
       entryPoints: [ "web" ]
       service: deployment-status
       priority: 50
@@ -125,7 +125,7 @@ EOF
 http:
   routers:
     pr-${PR_NUMBER}-${WORKSPACE_LOWER}:
-      rule: "Host(\`pr-${PR_NUMBER}-${WORKSPACE_LOWER}.preview.commongoodlt.dev\`)"
+      rule: "Host(\`pr-${PR_NUMBER}-${WORKSPACE_LOWER}.preview.commongoodlt.dev\`) && !PathPrefix(\`/logs\`)"
       entryPoints: [ "web" ]
       service: pr-${PR_NUMBER}-${WORKSPACE_LOWER}
       priority: 50

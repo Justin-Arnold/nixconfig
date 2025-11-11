@@ -351,7 +351,7 @@ in {
         entryPoints: [ "web" ]
         service: log-stream
         middlewares: [ "sse-headers" ] 
-        priority: 100000
+        priority: 100
 
       # ... your deployment-status router if you kept it scoped, OR just omit it ...
       catchall:
