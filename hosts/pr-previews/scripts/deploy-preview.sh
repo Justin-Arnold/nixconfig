@@ -104,7 +104,7 @@ EOF
 
   echo
   echo "Initializing Satchel environment…"
-  pnpm run satchel init
+  pnpm run satchel init -v --no-ssh
 
   echo
   echo "Starting Satchel on port ${PORT}…"
