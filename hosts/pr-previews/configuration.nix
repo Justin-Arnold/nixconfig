@@ -16,7 +16,7 @@ let
     set -euo pipefail
     # Read secret at runtime
     export NPM_TOKEN="$(cat ${config.sops.secrets."cglt/font-awesome-token".path})"
-    export GIT_SSH_COMMAND="${pkgs.openssh}/bin/ssh -o StrictHostKeyChecking=accept-new"
+    export GIT_SSH_COMMAND="${pkgs.openssh}/bin/ssh -F /etc/webhook/ssh_config -o StrictHostKeyChecking=accept-new"
 
     # Tool paths available as env if you still want to reference them:
     export BASH="${pkgs.bash}/bin/bash"
