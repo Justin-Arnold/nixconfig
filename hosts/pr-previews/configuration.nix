@@ -127,6 +127,24 @@ in {
     };
   };
 
+  environment.etc."webhook/ssh_config".text = ''
+  Host github.com
+    HostName github.com
+    User git
+    IdentitiesOnly yes
+    IdentityFile /home/justin/.ssh/ssh-service-github
+    UserKnownHostsFile /home/justin/.ssh/known_hosts
+    StrictHostKeyChecking accept-new
+
+  Host satchel-staging
+    HostName 3.13.90.206
+    User dubuntu
+    IdentitiesOnly yes
+    IdentityFile /home/justin/.ssh/satchel-staging-ssh
+    UserKnownHostsFile /home/justin/.ssh/known_hosts
+    StrictHostKeyChecking accept-new
+  '';
+
   systemd.services.webhook = {
     after  = [ "network.target" "sops-nix.service" ];
     wants  = [ "sops-nix.service" ];
