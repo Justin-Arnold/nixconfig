@@ -181,6 +181,8 @@ in {
     };
     preStart = ''
       TOKEN=$(cat ${config.sops.secrets."cglt/preview-api-token".path})
+      mkdir -p /tmp/webhook-home
+      chown webhook:webhook /tmp/webhook-home
       
       # Generate the webhook config with the token
       cat > /run/webhook/hooks.json << EOF
