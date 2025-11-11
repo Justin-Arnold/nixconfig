@@ -150,6 +150,7 @@ in {
     wants  = [ "sops-nix.service" ];
     wantedBy = [ "multi-user.target" ];
 
+    path = [ pkgs.rsync pkgs.openssh pkgs.git pkgs.coreutils pkgs.nodejs_22 pkgs.pnpm_9 ];
     # systemd creates /run/webhook (owned by User/Group) *before* ExecStartPre
     serviceConfig = {
       User = "webhook";
@@ -164,7 +165,9 @@ in {
       RestartSec = "1s";
 
       Environment = [
-        "PATH=${pkgs.bash}/bin:${pkgs.coreutils}/bin:${pkgs.findutils}/bin:${pkgs.gnugrep}/bin:${pkgs.git}/bin:${pkgs.nodejs_22}/bin:${pkgs.pnpm_9}/bin"
+        # "PATH=${pkgs.bash}/bin:${pkgs.coreutils}/bin:${pkgs.findutils}/bin:${pkgs.gnugrep}/bin:${pkgs.git}/bin:${pkgs.nodejs_22}/bin:${pkgs.pnpm_9}/bin"
+        "RSYNC_RSH=${pkgs.openssh}/bin/ssh -F /etc/webhook/ssh_config"
+        "GIT_SSH_COMMAND=${pkgs.openssh}/bin/ssh -F /etc/webhook/ssh_config -o StrictHostKeyChecking=accept-new"
       ];
 
       ExecStart = pkgs.lib.mkForce ''
