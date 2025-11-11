@@ -266,7 +266,16 @@ in {
         dashboard = true;
         insecure = true;
       };
-      
+      log = {
+        level = "DEBUG";
+      };
+
+      accessLog = {
+        bufferingSize = 0;
+        fields = {
+          headers.defaultMode = "keep"; # shows all request headers in the log
+        };
+      };
       # providers.docker = {
       #   exposedByDefault = false;
       #   network = "preview-network";
