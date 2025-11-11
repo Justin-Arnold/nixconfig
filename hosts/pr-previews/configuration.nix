@@ -155,7 +155,7 @@ in {
     # systemd creates /run/webhook (owned by User/Group) *before* ExecStartPre
     serviceConfig = {
       Environment = [
-        "PATH=${pkgs.rsync}/bin:${pkgs.openssh}/bin:${pkgs.nodejs_22}/bin:${pkgs.pnpm_9}/bin:/run/current-system/sw/bin"
+        "PATH=/run/webhook/bin:${pkgs.rsync}/bin:${pkgs.openssh}/bin:${pkgs.nodejs_22}/bin:${pkgs.pnpm_9}/bin:/run/current-system/sw/bin"
       ];
 
       User = "webhook";
