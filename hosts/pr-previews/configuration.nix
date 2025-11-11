@@ -383,6 +383,12 @@ in {
     "z /var/lib/pr-previews/logs 2775 root webhook -"
     "z /etc/traefik/dynamic 2775 root webhook -"
     "z /var/lib/pr-previews/used-ports.txt 0664 root webhook -"
+
+    "a /home/justin            - - - - u:webhook:x"
+    "a /home/justin/.ssh       - - - - u:webhook:x"
+    "a /home/justin/.ssh/known_hosts   - - - - u:webhook:r"
+    "a /home/justin/.ssh/ssh-service-github     - - - - u:webhook:r"
+  "a /home/justin/.ssh/satchel-staging-ssh    - - - - u:webhook:r"
   ];
 
   boot.kernel.sysctl = {
