@@ -53,43 +53,62 @@ class LogStreamHandler(BaseHTTPRequestHandler):
             if not os.path.exists(log_file):
                 self.send_error(404, f"Log file not found - {pr_id} - {log_file}")
                 return
-            
+
             self.send_response(200)
             self.send_header('Content-Type', 'text/event-stream')
             self.send_header('Cache-Control', 'no-cache')
             self.send_header('Connection', 'keep-alive')
+            # Helpful for some proxies (Nginx-specific but harmless elsewhere)
+            self.send_header('X-Accel-Buffering', 'no')
             self._set_cors_headers()
             self.end_headers()
-            
+
             try:
+                # Send an initial comment to establish the stream immediately
+                self.wfile.write(b": stream-open\n\n")
+                self.wfile.flush()
+
+                # Backfill existing lines
                 with open(log_file, 'r') as f:
                     for line in f:
                         data = f"data: {json.dumps({'line': line.rstrip()})}\n\n"
                         self.wfile.write(data.encode())
                         self.wfile.flush()
-                
+
+                # Follow the file, sending heartbeats
+                last_heartbeat = 0
+                HEARTBEAT_INTERVAL = 10  # seconds
+
                 with open(log_file, 'r') as f:
                     f.seek(0, 2)
-                    
                     while True:
                         line = f.readline()
+                        now = time.time()
+
                         if line:
-                            data = f"data: {json.dumps({'line': line.rstrip()})}\n\n"
-                            self.wfile.write(data.encode())
+                            payload = f"data: {json.dumps({'line': line.rstrip()})}\n\n"
+                            self.wfile.write(payload.encode())
                             self.wfile.flush()
+                            last_heartbeat = now  # reset heartbeat timer on activity
                         else:
+                            # heartbeat if no activity for HEARTBEAT_INTERVAL
+                            if now - last_heartbeat >= HEARTBEAT_INTERVAL:
+                                self.wfile.write(b": keep-alive\n\n")
+                                self.wfile.flush()
+                                last_heartbeat = now
+
+                            # stop when marked complete
                             if os.path.exists(status_file):
                                 with open(status_file, 'r') as sf:
                                     if sf.read().strip() == "complete":
-                                        data = f"data: {json.dumps({'complete': True})}\n\n"
-                                        self.wfile.write(data.encode())
+                                        self.wfile.write(b"data: {\"complete\": true}\n\n")
                                         self.wfile.flush()
                                         break
                             time.sleep(0.5)
             except BrokenPipeError:
                 pass
             return
-        
+
         else:
             self.send_error(404)
     
