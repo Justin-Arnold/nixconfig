@@ -154,6 +154,10 @@ in {
     path = [ pkgs.rsync pkgs.openssh pkgs.git pkgs.coreutils pkgs.nodejs_22 pkgs.pnpm_9 ];
     # systemd creates /run/webhook (owned by User/Group) *before* ExecStartPre
     serviceConfig = {
+      Environment = [
+        "PATH=${pkgs.rsync}/bin:${pkgs.openssh}/bin:${pkgs.nodejs_22}/bin:${pkgs.pnpm_9}/bin:/run/current-system/sw/bin"
+      ];
+
       User = "webhook";
       Group = "webhook";
 
@@ -165,13 +169,6 @@ in {
       Restart = pkgs.lib.mkForce "always"; 
       RestartSec = "1s";
 
-      Environment = [
-        "PATH=${pkgs.rsync}/bin:${pkgs.openssh}/bin:${pkgs.nodejs_22}/bin:${pkgs.pnpm_9}/bin:/run/current-system/sw/bin"
-        "RSYNC_RSH=${pkgs.openssh}/bin/ssh -F /etc/webhook/ssh_config -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
-        "GIT_SSH_COMMAND=${pkgs.openssh}/bin/ssh -F /etc/webhook/ssh_config -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
-        "PNPM_LOG_LEVEL=debug"
-      ];
-
       ExecStart = pkgs.lib.mkForce ''
         ${pkgs.webhook}/bin/webhook \
           -verbose \
@@ -182,9 +179,6 @@ in {
     };
     preStart = ''
       TOKEN=$(cat ${config.sops.secrets."cglt/preview-api-token".path})
-      mkdir -p /tmp/webhook-home
-      chown webhook:webhook /tmp/webhook-home
-      
       # Generate the webhook config with the token
       cat > /run/webhook/hooks.json << EOF
       [
@@ -257,6 +251,29 @@ in {
         }
       ]
       EOF
+
+      mkdir -p /run/webhook/bin
+      cat > /run/webhook/bin/ssh <<'EOS'
+      #!/bin/sh
+      exec /run/current-system/sw/bin/ssh \
+        -F /etc/webhook/ssh_config \
+        -o StrictHostKeyChecking=no \
+        -o UserKnownHostsFile=/dev/null \
+        "$@"
+      EOS
+
+      chmod +x /run/webhook/bin/ssh
+
+      cat > /run/webhook/bin/rsync <<'EOS'
+      #!/bin/sh
+      # Force rsync to always use our ssh wrapper (covers scripts that call `rsync -e ssh` or just `rsync`)
+      exec /run/current-system/sw/bin/rsync -e "/run/webhook/bin/ssh" "$@"
+      EOS
+      chmod +x /run/webhook/bin/rsync
+
+      # ensure HOME exists for the webhook process (your hook already sets it)
+      mkdir -p /tmp/webhook-home
+      chown webhook:webhook /tmp/webhook-home
     '';
   };
 
