@@ -115,6 +115,9 @@ in {
     allowedTCPPorts = [ 22 80 443 ];
   };
 
+  services.docker.enable = true;
+  services.docker.enableOnBoot = true;
+
   services.webhook = {
     enable = true;
     port = 9000;
