@@ -33,7 +33,7 @@ let
     export SEQ="${pkgs.coreutils}/bin/seq"
     export MONOREPO_GIT_URL="${monorepoGitUrl}"
 
-    exec ${pkgs.bash}/bin/bash ${./scripts/deploy-preview.sh}
+    exec ${pkgs.bash}/bin/bash ${./scripts/deploy-preview.sh} "$@"
   '';
 
   cleanupScript = pkgs.writeShellScriptBin "cleanup-preview" ''
