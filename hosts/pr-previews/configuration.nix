@@ -350,6 +350,7 @@ in {
         rule: "PathPrefix(`/logs`)"
         entryPoints: [ "web" ]
         service: log-stream
+        middlewares: [ "sse-headers" ] 
         priority: 100
 
       # ... your deployment-status router if you kept it scoped, OR just omit it ...
@@ -366,6 +367,13 @@ in {
       api-addprefix:
         addPrefix:
           prefix: "/hooks"
+      sse-headers:
+        headers:
+          customResponseHeaders:
+            Cache-Control: "no-cache"
+            Connection: "keep-alive"
+            X-Accel-Buffering: "no"
+            Content-Type: "text/event-stream"
 
     services:
       webhook:
