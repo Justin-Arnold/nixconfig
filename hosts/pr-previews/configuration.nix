@@ -97,7 +97,11 @@ in {
 
   sops.age.keyFile = "/home/justin/.config/sops/age/keys.txt";
   sops.defaultSopsFile = ../../secrets/secrets.yaml;
-  sops.secrets."cglt/font-awesome-token" = {};
+  sops.secrets."cglt/font-awesome-token" = {
+    owner = "webhook";
+    group = "webhook";
+    mode  = "0400";
+  };
   sops.secrets."cglt/preview-api-token" = {
     owner = "webhook";
     group = "webhook";
