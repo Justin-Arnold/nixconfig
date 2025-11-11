@@ -310,20 +310,12 @@ in {
   environment.etc."traefik/dynamic/base.yml".text = ''
   http:
     routers:
-      webhook-deploy:
-        # match regardless of Host; upstream proxy can change Host
-        rule: "Path(`/api/deploy`)"
+      api:
+        rule: "PathPrefix(`/api`)"
         entryPoints: [ "web" ]
         service: webhook
-        middlewares: [ "webhook-deploy-rewrite" ]
-        priority: 100
-
-      webhook-cleanup:
-        rule: "Path(`/api/cleanup`)"
-        entryPoints: [ "web" ]
-        service: webhook
-        middlewares: [ "webhook-cleanup-rewrite" ]
-        priority: 100
+        middlewares: [ "api-strip", "api-addprefix" ]
+        priority: 200
 
       log-stream:
         # this one probably *does* depend on host; keep Host() if your proxy preserves it,
@@ -341,12 +333,12 @@ in {
         priority: -1
 
     middlewares:
-      webhook-deploy-rewrite:
+      api-strip:
         stripPrefix:
           prefixes: [ "/api" ]
-      webhook-cleanup-rewrite:
-        stripPrefix:
-          prefixes: [ "/api" ]
+      api-addprefix:
+        addPrefix:
+          prefix: "/hooks"
 
     services:
       webhook:
