@@ -99,7 +99,7 @@ EOF
   echo "Installing dependencies (pnpm)…"
   export HOME="/tmp/pnpm-home-pr-${PR_NUMBER}"
   mkdir -p "$HOME"
-  pnpm install -vvv --reporter=append-only
+  PNPM_DEBUG_LEVEL=debug pnpm -r install --reporter=append-only --frozen-lockfile
 
   echo
   echo "Initializing Satchel environment…"
