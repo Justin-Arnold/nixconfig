@@ -144,6 +144,10 @@ in {
       Restart = pkgs.lib.mkForce "always"; 
       RestartSec = "1s";
 
+      Environment = [
+        "PATH=${pkgs.bash}/bin:${pkgs.coreutils}/bin:${pkgs.findutils}/bin:${pkgs.gnugrep}/bin:${pkgs.git}/bin:${pkgs.nodejs_22}/bin:${pkgs.pnpm_9}/bin"
+      ];
+
       ExecStart = pkgs.lib.mkForce ''
         ${pkgs.webhook}/bin/webhook \
           -verbose \
