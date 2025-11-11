@@ -14,10 +14,10 @@ let
 
   deployScript = pkgs.writeShellScriptBin "deploy-preview" ''
     set -euo pipefail
-    # Read secret at runtime
+    export PATH="/run/webhook/bin:${pkgs.rsync}/bin:${pkgs.openssh}/bin:${pkgs.nodejs_22}/bin:${pkgs.pnpm_9}/bin:/run/current-system/sw/bin:$PATH"
     export NPM_TOKEN="$(cat ${config.sops.secrets."cglt/font-awesome-token".path})"
-    export GIT_SSH_COMMAND="${pkgs.openssh}/bin/ssh -F /etc/webhook/ssh_config -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
-    export RSYNC_RSH="${pkgs.openssh}/bin/ssh -F /etc/webhook/ssh_config -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+    export GIT_SSH_COMMAND="/run/webhook/bin/ssh"
+    export RSYNC_RSH="/run/webhook/bin/ssh"
 
     # Tool paths available as env if you still want to reference them:
     export BASH="${pkgs.bash}/bin/bash"
