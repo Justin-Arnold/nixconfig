@@ -13,7 +13,8 @@ TRAEFIK_CONFIG_DIR="/etc/traefik/dynamic"
 
 WORKSPACE_LOWER="$(printf "%s" "$WORKSPACE" | tr '[:upper:]' '[:lower:]')"
 PR_DIR="${PREVIEW_BASE}/monorepo-pr-${PR_NUMBER}"
-LOG_FILE="${PREVIEW_BASE}/logs/pr-${PR_NUMBER}.log"
+LOG_FILE="${PREVIEW_BASE}/logs/pr-${PR_NUMBER}-${WORKSPACE_LOWER}.log"
+: > "$LOG_FILE"
 
 # Create necessary directories
 mkdir -p "${PREVIEW_BASE}/logs"
