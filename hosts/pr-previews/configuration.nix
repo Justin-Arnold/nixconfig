@@ -406,7 +406,7 @@ in {
     "a /home/justin/.ssh       - - - - u:webhook:x"
     "a /home/justin/.ssh/known_hosts   - - - - u:webhook:r"
     "a /home/justin/.ssh/ssh-service-github     - - - - u:webhook:r"
-  "a /home/justin/.ssh/satchel-staging-ssh    - - - - u:webhook:r"
+    "a /home/justin/.ssh/satchel-staging-ssh    - - - - u:webhook:r"
   ];
 
   boot.kernel.sysctl = {
