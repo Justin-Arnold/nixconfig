@@ -149,7 +149,7 @@
             const prNumber = match[1];
             const workspace = match[2];
             const workspaceCap = workspace.charAt(0).toUpperCase() + workspace.slice(1);
-            const prId = `pr-${prNumber}-${workspaceCap}`;
+            const prId = `pr-${prNumber}-${workspace}`;
             
             document.getElementById('pr-info').textContent = 
                 `PR #${prNumber} - ${workspaceCap} | This usually takes 5-10 minutes`;
