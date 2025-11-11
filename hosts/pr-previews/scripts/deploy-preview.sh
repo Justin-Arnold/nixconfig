@@ -85,15 +85,22 @@ mv "${PR_FILE_STATUS}.tmp" "${PR_FILE_STATUS}"
   cd "$PR_DIR"
 
   echo
-  echo "Creating .npmrc for Font Awesome auth..."
-  # Use the NPM_TOKEN exported by the wrapper; keep perms tight and clean it up later
+  export HOME=/tmp/webhook-home
+  mkdir -p "$HOME"
+  export NPM_CONFIG_USERCONFIG="$PR_DIR/.npmrc"
+
+  # Fail loudly if the token is missing (with set -u this throws)
+  : "${NPM_TOKEN:?NPM_TOKEN is missing for Font Awesome auth}"
+
+  echo "Writing repo .npmrc -> $NPM_CONFIG_USERCONFIG"
   umask 077
-  cat > .npmrc <<EOF
-@fortawesome:registry=https://npm.fontawesome.com/
-//npm.fontawesome.com/:_authToken=${NPM_TOKEN}
-hoist=false
-node-linker=hoisted
-EOF
+  cat > "$NPM_CONFIG_USERCONFIG" <<EOF
+  @fortawesome:registry=https://npm.fontawesome.com/
+  //npm.fontawesome.com/:_authToken=${NPM_TOKEN}
+  node-linker=hoisted
+  hoist=false
+  EOF
+  chmod 600 "$NPM_CONFIG_USERCONFIG"
 
   echo
   echo "Installing dependencies (pnpm)…"
