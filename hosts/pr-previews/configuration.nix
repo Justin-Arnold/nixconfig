@@ -399,12 +399,9 @@ in {
     serversTransports:
       sseTransport:
         forwardingTimeouts:
-          # "0s" is unlimited; otherwise make these comfortably large
           dialTimeout: "5s"
-          idleConnTimeout: "0s"
           responseHeaderTimeout: "0s"
-          readTimeout: "0s"
-          writeTimeout: "0s"
+          idleConnTimeout: "0s"
   '';
 
   services.cron = {
