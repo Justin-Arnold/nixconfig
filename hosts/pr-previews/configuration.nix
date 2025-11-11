@@ -16,7 +16,8 @@ let
     set -euo pipefail
     # Read secret at runtime
     export NPM_TOKEN="$(cat ${config.sops.secrets."cglt/font-awesome-token".path})"
-    export GIT_SSH_COMMAND="${pkgs.openssh}/bin/ssh -F /etc/webhook/ssh_config -o StrictHostKeyChecking=accept-new"
+    export GIT_SSH_COMMAND="${pkgs.openssh}/bin/ssh -F /etc/webhook/ssh_config -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+    export RSYNC_RSH="${pkgs.openssh}/bin/ssh -F /etc/webhook/ssh_config -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
 
     # Tool paths available as env if you still want to reference them:
     export BASH="${pkgs.bash}/bin/bash"
@@ -166,8 +167,8 @@ in {
 
       Environment = [
         # "PATH=${pkgs.bash}/bin:${pkgs.coreutils}/bin:${pkgs.findutils}/bin:${pkgs.gnugrep}/bin:${pkgs.git}/bin:${pkgs.nodejs_22}/bin:${pkgs.pnpm_9}/bin"
-        "RSYNC_RSH=${pkgs.openssh}/bin/ssh -F /etc/webhook/ssh_config"
-        "GIT_SSH_COMMAND=${pkgs.openssh}/bin/ssh -F /etc/webhook/ssh_config -o StrictHostKeyChecking=accept-new"
+        "RSYNC_RSH=${pkgs.openssh}/bin/ssh -F /etc/webhook/ssh_config -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+        "GIT_SSH_COMMAND=${pkgs.openssh}/bin/ssh -F /etc/webhook/ssh_config -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
       ];
 
       ExecStart = pkgs.lib.mkForce ''
