@@ -123,9 +123,33 @@ in {
   };
 
   systemd.services.webhook = {
-    preStart = ''
-      mkdir -p /run/webhook
+    after  = [ "network.target" "sops-nix.service" ];
+    wants  = [ "sops-nix.service" ];
+    wantedBy = [ "multi-user.target" ];
 
+    # systemd creates /run/webhook (owned by User/Group) *before* ExecStartPre
+    serviceConfig = {
+      User = "webhook";
+      Group = "webhook";
+
+      # This is the key fix:
+      RuntimeDirectory = "webhook";
+      RuntimeDirectoryMode = "0750";
+
+      Type = "simple";
+      Restart = pkgs.lib.mkForce "always"; 
+      RestartSec = "1s";
+
+      ExecStart = pkgs.lib.mkForce ''
+        ${pkgs.webhook}/bin/webhook \
+          -verbose \
+          -hooks /run/webhook/hooks.json \
+          -ip 127.0.0.1 \
+          -port 9000 \
+          -urlprefix /
+      '';
+    };
+    preStart = ''
       TOKEN=$(cat ${config.sops.secrets."cglt/preview-api-token".path})
       
       # Generate the webhook config with the token
@@ -201,10 +225,6 @@ in {
       ]
       EOF
     '';
-
-    serviceConfig = {
-      ExecStart = pkgs.lib.mkForce "${pkgs.webhook}/bin/webhook -hooks /run/webhook/hooks.json -verbose -ip 127.0.0.1 -port 9000";
-    };
   };
 
   systemd.services.log-stream = {
