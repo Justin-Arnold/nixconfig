@@ -5,7 +5,7 @@ import json
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
 
-LOG_DIR = "/var/log/pr-previews"
+LOG_DIR = "/var/lib/pr-previews/logs"
 PORT = 8405
 
 class LogStreamHandler(BaseHTTPRequestHandler):
