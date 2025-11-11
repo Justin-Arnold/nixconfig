@@ -166,9 +166,10 @@ in {
       RestartSec = "1s";
 
       Environment = [
-        # "PATH=${pkgs.bash}/bin:${pkgs.coreutils}/bin:${pkgs.findutils}/bin:${pkgs.gnugrep}/bin:${pkgs.git}/bin:${pkgs.nodejs_22}/bin:${pkgs.pnpm_9}/bin"
+        "PATH=${pkgs.rsync}/bin:${pkgs.openssh}/bin:${pkgs.nodejs_22}/bin:${pkgs.pnpm_9}/bin:/run/current-system/sw/bin"
         "RSYNC_RSH=${pkgs.openssh}/bin/ssh -F /etc/webhook/ssh_config -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
         "GIT_SSH_COMMAND=${pkgs.openssh}/bin/ssh -F /etc/webhook/ssh_config -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+        "PNPM_LOG_LEVEL=debug"
       ];
 
       ExecStart = pkgs.lib.mkForce ''
