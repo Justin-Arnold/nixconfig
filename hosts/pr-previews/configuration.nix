@@ -377,7 +377,7 @@ in {
     "z /var/lib/pr-previews 2775 root webhook -"
     "z /var/lib/pr-previews/logs 2775 root webhook -"
     "z /etc/traefik/dynamic 2775 root webhook -"
-    "z /var/lib/pr-previews/used-ports.txt 2644 root webhook -"
+    "z /var/lib/pr-previews/used-ports.txt 0664 root webhook -"
   ];
 
   boot.kernel.sysctl = {
