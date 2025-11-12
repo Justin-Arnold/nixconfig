@@ -89,6 +89,8 @@ in {
     psmisc
     iproute2
     lsof
+    coreutils
+    e2fsprogs
 
     deployScript
     cleanupScript
