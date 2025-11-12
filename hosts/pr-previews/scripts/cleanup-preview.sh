@@ -54,19 +54,25 @@ fi
 
 # Fix ownership/permissions so rm can't fail (use sudo if available)
 SUDO=""
-if command -v sudo >/dev/null 2>&1; then
-  # -n = non-interactive; if it fails, SUDO stays empty and we continue best-effort
-  sudo -n true 2>/dev/null && SUDO="sudo" || SUDO=""
+if command -v sudo >/dev/null 2>&1; then sudo -n true 2>/dev/null && SUDO="sudo"; fi
+
+# if local is a mount, unmount it (bind mounts will block rm)
+if [ -d "${PR_DIR}/local" ]; then
+  if command -v findmnt >/dev/null 2>&1 && $SUDO findmnt -no TARGET "${PR_DIR}/local" >/dev/null 2>&1; then
+    echo "Unmounting ${PR_DIR}/local"
+    $SUDO umount -l "${PR_DIR}/local" || true
+  fi
 fi
 
-if [ -d "${PR_DIR}" ]; then
-  echo "Fixing permissions and ownership under ${PR_DIR}..."
-  if command -v chattr >/dev/null 2>&1; then
-    $SUDO chattr -R -i "${PR_DIR}" 2>/dev/null || true
-  fi
-  $SUDO chown -R webhook:webhook "${PR_DIR}" 2>/dev/null || true
-  $SUDO chmod -R u+rwX "${PR_DIR}" 2>/dev/null || true
-fi
+# remove immutable flags (no-op if none)
+command -v chattr >/dev/null 2>&1 && $SUDO chattr -R -i "${PR_DIR}" 2>/dev/null || true
+
+# ensure every directory is traversable by group (fix the drwx--S--- case)
+$SUDO find "${PR_DIR}" -type d -exec chmod g+x {} \; 2>/dev/null || true
+
+# take ownership and make writable
+$SUDO chown -R webhook:webhook "${PR_DIR}" 2>/dev/null || true
+$SUDO chmod -R u+rwX,g+rwX "${PR_DIR}" 2>/dev/null || true
 
 # 5) Remove directories (retry once if needed)
 echo "Removing PR directory and metadata…"
