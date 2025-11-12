@@ -83,7 +83,7 @@ ${RM} -f -- "${TRAEFIK_CONFIG_DIR}/pr-${PR_NUMBER}-"*.yml || true
 
 # 7) Remove PR log (if you keep per-PR logs)
 echo "Removing PR log…"
-${RM} -f -- "${PREVIEW_BASE}/logs/pr-${PR_NUMBER}.log" || true
+find "${PREVIEW_BASE}/logs" -maxdepth 1 -type f -name "pr-${PR_NUMBER}-*.log" -delete || true
 
 # 8) Free the port from the tracked list
 if [ -n "${PORT}" ] && [ -f "${PORTS_FILE}" ]; then
