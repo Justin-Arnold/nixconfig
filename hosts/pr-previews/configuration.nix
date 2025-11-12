@@ -86,6 +86,9 @@ in {
     nodejs_22
     pnpm_9
     webhook
+    psmisc
+    iproute2
+    lsof
 
     deployScript
     cleanupScript
