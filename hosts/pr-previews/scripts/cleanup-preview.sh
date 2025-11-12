@@ -59,6 +59,17 @@ if [ -d "${PR_DIR}" ]; then
   chmod -R u+rwX "${PR_DIR}" 2>/dev/null || true
 fi
 
+if [ -d "${PR_DIR}" ]; then
+  echo "Fixing permissions and ownership under ${PR_DIR}..."
+  # Remove immutable bits if any (safe even if none set)
+  if command -v chattr >/dev/null 2>&1; then
+    chattr -R -i "${PR_DIR}" 2>/dev/null || true
+  fi
+  # Make webhook own everything and ensure write+exec permissions
+  chown -R webhook:webhook "${PR_DIR}" 2>/dev/null || true
+  chmod -R u+rwX,go+rwX "${PR_DIR}" 2>/dev/null || true
+fi
+
 # 5) Remove directories (retry once if needed)
 echo "Removing PR directory and metadata…"
 if [ -d "${PR_DIR}" ]; then
