@@ -52,22 +52,20 @@ if [ -d "${PR_DIR}" ] && command -v lsof >/dev/null 2>&1; then
   [ -n "${PIDS}" ] && { kill -TERM ${PIDS} 2>/dev/null || true; sleep 2; kill -KILL ${PIDS} 2>/dev/null || true; }
 fi
 
-# 4) Fix ownership/permissions so rm won't choke on write-protect bits
-if [ -d "${PR_DIR}" ]; then
-  echo "Relaxing ownership/perms in ${PR_DIR}..."
-  chown -R webhook:webhook "${PR_DIR}" 2>/dev/null || true
-  chmod -R u+rwX "${PR_DIR}" 2>/dev/null || true
+# Fix ownership/permissions so rm can't fail (use sudo if available)
+SUDO=""
+if command -v sudo >/dev/null 2>&1; then
+  # -n = non-interactive; if it fails, SUDO stays empty and we continue best-effort
+  sudo -n true 2>/dev/null && SUDO="sudo" || SUDO=""
 fi
 
 if [ -d "${PR_DIR}" ]; then
   echo "Fixing permissions and ownership under ${PR_DIR}..."
-  # Remove immutable bits if any (safe even if none set)
   if command -v chattr >/dev/null 2>&1; then
-    chattr -R -i "${PR_DIR}" 2>/dev/null || true
+    $SUDO chattr -R -i "${PR_DIR}" 2>/dev/null || true
   fi
-  # Make webhook own everything and ensure write+exec permissions
-  chown -R webhook:webhook "${PR_DIR}" 2>/dev/null || true
-  chmod -R u+rwX,go+rwX "${PR_DIR}" 2>/dev/null || true
+  $SUDO chown -R webhook:webhook "${PR_DIR}" 2>/dev/null || true
+  $SUDO chmod -R u+rwX "${PR_DIR}" 2>/dev/null || true
 fi
 
 # 5) Remove directories (retry once if needed)
