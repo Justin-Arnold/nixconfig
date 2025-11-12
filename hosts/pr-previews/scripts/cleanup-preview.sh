@@ -1,6 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+sudo_if() {
+  if command -v sudo >/dev/null 2>&1 && sudo -n true 2>/dev/null; then
+    sudo "$@"
+  else
+    "$@"
+  fi
+}
+
 : "${CAT:=cat}"
 : "${RM:=rm}"
 : "${GREP:=grep}"
@@ -53,33 +61,26 @@ if [ -d "${PR_DIR}" ] && command -v lsof >/dev/null 2>&1; then
 fi
 
 # Fix ownership/permissions so rm can't fail (use sudo if available)
-if [ -n "$SUDO" ]; then
-  echo "Cleanup: sudo available (non-interactive)"
-else
-  echo "Cleanup: sudo NOT available; running best-effort without privilege"
-fi
-
-
-SUDO=""
-if command -v sudo >/dev/null 2>&1; then sudo -n true 2>/dev/null && SUDO="sudo"; fi
-
 # if local is a mount, unmount it (bind mounts will block rm)
 if [ -d "${PR_DIR}/local" ]; then
-  if command -v findmnt >/dev/null 2>&1 && $SUDO findmnt -no TARGET "${PR_DIR}/local" >/dev/null 2>&1; then
+  if command -v findmnt >/dev/null 2>&1 && findmnt -no TARGET "${PR_DIR}/local" >/dev/null 2>&1; then
     echo "Unmounting ${PR_DIR}/local"
-    $SUDO umount -l "${PR_DIR}/local" || true
+    sudo_if umount -l "${PR_DIR}/local" || true
+  elif command -v mountpoint >/dev/null 2>&1 && mountpoint -q "${PR_DIR}/local"; then
+    echo "Unmounting ${PR_DIR}/local"
+    sudo_if umount -l "${PR_DIR}/local" || true
   fi
 fi
 
 # remove immutable flags (no-op if none)
-command -v chattr >/dev/null 2>&1 && $SUDO chattr -R -i "${PR_DIR}" 2>/dev/null || true
+command -v chattr >/dev/null 2>&1 && sudo_if chattr -R -i "${PR_DIR}" 2>/dev/null || true
 
-# ensure every directory is traversable by group (fix the drwx--S--- case)
-$SUDO find "${PR_DIR}" -type d -exec chmod g+x {} \; 2>/dev/null || true
+# ensure every directory is traversable by group (fix drwx--S--- cases)
+sudo_if find "${PR_DIR}" -type d -exec chmod g+x {} \; 2>/dev/null || true
 
 # take ownership and make writable
-$SUDO chown -R webhook:webhook "${PR_DIR}" 2>/dev/null || true
-$SUDO chmod -R u+rwX,g+rwX "${PR_DIR}" 2>/dev/null || true
+sudo_if chown -R webhook:webhook "${PR_DIR}" 2>/dev/null || true
+sudo_if chmod -R u+rwX,g+rwX "${PR_DIR}" 2>/dev/null || true
 
 # 5) Remove directories (retry once if needed)
 echo "Removing PR directory and metadata…"
