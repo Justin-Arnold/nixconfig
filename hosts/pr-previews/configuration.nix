@@ -109,11 +109,24 @@ in {
     group = "webhook";
     mode  = "0400";
   };
+
   sops.secrets."cglt/preview-api-token" = {
     owner = "webhook";
     group = "webhook";
     mode = "0400";
   };
+
+  security.sudo.enable = true;
+
+  security.sudo.extraRules = [{
+    users = [ "webhook" ];
+    commands = [
+      { command = "/run/current-system/sw/bin/chattr"; options = [ "NOPASSWD" ]; }
+      { command = "/run/current-system/sw/bin/chown";  options = [ "NOPASSWD" ]; }
+      { command = "/run/current-system/sw/bin/chmod";  options = [ "NOPASSWD" ]; }
+      { command = "/run/current-system/sw/bin/rm";     options = [ "NOPASSWD" ]; }
+    ];
+  }];
   
   networking.firewall = {
     enable = true;
