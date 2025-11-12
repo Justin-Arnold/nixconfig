@@ -53,6 +53,13 @@ if [ -d "${PR_DIR}" ] && command -v lsof >/dev/null 2>&1; then
 fi
 
 # Fix ownership/permissions so rm can't fail (use sudo if available)
+if [ -n "$SUDO" ]; then
+  echo "Cleanup: sudo available (non-interactive)"
+else
+  echo "Cleanup: sudo NOT available; running best-effort without privilege"
+fi
+
+
 SUDO=""
 if command -v sudo >/dev/null 2>&1; then sudo -n true 2>/dev/null && SUDO="sudo"; fi
 

@@ -127,6 +127,12 @@ in {
       { command = "/run/current-system/sw/bin/rm";     options = [ "NOPASSWD" ]; }
     ];
   }];
+
+  systemd.services.webhook.serviceConfig = {
+    AmbientCapabilities = "CAP_CHOWN CAP_FOWNER CAP_DAC_OVERRIDE CAP_SYS_ADMIN";
+    CapabilityBoundingSet = "CAP_CHOWN CAP_FOWNER CAP_DAC_OVERRIDE CAP_SYS_ADMIN";
+    # keep User=webhook as-is
+  };
   
   networking.firewall = {
     enable = true;
