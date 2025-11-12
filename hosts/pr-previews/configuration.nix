@@ -91,6 +91,7 @@ in {
     lsof
     coreutils
     e2fsprogs
+    util-linux 
 
     deployScript
     cleanupScript
@@ -124,6 +125,7 @@ in {
       { command = "/run/current-system/sw/bin/chattr"; options = [ "NOPASSWD" ]; }
       { command = "/run/current-system/sw/bin/chown";  options = [ "NOPASSWD" ]; }
       { command = "/run/current-system/sw/bin/chmod";  options = [ "NOPASSWD" ]; }
+      { command = "/run/current-system/sw/bin/umount"; options = [ "NOPASSWD" ]; }
       { command = "/run/current-system/sw/bin/rm";     options = [ "NOPASSWD" ]; }
     ];
   }];
