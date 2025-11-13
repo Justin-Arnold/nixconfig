@@ -24,17 +24,19 @@ touch "${PORTS_FILE}"
 # Clear previous log
 : > "$LOG_FILE"
 
+PREVIEW_HOST="pr-${PR_NUMBER}-${WORKSPACE_LOWER}.preview.commongoodlt.dev"
+PREVIEW_URL="https://${PREVIEW_HOST}"
+
 # Immediate JSON response for webhook
 cat <<JSON
 {
   "status": "deploying",
   "message": "Deployment started - visit URL to see live progress",
-  "preview_url": "https://pr-${PR_NUMBER}-${WORKSPACE_LOWER}.preview.commongoodlt.dev",
+  "preview_url": "${PREVIEW_URL}",
   "pr_number": ${PR_NUMBER},
   "workspace": "${WORKSPACE}"
 }
 JSON
-
 
 PR_FILE_STATUS="${TRAEFIK_CONFIG_DIR}/pr-${PR_NUMBER}-${WORKSPACE_LOWER}.yml"
 
@@ -42,7 +44,7 @@ cat > "${PR_FILE_STATUS}.tmp" <<EOF
 http:
   routers:
     pr-${PR_NUMBER}-${WORKSPACE_LOWER}:
-      rule: "Host(\`pr-${PR_NUMBER}-${WORKSPACE_LOWER}.preview.commongoodlt.dev\`) && !PathPrefix(\`/logs\`)"
+      rule: "Host(\`${PREVIEW_HOST}\`) && !PathPrefix(\`/logs\`)"
       entryPoints: [ "web" ]
       service: deployment-status
       priority: 50
@@ -86,7 +88,6 @@ mv "${PR_FILE_STATUS}.tmp" "${PR_FILE_STATUS}"
 
   echo
   echo "Creating .npmrc for Font Awesome auth..."
-  # Use the NPM_TOKEN exported by the wrapper; keep perms tight and clean it up later
   umask 077
   cat > .npmrc <<EOF
 @fortawesome:registry=https://npm.fontawesome.com/
@@ -107,24 +108,24 @@ EOF
 
   echo
   echo "Starting Satchel on port ${PORT}…"
-  pnpm run satchel start --port "${PORT} -v" &
+  pnpm run satchel start --port "${PORT}" -v &
 
-    echo
-    echo "Waiting for app to listen on ${PORT}…"
-    for i in $(seq 1 120); do
+  echo
+  echo "Waiting for app to listen on ${PORT}…"
+  for i in $(seq 1 120); do
     if curl -fsS "http://127.0.0.1:${PORT}/" >/dev/null 2>&1; then
-        echo "App is up."
-        break
+      echo "App is up."
+      break
     fi
     sleep 1
-    done
+  done
 
-    # Switch router to point to the app
-    cat > "${PR_FILE_STATUS}.tmp" <<EOF
+  # Switch router to point to the app
+  cat > "${PR_FILE_STATUS}.tmp" <<EOF
 http:
   routers:
     pr-${PR_NUMBER}-${WORKSPACE_LOWER}:
-      rule: "Host(\`pr-${PR_NUMBER}-${WORKSPACE_LOWER}.preview.commongoodlt.dev\`) && !PathPrefix(\`/logs\`)"
+      rule: "Host(\`${PREVIEW_HOST}\`) && !PathPrefix(\`/logs\`)"
       entryPoints: [ "web" ]
       service: pr-${PR_NUMBER}-${WORKSPACE_LOWER}
       priority: 50
@@ -134,14 +135,100 @@ http:
         servers:
           - url: "http://127.0.0.1:${PORT}"
 EOF
-    mv "${PR_FILE_STATUS}.tmp" "${PR_FILE_STATUS}"
-    chmod 0644 "${PR_FILE_STATUS}"
+  mv "${PR_FILE_STATUS}.tmp" "${PR_FILE_STATUS}"
+  chmod 0644 "${PR_FILE_STATUS}"
+
+  ########################################
+  # Post-start health check + auto-restart
+  ########################################
+
+  health_check() {
+    local url="${1}"
+    local health_url="${url}/src/ajax.php"
+    local tmp_body="/tmp/health-${PR_NUMBER}-${WORKSPACE_LOWER}.log"
 
     echo
-    echo "=== Deployment Complete ==="
-    echo "Frontend: https://pr-${PR_NUMBER}-${WORKSPACE_LOWER}.preview.commongoodlt.dev"
-    echo "Port: ${PORT}"
-    echo "Time: $(date)"
+    echo "Running post-start health check on ${health_url}…"
 
-    echo "complete" > "${PREVIEW_BASE}/pr-${PR_NUMBER}/.deploy-status"
+    # Don't let curl failures kill the script
+    set +e
+    local http_code
+    http_code="$(curl -k -sS -o "${tmp_body}" -w "%{http_code}" "${health_url}")"
+    local curl_exit=$?
+    set -e
+
+    if [ "${curl_exit}" -ne 0 ]; then
+      echo "Health check curl failed with exit code ${curl_exit}"
+      return 1
+    fi
+
+    echo "Health check HTTP code: ${http_code}"
+
+    # Fail on 502 from Traefik / proxy
+    if [ "${http_code}" = "502" ]; then
+      echo "Got HTTP 502 from health endpoint."
+      return 1
+    fi
+
+    # Look for proxy error text in the response body
+    if grep -q "Proxy error: Could not proxy request" "${tmp_body}" 2>/dev/null; then
+      echo "Detected proxy error text in health response."
+      return 1
+    fi
+
+    if grep -q "ECONNREFUSED" "${tmp_body}" 2>/dev/null; then
+      echo "Detected ECONNREFUSED in health response."
+      return 1
+    fi
+
+    echo "Health check passed."
+    return 0
+  }
+
+  # Try once, and if it's bad, restart Satchel once and re-check
+  MAX_RESTARTS=1
+  RESTART_COUNT=0
+
+  if ! health_check "${PREVIEW_URL}"; then
+    while [ "${RESTART_COUNT}" -lt "${MAX_RESTARTS}" ]; do
+      RERESTART_IDX=$((RESTART_COUNT + 1))
+      echo
+      echo "Health check failed – restarting Satchel (attempt ${RERESTART_IDX}/${MAX_RESTARTS})…"
+
+      set +e
+      pnpm run satchel stop || true
+      set -e
+
+      pnpm run satchel start --port "${PORT}" -v &
+
+      echo
+      echo "Waiting for app to listen on ${PORT} after restart…"
+      for i in $(seq 1 120); do
+        if curl -fsS "http://127.0.0.1:${PORT}/" >/dev/null 2>&1; then
+          echo "App is up after restart."
+          break
+        fi
+        sleep 1
+      done
+
+      if health_check "${PREVIEW_URL}"; then
+        echo "Health check passed after restart."
+        break
+      fi
+
+      RESTART_COUNT=$((RESTART_COUNT + 1))
+    done
+
+    if [ "${RESTART_COUNT}" -ge "${MAX_RESTARTS}" ]; then
+      echo "Health check still failing after ${MAX_RESTARTS} restart attempt(s). Leaving deployment as-is."
+    fi
+  fi
+
+  echo
+  echo "=== Deployment Complete ==="
+  echo "Frontend: ${PREVIEW_URL}"
+  echo "Port: ${PORT}"
+  echo "Time: $(date)"
+
+  echo "complete" > "${PREVIEW_BASE}/pr-${PR_NUMBER}/.deploy-status"
 ) &
