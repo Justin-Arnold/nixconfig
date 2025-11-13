@@ -103,7 +103,7 @@ EOF
 
   echo
   echo "Initializing Satchel environment…"
-  pnpm run satchel init -v --no-ssh
+  pnpm run satchel init -v --no-ssh --compose-project-name "pr-${PR_NUMBER}-${WORKSPACE_LOWER}"
 
   echo
   echo "Starting Satchel on port ${PORT}…"
