@@ -7,9 +7,12 @@
     ../../modules/platforms/nixos
   ];
 
-  environment.systemPackages = with pkgs; [
+  systemProfile = {
+    hostname = "vikunja";
+    stateVersion = "25.05";
+    isServer = true;
+  };
 
-  ];
   networking.firewall = {
     enable = true;
     allowedTCPPorts = [ 22 80 443 ];
