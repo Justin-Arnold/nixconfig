@@ -84,6 +84,7 @@
         pangolin-newt        = mkNixos ./hosts/pangolin-newt/configuration.nix;
         pr-previews          = mkNixos ./hosts/pr-previews/configuration.nix;
         github-runner        = mkNixos ./hosts/github-runner/configuration.nix;
+        vikunja              = mkNixos ./hosts/vikunja/configuration.nix;
       };
       darwinConfigurations = {
         macmini              = mkDarwin ./hosts/macmini/configuration.nix;
