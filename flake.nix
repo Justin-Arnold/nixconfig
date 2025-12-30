@@ -6,7 +6,7 @@
     zen-browser.url              = "github:0xc000022070/zen-browser-flake";
     nix-homebrew.url             = "github:zhaofengli-wip/nix-homebrew";
     sops-nix.url                 = "github:Mic92/sops-nix";
-    nocodb.url                   = "github:nocodb/nocodb";
+    # nocodb.url                   = "github:nocodb/nocodb";
     _1password-shell-plugins.url = "github:1Password/shell-plugins";
     home-manager = {
       url = "github:nix-community/home-manager";
@@ -31,7 +31,7 @@
     nix-homebrew,
     secrets,
     sops-nix,
-    nocodb,
+    # nocodb,
     ...
   } :
   let
@@ -43,7 +43,7 @@
         specialArgs = { inherit inputs home-manager sops-nix zen-browser; };
         modules = [
           hostFile
-          nocodb.nixosModules.nocodb
+          # nocodb.nixosModules.nocodb
         ];
       };
 
@@ -77,7 +77,7 @@
         ollama               = mkNixos ./hosts/ollama/configuration.nix;
         checkmk              = mkNixos ./hosts/checkmk/configuration.nix;
         gitea                = mkNixos ./hosts/gitea/configuration.nix;
-        nocodb               = mkNixos ./hosts/nocodb/configuration.nix;
+        # nocodb               = mkNixos ./hosts/nocodb/configuration.nix;
         onepassword-connect  = mkNixos ./hosts/onepassword-connect/configuration.nix;
         omada-controller     = mkNixos ./hosts/omada-controller/configuration.nix;
         parallels            = mkNixos64 ./hosts/parallels/configuration.nix;
