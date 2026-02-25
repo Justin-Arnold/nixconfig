@@ -1,6 +1,4 @@
-{ config, pkgs, ... }:
-let ollamaPkg = pkgs.ollama.override { cudaSupport = true; };
-in {
+{ config, pkgs, ... }: {
   hardware.graphics.enable = true;
   services.xserver.videoDrivers = [ "nvidia" ];
 
@@ -33,7 +31,7 @@ in {
 
   services.ollama = {
     enable = true;
-    acceleration = "cuda";
+    package = pkgs.ollama-cuda;
     host = "0.0.0.0";
     port = 11434;
     environmentVariables = {
