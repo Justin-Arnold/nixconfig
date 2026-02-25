@@ -20,6 +20,14 @@
       url = "git+ssh://git@github.com/Justin-Arnold/private-config.git";
       flake = true;
     };
+    disko = {
+      url = "github:nix-community/disko";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+    terranix = {
+      url = "github:terranix/terranix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs = inputs@{ 
@@ -36,6 +44,7 @@
   } :
   let
     lib = nixpkgs.lib;
+    pkgs = nixpkgs.legacyPackages.x86_64-linux;
 
     mkNixos = hostFile:
       lib.nixosSystem {
@@ -56,6 +65,24 @@
         ];
       };
     
+
+    # Like mkNixos but also injects the disko NixOS module, required for
+    # hosts whose disk layout is declared in a disk-config.nix (disko file).
+    mkNixosDisko = hostFile:
+      lib.nixosSystem {
+        system = "x86_64-linux";
+        specialArgs = { inherit inputs home-manager sops-nix zen-browser; };
+        modules = [
+          hostFile
+          inputs.disko.nixosModules.disko
+        ];
+      };
+
+    # Terranix: compile hosts/monitoring-vm/proxmox.nix → config.tf.json
+    monitoringVmTerranix = inputs.terranix.lib.terranixConfiguration {
+      inherit pkgs;
+      modules = [ ./hosts/monitoring-vm/proxmox.nix ];
+    };
 
     mkDarwin = hostFile:
       nix-darwin.lib.darwinSystem {
@@ -85,10 +112,41 @@
         pr-previews          = mkNixos ./hosts/pr-previews/configuration.nix;
         github-runner        = mkNixos ./hosts/github-runner/configuration.nix;
         vikunja              = mkNixos ./hosts/vikunja/configuration.nix;
+        monitoring-vm        = mkNixosDisko ./hosts/monitoring-vm/configuration.nix;
       };
       darwinConfigurations = {
         macmini              = mkDarwin ./hosts/macmini/configuration.nix;
         macbook16            = mkDarwin ./hosts/macbook16/configuration.nix;
+      };
+
+      apps.x86_64-linux = {
+        # Compile proxmox.nix → config.tf.json, then terraform init + apply.
+        # Run from any directory where you want Terraform state to live:
+        #   nix run .#monitoring-vm-apply
+        monitoring-vm-apply = {
+          type    = "app";
+          program = toString (pkgs.writeShellScript "monitoring-vm-apply" ''
+            set -euo pipefail
+            if [[ -e config.tf.json ]]; then rm -f config.tf.json; fi
+            cp ${monitoringVmTerranix} config.tf.json
+            ${pkgs.terraform}/bin/terraform init
+            ${pkgs.terraform}/bin/terraform apply "$@"
+          '');
+        };
+
+        # Install NixOS onto the VM via nix-anywhere (idempotent).
+        # Provide the target IP as the first argument:
+        #   nix run .#monitoring-vm-deploy -- 192.168.1.X
+        monitoring-vm-deploy = {
+          type    = "app";
+          program = toString (pkgs.writeShellScript "monitoring-vm-deploy" ''
+            set -euo pipefail
+            TARGET_IP=''${1:?Usage: nix run .#monitoring-vm-deploy -- <ip>}
+            ${pkgs.nixos-anywhere}/bin/nixos-anywhere \
+              --flake .#monitoring-vm \
+              root@"$TARGET_IP"
+          '');
+        };
       };
     };
 }
