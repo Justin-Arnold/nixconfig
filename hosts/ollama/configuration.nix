@@ -5,6 +5,7 @@
       ./hardware-configuration.nix
       ../../modules/common
       ../../modules/roles/ollama.nix
+      ../../modules/roles/ai-voice.nix
 
       sops-nix.nixosModules.sops
     ];

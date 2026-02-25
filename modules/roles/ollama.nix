@@ -39,6 +39,7 @@ in {
     environmentVariables = {
       OLLAMA_NUM_GPU = "1";
       CUDA_HOME = "${pkgs.cudaPackages.cudatoolkit}";
+      OLLAMA_KEEP_ALIVE = "3m";
     };
   };
 
