@@ -1,9 +1,11 @@
-{ config, pkgs, lib, sops-nix, home-manager, ... }:
+{ config, pkgs, lib, sops-nix, ... }:
 {
   imports =
     [ 
       ./hardware-configuration.nix
       ../../modules/common
+      ../../modules/profiles/server.nix
+      ../../modules/platforms/nixos
       ../../modules/roles/ollama.nix
       ../../modules/roles/ai-voice.nix
 
@@ -14,11 +16,5 @@
     hostname = "ollama";
     stateVersion = "25.05";
     isServer = true;
-  };
-
-  home-manager.users.justin = { ... }: {
-    imports = [ 
-      ../../home/roles/base.nix
-    ];
   };
 }
