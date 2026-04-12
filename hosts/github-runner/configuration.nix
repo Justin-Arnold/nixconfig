@@ -27,7 +27,7 @@
 
       extraPackages = with pkgs; [
         nodejs_22
-        nodePackages.pnpm
+        pnpm
         git
         docker
         docker-compose
