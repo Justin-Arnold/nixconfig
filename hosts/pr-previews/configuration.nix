@@ -2,6 +2,11 @@
 
 let
   turboCacheDir = "/var/lib/pr-previews/.turbo-cache";
+  pnpmStoreDir = "/var/lib/pr-previews/.pnpm-store";
+  pnpmHomeDir = "/var/lib/pr-previews/.pnpm-home";
+  nodeCacheDir = "/var/lib/pr-previews/.cache";
+  npmCacheDir = "/var/lib/pr-previews/.npm-cache";
+  yarnCacheDir = "/var/lib/pr-previews/.yarn-cache";
   monorepoGitUrl = "git@github.com:commongoodlt/CGLT-Monorepo.git";
   repoPath = "/var/lib/pr-previews/monorepo";
   stagingIp = "3.13.90.206";
@@ -18,6 +23,14 @@ let
     export NPM_TOKEN="$(cat ${config.sops.secrets."cglt/font-awesome-token".path})"
     export GIT_SSH_COMMAND="/run/webhook/bin/ssh"
     export RSYNC_RSH="/run/webhook/bin/ssh"
+    export PR_PREVIEW_PNPM_STORE_DIR="${pnpmStoreDir}"
+    export PR_PREVIEW_PNPM_HOME="${pnpmHomeDir}"
+    export PR_PREVIEW_NODE_CACHE_DIR="${nodeCacheDir}"
+    export PR_PREVIEW_NPM_CACHE_DIR="${npmCacheDir}"
+    export PR_PREVIEW_YARN_CACHE_DIR="${yarnCacheDir}"
+    export TURBO_CACHE_DIR="${turboCacheDir}"
+    export DOCKER_BUILDKIT=1
+    export COMPOSE_DOCKER_CLI_BUILD=1
 
     # Tool paths available as env if you still want to reference them:
     export BASH="${pkgs.bash}/bin/bash"
@@ -470,6 +483,12 @@ in {
   systemd.tmpfiles.rules = [
     "z /var/lib/pr-previews 2775 root webhook -"
     "z /var/lib/pr-previews/logs 2775 root webhook -"
+    "d ${pnpmStoreDir} 2775 webhook webhook -"
+    "d ${pnpmHomeDir} 2775 webhook webhook -"
+    "d ${nodeCacheDir} 2775 webhook webhook -"
+    "d ${npmCacheDir} 2775 webhook webhook -"
+    "d ${yarnCacheDir} 2775 webhook webhook -"
+    "d ${turboCacheDir} 2775 webhook webhook -"
     "z /etc/traefik/dynamic 2775 root webhook -"
     "z /var/lib/pr-previews/used-ports.txt 0664 root webhook -"
 

@@ -98,9 +98,15 @@ EOF
 
   echo
   echo "Installing dependencies (pnpm)…"
-  export HOME="/tmp/pnpm-home-pr-${PR_NUMBER}"
-  mkdir -p "$HOME"
-  PNPM_DEBUG_LEVEL=debug pnpm -r install --reporter=append-only --frozen-lockfile
+  export HOME="${PR_PREVIEW_PNPM_HOME:-/var/lib/pr-previews/.pnpm-home}"
+  export PNPM_HOME="${PR_PREVIEW_PNPM_HOME:-/var/lib/pr-previews/.pnpm-home}"
+  export XDG_CACHE_HOME="${PR_PREVIEW_NODE_CACHE_DIR:-/var/lib/pr-previews/.cache}"
+  export npm_config_cache="${PR_PREVIEW_NPM_CACHE_DIR:-/var/lib/pr-previews/.npm-cache}"
+  export YARN_CACHE_FOLDER="${PR_PREVIEW_YARN_CACHE_DIR:-/var/lib/pr-previews/.yarn-cache}"
+  export TURBO_CACHE_DIR="${TURBO_CACHE_DIR:-/var/lib/pr-previews/.turbo-cache}"
+  PNPM_STORE_DIR="${PR_PREVIEW_PNPM_STORE_DIR:-/var/lib/pr-previews/.pnpm-store}"
+  mkdir -p "$HOME" "$PNPM_HOME" "$XDG_CACHE_HOME" "$npm_config_cache" "$YARN_CACHE_FOLDER" "$TURBO_CACHE_DIR" "$PNPM_STORE_DIR"
+  PNPM_DEBUG_LEVEL=debug pnpm -r install --reporter=append-only --frozen-lockfile --prefer-offline --store-dir "$PNPM_STORE_DIR"
 
   echo
   echo "Initializing Satchel environment…"
