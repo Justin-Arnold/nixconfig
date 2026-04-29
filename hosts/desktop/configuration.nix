@@ -1,10 +1,11 @@
-{ config, pkgs, self, home-manager, ... }:
+{ config, pkgs, self, home-manager, sops-nix, zen-browser, inputs, ... }:
 
 {
   imports =
     [ 
       ./hardware-configuration.nix
       ../../modules/common
+      home-manager.nixosModules.home-manager
     ];
 
   ############################################################
@@ -60,10 +61,19 @@
   ##############################################################
   ## Home Manager Configuration
   ##############################################################
+  home-manager.useGlobalPkgs = true;
+  home-manager.useUserPackages = true;
+  home-manager.backupFileExtension = "backup";
+  home-manager.extraSpecialArgs = { inherit inputs zen-browser; };
+  home-manager.sharedModules = [
+    sops-nix.homeManagerModules.sops
+    inputs._1password-shell-plugins.hmModules.default
+  ];
   home-manager.users.justin = { ... }: {
     imports = [ 
       ../../home/roles/base.nix
-      ../../home/roles/desktop.nix
+      ../../home/roles/nixos.nix
+      ../../home/roles/provisioning-runner.nix
     ];
   };
 }

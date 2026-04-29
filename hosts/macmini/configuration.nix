@@ -1,4 +1,4 @@
-{ config, pkgs, self, zen-browser, ... }:
+{ config, pkgs, inputs, zen-browser, ... }:
 
 {
   imports = [ 
@@ -28,5 +28,10 @@
         replaceCd = true;
       };
     };
+  };
+  home-manager.users.justin = { ... }: {
+    imports = [
+      ../../home/roles/provisioning-runner.nix
+    ];
   };
 }

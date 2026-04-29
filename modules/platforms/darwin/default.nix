@@ -1,4 +1,4 @@
-{ home-manager, pkgs, lib, sops-nix, zen-browser, config, ... }:
+{ home-manager, pkgs, lib, sops-nix, zen-browser, config, inputs, ... }:
 
 {
   imports = [ 
@@ -17,7 +17,7 @@
   home-manager.useGlobalPkgs = true;
   home-manager.useUserPackages = true;
   home-manager.backupFileExtension = "backup";
-  home-manager.extraSpecialArgs = { inherit zen-browser; };
+  home-manager.extraSpecialArgs = { inherit inputs zen-browser; };
   home-manager.sharedModules = [
     sops-nix.homeManagerModules.sops
   ];

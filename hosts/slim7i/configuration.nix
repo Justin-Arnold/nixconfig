@@ -98,6 +98,6 @@
   ## Home Manager Configuration
   ##############################################################
   home-manager.users.justin = { ... }: {
-    imports = [ ../../home/roles/base.nix ];
+    imports = [ ../../home/roles/provisioning-runner.nix ];
   };
 }

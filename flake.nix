@@ -6,6 +6,18 @@
     zen-browser.url              = "github:0xc000022070/zen-browser-flake";
     nix-homebrew.url             = "github:zhaofengli-wip/nix-homebrew";
     sops-nix.url                 = "github:Mic92/sops-nix";
+    disko = {
+      url = "github:nix-community/disko";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+    terranix = {
+      url = "github:terranix/terranix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+    nixos-anywhere = {
+      url = "github:nix-community/nixos-anywhere";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
     # nocodb.url                   = "github:nocodb/nocodb";
     _1password-shell-plugins.url = "github:1Password/shell-plugins";
     home-manager = {
@@ -25,22 +37,64 @@
   outputs = inputs@{ 
     self,
     nixpkgs,
-    nix-darwin,
+    darwin,
     home-manager,
     zen-browser,
     nix-homebrew,
     secrets,
     sops-nix,
+    disko,
+    terranix,
+    nixos-anywhere,
     # nocodb,
     ...
   } :
   let
     lib = nixpkgs.lib;
+    terranixHosts = import ./infra/terranix { inherit inputs; };
+    supportedSystems = [ "aarch64-darwin" "x86_64-linux" ];
+
+    mkPkgs = system: import nixpkgs {
+      inherit system;
+      config.allowUnfree = true;
+    };
+
+    mkTerranixConfig = system: module:
+      terranix.lib.terranixConfiguration {
+        inherit system;
+        modules = [ module ];
+      };
+
+    mkProvisionApp = system: action:
+      let
+        pkgs = mkPkgs system;
+        terranixConfigUptimeKuma = mkTerranixConfig system terranixHosts.uptime-kuma;
+        provisionApp = pkgs.writeShellApplication {
+          name = "nixconfig-${action}";
+          runtimeInputs = [
+            pkgs.curl
+            pkgs.git
+            pkgs.jq
+            pkgs.openssh
+            pkgs.terraform
+            nixos-anywhere.packages.${system}.default
+          ];
+          text = ''
+            export NIX_INFRA_ACTION=${action}
+            export TERRANIX_CONFIG_UPTIME_KUMA=${terranixConfigUptimeKuma}
+            exec bash ${./scripts/provisioning/provision-host.sh} "$@"
+          '';
+        };
+      in
+      {
+        type = "app";
+        program = "${provisionApp}/bin/nixconfig-${action}";
+      };
 
     mkNixos = hostFile:
       lib.nixosSystem {
         system = "x86_64-linux";
-        specialArgs = { inherit inputs home-manager sops-nix zen-browser; };
+        specialArgs = { inherit inputs home-manager sops-nix zen-browser disko; };
         modules = [
           hostFile
           # nocodb.nixosModules.nocodb
@@ -50,7 +104,7 @@
     mkNixos64 = hostFile:
       lib.nixosSystem {
         system = "aarch64-linux";
-        specialArgs = { inherit inputs home-manager sops-nix zen-browser; };
+        specialArgs = { inherit inputs home-manager sops-nix zen-browser disko; };
         modules = [
           hostFile
         ];
@@ -58,9 +112,9 @@
     
 
     mkDarwin = hostFile:
-      nix-darwin.lib.darwinSystem {
+      darwin.lib.darwinSystem {
         system = "aarch64-darwin";
-        specialArgs = { inherit home-manager sops-nix zen-browser; };
+        specialArgs = { inherit inputs home-manager sops-nix zen-browser disko; };
         modules = [ 
           nix-homebrew.darwinModules.nix-homebrew
           home-manager.darwinModules.home-manager
@@ -85,10 +139,19 @@
         pr-previews          = mkNixos ./hosts/pr-previews/configuration.nix;
         github-runner        = mkNixos ./hosts/github-runner/configuration.nix;
         vikunja              = mkNixos ./hosts/vikunja/configuration.nix;
+        uptime-kuma          = mkNixos ./hosts/uptime-kuma/configuration.nix;
       };
       darwinConfigurations = {
         macmini              = mkDarwin ./hosts/macmini/configuration.nix;
         macbook16            = mkDarwin ./hosts/macbook16/configuration.nix;
       };
+      terranixConfigurations = lib.genAttrs supportedSystems (system: {
+        uptime-kuma = mkTerranixConfig system terranixHosts.uptime-kuma;
+      });
+      apps = lib.genAttrs supportedSystems (system: {
+        plan = mkProvisionApp system "plan";
+        provision = mkProvisionApp system "provision";
+        destroy = mkProvisionApp system "destroy";
+      });
     };
 }

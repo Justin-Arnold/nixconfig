@@ -40,7 +40,7 @@
   home-manager.useGlobalPkgs = true;
   home-manager.useUserPackages = true;
   home-manager.backupFileExtension = "backup";
-  home-manager.extraSpecialArgs = { inherit zen-browser; };
+  home-manager.extraSpecialArgs = { inherit inputs zen-browser; };
   home-manager.sharedModules = [
     sops-nix.homeManagerModules.sops
     inputs._1password-shell-plugins.hmModules.default

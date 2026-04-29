@@ -16,4 +16,10 @@
     isDarwin = true;
     forCglt = true;
   };
+
+  home-manager.users.justin = { ... }: {
+    imports = [
+      ../../home/roles/provisioning-runner.nix
+    ];
+  };
 }
