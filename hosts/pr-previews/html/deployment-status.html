@@ -3,215 +3,227 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Deployment in Progress</title>
+    <title>Preview Deployment</title>
     <style>
         * {
+            box-sizing: border-box;
             margin: 0;
             padding: 0;
-            box-sizing: border-box;
         }
-        
+
         body {
-            font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Code', 'Droid Sans Mono', 'Source Code Pro', monospace;
-            background: #1e1e1e;
-            color: #d4d4d4;
+            min-height: 100vh;
+            background: #171717;
+            color: #e6e6e6;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
             padding: 20px;
-            line-height: 1.6;
         }
-        
-        .container {
-            max-width: 1200px;
+
+        .shell {
+            max-width: 1180px;
             margin: 0 auto;
         }
-        
+
         .header {
-            background: #2d2d30;
-            padding: 20px;
-            border-radius: 8px 8px 0 0;
-            border-bottom: 2px solid #007acc;
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 16px;
+            align-items: start;
+            padding: 18px 0;
+            border-bottom: 1px solid #3b3b3b;
         }
-        
+
         h1 {
-            color: #007acc;
-            font-size: 24px;
-            margin-bottom: 10px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
+            font-size: 22px;
+            line-height: 1.25;
+            font-weight: 700;
         }
-        
-        .spinner {
-            display: inline-block;
-            width: 20px;
-            height: 20px;
-            border: 3px solid rgba(0, 122, 204, 0.3);
-            border-radius: 50%;
-            border-top-color: #007acc;
-            animation: spin 1s linear infinite;
+
+        .meta {
+            margin-top: 8px;
+            color: #a5a5a5;
+            font-size: 13px;
+            line-height: 1.5;
         }
-        
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-        
-        .info {
-            color: #858585;
-            font-size: 14px;
-        }
-        
-        .terminal {
-            background: #1e1e1e;
-            padding: 20px;
-            border-radius: 0 0 8px 8px;
-            height: calc(100vh - 200px);
-            overflow-y: auto;
-            font-size: 14px;
-            border: 1px solid #2d2d30;
-        }
-        
-        .log-line {
-            margin: 2px 0;
-            white-space: pre-wrap;
-            word-wrap: break-word;
-        }
-        
-        .log-line.error {
-            color: #f48771;
-        }
-        
-        .log-line.success {
-            color: #89d185;
-        }
-        
-        .log-line.info {
-            color: #75beff;
-        }
-        
-        .complete-message {
-            background: #89d185;
-            color: #1e1e1e;
-            padding: 15px;
-            border-radius: 8px;
-            margin: 20px 0;
+
+        .badge {
+            min-width: 110px;
+            padding: 8px 10px;
+            border: 1px solid #4a4a4a;
+            border-radius: 6px;
             text-align: center;
-            font-weight: bold;
-            display: none;
+            text-transform: uppercase;
+            font-size: 12px;
+            letter-spacing: 0;
+            color: #d7d7d7;
+            background: #242424;
         }
-        
-        .complete-message.show {
+
+        .badge.ready {
+            border-color: #348b5b;
+            color: #9fe3bc;
+        }
+
+        .badge.failed {
+            border-color: #b84a43;
+            color: #ffb1aa;
+        }
+
+        .notice {
+            display: none;
+            margin: 18px 0;
+            padding: 14px 16px;
+            border: 1px solid #4a4a4a;
+            border-radius: 6px;
+            background: #222;
+            line-height: 1.45;
+        }
+
+        .notice.show {
             display: block;
         }
-        
-        /* Scrollbar styling */
-        .terminal::-webkit-scrollbar {
-            width: 10px;
+
+        .notice.ready {
+            border-color: #348b5b;
+            color: #c9f0d8;
         }
-        
-        .terminal::-webkit-scrollbar-track {
-            background: #1e1e1e;
+
+        .notice.failed {
+            border-color: #b84a43;
+            color: #ffd2ce;
         }
-        
-        .terminal::-webkit-scrollbar-thumb {
-            background: #424242;
-            border-radius: 5px;
+
+        .terminal {
+            height: calc(100vh - 180px);
+            min-height: 360px;
+            overflow-y: auto;
+            margin-top: 18px;
+            padding: 16px;
+            border: 1px solid #333;
+            border-radius: 6px;
+            background: #0f0f0f;
+            font-size: 13px;
+            line-height: 1.55;
         }
-        
-        .terminal::-webkit-scrollbar-thumb:hover {
-            background: #4e4e4e;
+
+        .line {
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        .line.deploy {
+            color: #d7d7d7;
+        }
+
+        .line.app {
+            color: #9fbbe3;
+        }
+
+        .line.error {
+            color: #ff9f97;
+        }
+
+        .line.state {
+            color: #9fe3bc;
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <h1>
-                <span class="spinner" id="spinner"></span>
-                Deployment in Progress
-            </h1>
-            <p class="info" id="pr-info">Loading...</p>
-        </div>
-        
-        <div class="complete-message" id="complete-message">
-            ✓ Deployment Complete! Redirecting to your preview environment...
-        </div>
-        
-        <div class="terminal" id="terminal">
-            <div class="log-line info">Connecting to deployment logs...</div>
-        </div>
-    </div>
-    
+    <main class="shell">
+        <header class="header">
+            <div>
+                <h1 id="title">Preview deployment</h1>
+                <div class="meta" id="meta">Loading preview state...</div>
+            </div>
+            <div class="badge" id="badge">Loading</div>
+        </header>
+
+        <section class="notice" id="notice"></section>
+        <section class="terminal" id="terminal">
+            <div class="line state">Connecting to preview logs...</div>
+        </section>
+    </main>
+
     <script>
-        // Extract PR info from hostname
         const hostname = window.location.hostname;
-        const match = hostname.match(/^pr-(\d+)-(\w+)\./);
-        
-        if (match) {
+        const match = hostname.match(/^pr-(\d+)-([a-z0-9-]+)\./);
+        const terminal = document.getElementById('terminal');
+        const badge = document.getElementById('badge');
+        const notice = document.getElementById('notice');
+        const title = document.getElementById('title');
+        const meta = document.getElementById('meta');
+
+        function addLine(text, className = '') {
+            const div = document.createElement('div');
+            div.className = `line ${className}`.trim();
+            div.textContent = text;
+            terminal.appendChild(div);
+            terminal.scrollTop = terminal.scrollHeight;
+        }
+
+        function setStatus(state) {
+            const status = state.status || 'unknown';
+            badge.textContent = status;
+            badge.className = `badge ${status}`;
+            title.textContent = `PR #${state.pr_number || '?'} ${state.workspace || 'preview'}`;
+
+            const sha = state.resolved_sha || state.requested_sha || '';
+            const shortSha = sha ? sha.slice(0, 12) : 'pending';
+            meta.textContent = `${state.branch || 'unknown branch'} | ${shortSha} | ${state.message || 'Waiting for deployment state'}`;
+
+            if (status === 'ready') {
+                notice.textContent = 'Deployment is ready. Opening the preview application...';
+                notice.className = 'notice ready show';
+                setTimeout(() => window.location.reload(), 2500);
+            } else if (status === 'failed') {
+                notice.textContent = state.message || 'Deployment failed. The logs below should show the failing step.';
+                notice.className = 'notice failed show';
+            } else {
+                notice.className = 'notice';
+            }
+        }
+
+        if (!match) {
+            badge.textContent = 'Invalid';
+            meta.textContent = 'This hostname does not match a PR preview URL.';
+        } else {
             const prNumber = match[1];
             const workspace = match[2];
-            const workspaceCap = workspace.charAt(0).toUpperCase() + workspace.slice(1);
-            const prId = `pr-${prNumber}-${workspace}`;
-            
-            document.getElementById('pr-info').textContent = 
-                `PR #${prNumber} - ${workspaceCap} | This usually takes 5-10 minutes`;
-            
-            const terminal = document.getElementById('terminal');
+            const instanceId = `pr-${prNumber}-${workspace}`;
+            const statusUrl = `/status/${instanceId}`;
+            const logsUrl = `/logs/${instanceId}`;
+
             terminal.innerHTML = '';
-            
-            // Function to add log line with color coding
-            function addLogLine(line) {
-                const div = document.createElement('div');
-                div.className = 'log-line';
-                
-                // Color code based on content
-                if (line.includes('error') || line.includes('ERROR') || line.includes('failed')) {
-                    div.className += ' error';
-                } else if (line.includes('✓') || line.includes('complete') || line.includes('Complete') || line.includes('success')) {
-                    div.className += ' success';
-                } else if (line.includes('===') || line.includes('Installing') || line.includes('Building') || line.includes('Starting')) {
-                    div.className += ' info';
-                }
-                
-                div.textContent = line;
-                terminal.appendChild(div);
-                
-                // Auto-scroll to bottom
-                terminal.scrollTop = terminal.scrollHeight;
-            }
-            
-            // Connect to SSE stream
-            const logUrl = `https://${window.location.hostname}/logs/${prId}`;
-            const eventSource = new EventSource(logUrl);
-            
-            eventSource.onmessage = function(event) {
+
+            fetch(statusUrl, { cache: 'no-store' })
+                .then((response) => response.json())
+                .then(setStatus)
+                .catch(() => addLine('Could not read preview status yet. Waiting for logs...', 'error'));
+
+            const eventSource = new EventSource(logsUrl);
+            eventSource.onmessage = (event) => {
                 const data = JSON.parse(event.data);
-                
-                if (data.complete) {
-                    // Deployment complete
-                    document.getElementById('spinner').style.display = 'none';
-                    document.getElementById('complete-message').classList.add('show');
+                if (data.state) {
+                    setStatus(data.state);
+                    if (data.state.message) {
+                        addLine(`[state] ${data.state.status}: ${data.state.message}`, 'state');
+                    }
+                }
+                if (data.line) {
+                    const text = `[${data.source || 'log'}] ${data.line}`;
+                    const lower = text.toLowerCase();
+                    const style = lower.includes('error') || lower.includes('failed') ? 'error' : (data.source || 'deploy');
+                    addLine(text, style);
+                }
+                if (data.failed || data.complete) {
                     eventSource.close();
-                    
-                    // Redirect after 3 seconds
-                    setTimeout(() => {
-                        window.location.reload();
-                    }, 3000);
-                } else if (data.line) {
-                    addLogLine(data.line);
                 }
             };
-            
-            eventSource.onerror = function(error) {
-                console.error('EventSource error:', error);
-                addLogLine('Connection error. Retrying...');
+
+            eventSource.onerror = () => {
+                addLine('Log stream disconnected. Refresh the page to reconnect.', 'error');
                 eventSource.close();
-                
-                // Retry connection after 5 seconds
-                setTimeout(() => {
-                    window.location.reload();
-                }, 5000);
             };
-        } else {
-            document.getElementById('pr-info').textContent = 'Invalid PR URL format';
         }
     </script>
 </body>

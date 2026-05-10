@@ -1,122 +1,141 @@
 #!/usr/bin/env python3
+import json
 import os
 import time
-import json
-from http.server import HTTPServer, BaseHTTPRequestHandler
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-LOG_DIR = "/var/lib/pr-previews/logs"
+PREVIEW_BASE = Path("/var/lib/pr-previews")
+INSTANCES_DIR = PREVIEW_BASE / "instances"
 PORT = 8405
+
+
+def valid_instance_id(instance_id):
+    parts = instance_id.split("-")
+    return (
+        len(parts) >= 3
+        and parts[0] == "pr"
+        and parts[1].isdigit()
+        and all(part.replace("-", "").isalnum() for part in parts[2:])
+    )
+
+
+def instance_dir(instance_id):
+    if not valid_instance_id(instance_id):
+        return None
+    return INSTANCES_DIR / instance_id
+
+
+def read_state(path):
+    state_file = path / "state.json"
+    if not state_file.exists():
+        return {"status": "not_found", "message": "Preview state was not found"}
+    try:
+        with state_file.open("r") as f:
+            return json.load(f)
+    except json.JSONDecodeError:
+        return {"status": "unknown", "message": "Preview state could not be parsed"}
+
 
 class LogStreamHandler(BaseHTTPRequestHandler):
     def _set_cors_headers(self):
-        self.send_header('Access-Control-Allow-Origin', '*')
-        self.send_header('Access-Control-Allow-Methods', 'GET, OPTIONS')
-        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
-    
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+
+    def _send_json(self, payload, code=200):
+        self.send_response(code)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Cache-Control", "no-store")
+        self._set_cors_headers()
+        self.end_headers()
+        self.wfile.write(json.dumps(payload).encode())
+
+    def _send_sse(self, payload):
+        data = f"data: {json.dumps(payload)}\n\n"
+        self.wfile.write(data.encode())
+        self.wfile.flush()
+
     def do_OPTIONS(self):
         self.send_response(200)
         self._set_cors_headers()
         self.end_headers()
-    
+
     def do_GET(self):
-        parts = self.path.strip('/').split('/')
-        
-        if len(parts) != 2:
+        parts = [part for part in self.path.strip("/").split("/") if part]
+        if len(parts) != 2 or parts[0] not in {"logs", "status"}:
             self.send_error(404)
             return
-        
-        action, pr_id = parts
-        log_file = f"{LOG_DIR}/{pr_id}.log"
-        status_file = f"/var/lib/pr-previews/{pr_id}/.deploy-status"
-        
+
+        action, instance_id = parts
+        path = instance_dir(instance_id)
+        if path is None:
+            self._send_json({"status": "error", "message": "Invalid preview id"}, 400)
+            return
+
         if action == "status":
-            self.send_response(200)
-            self.send_header('Content-Type', 'application/json')
-            self._set_cors_headers()
-            self.end_headers()
-            
-            if os.path.exists(status_file):
-                with open(status_file, 'r') as f:
-                    status = f.read().strip()
-            else:
-                status = "deploying" if os.path.exists(log_file) else "not_found"
-            
-            response = {
-                "status": status,
-                "log_exists": os.path.exists(log_file)
-            }
-            self.wfile.write(json.dumps(response).encode())
-            return
-        
-        elif action == "logs":
-            if not os.path.exists(log_file):
-                self.send_error(404, f"Log file not found - {pr_id} - {log_file}")
-                return
-
-            self.send_response(200)
-            self.send_header('Content-Type', 'text/event-stream')
-            self.send_header('Cache-Control', 'no-cache')
-            self.send_header('Connection', 'keep-alive')
-            # Helpful for some proxies (Nginx-specific but harmless elsewhere)
-            self.send_header('X-Accel-Buffering', 'no')
-            self._set_cors_headers()
-            self.end_headers()
-
-            try:
-                # Send an initial comment to establish the stream immediately
-                self.wfile.write(b": stream-open\n\n")
-                self.wfile.flush()
-
-                # Backfill existing lines
-                with open(log_file, 'r') as f:
-                    for line in f:
-                        data = f"data: {json.dumps({'line': line.rstrip()})}\n\n"
-                        self.wfile.write(data.encode())
-                        self.wfile.flush()
-
-                # Follow the file, sending heartbeats
-                last_heartbeat = 0
-                HEARTBEAT_INTERVAL = 10  # seconds
-
-                with open(log_file, 'r') as f:
-                    f.seek(0, 2)
-                    while True:
-                        line = f.readline()
-                        now = time.time()
-
-                        if line:
-                            payload = f"data: {json.dumps({'line': line.rstrip()})}\n\n"
-                            self.wfile.write(payload.encode())
-                            self.wfile.flush()
-                            last_heartbeat = now  # reset heartbeat timer on activity
-                        else:
-                            # heartbeat if no activity for HEARTBEAT_INTERVAL
-                            if now - last_heartbeat >= HEARTBEAT_INTERVAL:
-                                self.wfile.write(b": keep-alive\n\n")
-                                self.wfile.flush()
-                                last_heartbeat = now
-
-                            # stop when marked complete
-                            if os.path.exists(status_file):
-                                with open(status_file, 'r') as sf:
-                                    if sf.read().strip() == "complete":
-                                        self.wfile.write(b"data: {\"complete\": true}\n\n")
-                                        self.wfile.flush()
-                                        break
-                            time.sleep(0.5)
-            except BrokenPipeError:
-                pass
+            self._send_json(read_state(path))
             return
 
-        else:
-            self.send_error(404)
-    
+        self.stream_logs(path)
+
+    def stream_logs(self, path):
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream")
+        self.send_header("Cache-Control", "no-cache")
+        self.send_header("Connection", "keep-alive")
+        self.send_header("X-Accel-Buffering", "no")
+        self._set_cors_headers()
+        self.end_headers()
+
+        deploy_log = path / "deploy.log"
+        app_log = path / "app.log"
+        offsets = {}
+
+        try:
+            self.wfile.write(b": stream-open\n\n")
+            self.wfile.flush()
+            self._send_sse({"state": read_state(path)})
+
+            last_heartbeat = time.time()
+            while True:
+                emitted = False
+                for label, log_file in (("deploy", deploy_log), ("app", app_log)):
+                    if not log_file.exists():
+                        continue
+
+                    with log_file.open("r", errors="replace") as f:
+                        f.seek(offsets.get(str(log_file), 0))
+                        for line in f:
+                            self._send_sse({"source": label, "line": line.rstrip()})
+                            emitted = True
+                        offsets[str(log_file)] = f.tell()
+
+                state = read_state(path)
+                status = state.get("status", "unknown")
+                if status in {"ready", "failed", "cleaned"}:
+                    self._send_sse({"state": state, "complete": status == "ready", "failed": status == "failed"})
+                    break
+
+                now = time.time()
+                if not emitted and now - last_heartbeat >= 10:
+                    self.wfile.write(b": keep-alive\n\n")
+                    self.wfile.flush()
+                    self._send_sse({"state": state})
+                    last_heartbeat = now
+
+                time.sleep(0.5)
+        except BrokenPipeError:
+            pass
+        except ConnectionResetError:
+            pass
+
     def log_message(self, format, *args):
         pass
 
-if __name__ == '__main__':
-    server = HTTPServer(('0.0.0.0', PORT), LogStreamHandler)
+
+if __name__ == "__main__":
+    server = ThreadingHTTPServer(("0.0.0.0", PORT), LogStreamHandler)
     print(f"Log stream server listening on port {PORT}")
     try:
         server.serve_forever()

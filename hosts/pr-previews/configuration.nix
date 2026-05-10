@@ -1,4 +1,4 @@
-{ config, pkgs, sops-nix, ... }:
+{ config, lib, inputs, pkgs, sops-nix, ... }:
 
 let
   turboCacheDir = "/var/lib/pr-previews/.turbo-cache";
@@ -19,10 +19,12 @@ let
 
   deployScript = pkgs.writeShellScriptBin "deploy-preview" ''
     set -euo pipefail
-    export PATH="/run/webhook/bin:${pkgs.rsync}/bin:${pkgs.openssh}/bin:${pkgs.nodejs_22}/bin:${pkgs.pnpm_9}/bin:/run/current-system/sw/bin:$PATH"
+    export PATH="/run/webhook/bin:${pkgs.rsync}/bin:${pkgs.openssh}/bin:${pkgs.nodejs_22}/bin:${pkgs.pnpm_9}/bin:${pkgs.jq}/bin:${pkgs.curl}/bin:${pkgs.iproute2}/bin:${pkgs.util-linux}/bin:/run/current-system/sw/bin:$PATH"
     export NPM_TOKEN="$(cat ${config.sops.secrets."cglt/font-awesome-token".path})"
     export GIT_SSH_COMMAND="/run/webhook/bin/ssh"
     export RSYNC_RSH="/run/webhook/bin/ssh"
+    export PREVIEW_BASE="/var/lib/pr-previews"
+    export PR_PREVIEW_SYSTEMCTL="${previewSystemctl}/bin/preview-systemctl"
     export PR_PREVIEW_PNPM_STORE_DIR="${pnpmStoreDir}"
     export PR_PREVIEW_PNPM_HOME="${pnpmHomeDir}"
     export PR_PREVIEW_NODE_CACHE_DIR="${nodeCacheDir}"
@@ -63,10 +65,34 @@ let
     export MKDIR="${pkgs.coreutils}/bin/mkdir"
     export MKTEMP="${pkgs.coreutils}/bin/mktemp"
     export PNPM="${pkgs.pnpm_9}/bin/pnpm"
+    export PATH="${pkgs.jq}/bin:${pkgs.util-linux}/bin:/run/current-system/sw/bin:$PATH"
+    export PREVIEW_BASE="/var/lib/pr-previews"
+    export PR_PREVIEW_SYSTEMCTL="${previewSystemctl}/bin/preview-systemctl"
 
     # (No secrets needed for cleanup.)
 
     exec "${pkgs.bash}/bin/bash" ${./scripts/cleanup-preview.sh} "$@"
+  '';
+
+  previewRunner = pkgs.writeShellScriptBin "run-pr-preview" ''
+    set -euo pipefail
+    export PATH="${pkgs.nodejs_22}/bin:${pkgs.pnpm_9}/bin:${pkgs.jq}/bin:${pkgs.docker}/bin:${pkgs.docker-compose}/bin:/run/current-system/sw/bin:$PATH"
+    export PREVIEW_BASE="/var/lib/pr-previews"
+    export PR_PREVIEW_PNPM_STORE_DIR="${pnpmStoreDir}"
+    export PR_PREVIEW_PNPM_HOME="${pnpmHomeDir}"
+    export PR_PREVIEW_NODE_CACHE_DIR="${nodeCacheDir}"
+    export PR_PREVIEW_NPM_CACHE_DIR="${npmCacheDir}"
+    export PR_PREVIEW_YARN_CACHE_DIR="${yarnCacheDir}"
+    export TURBO_CACHE_DIR="${turboCacheDir}"
+    export DOCKER_BUILDKIT=1
+    export COMPOSE_DOCKER_CLI_BUILD=1
+
+    exec "${pkgs.bash}/bin/bash" ${./scripts/run-preview.sh} "$@"
+  '';
+
+  previewSystemctl = pkgs.writeShellScriptBin "preview-systemctl" ''
+    set -euo pipefail
+    exec "${pkgs.bash}/bin/bash" ${./scripts/preview-systemctl.sh} "$@"
   '';
 
 
@@ -81,14 +107,18 @@ let
   '';
 
 in {
-  imports = [ 
-    ./hardware-configuration.nix
-    ../../modules/common
-    ../../modules/profiles/server.nix
-    ../../modules/platforms/nixos
+  imports =
+    lib.optional (builtins.pathExists ./hardware-configuration.nix) ./hardware-configuration.nix
+    ++ [
+      inputs.disko.nixosModules.disko
+      ./disko.nix
+      ../../modules/common
+      ../../modules/profiles/server.nix
+      ../../modules/platforms/nixos
+      ../../modules/roles/docker.nix
 
-    sops-nix.nixosModules.sops
-  ];
+      sops-nix.nixosModules.sops
+    ];
 
   environment.systemPackages = with pkgs; [
     git
@@ -108,6 +138,8 @@ in {
 
     deployScript
     cleanupScript
+    previewRunner
+    previewSystemctl
   ];
 
   systemProfile = {
@@ -115,6 +147,10 @@ in {
     stateVersion = "25.05";
     isServer = true;
   };
+
+  boot.loader.grub.devices = lib.mkForce [ "/dev/sda" ];
+  roles.docker.enable = true;
+  networking.useDHCP = lib.mkDefault true;
 
   sops.age.keyFile = "/home/justin/.config/sops/age/keys.txt";
   sops.defaultSopsFile = ../../secrets/secrets.yaml;
@@ -140,6 +176,7 @@ in {
       { command = "/run/current-system/sw/bin/chmod";  options = [ "NOPASSWD" ]; }
       { command = "/run/current-system/sw/bin/umount"; options = [ "NOPASSWD" ]; }
       { command = "/run/current-system/sw/bin/rm";     options = [ "NOPASSWD" ]; }
+      { command = "${previewSystemctl}/bin/preview-systemctl"; options = [ "NOPASSWD" ]; }
     ];
   }];
 
@@ -152,10 +189,6 @@ in {
   networking.firewall = {
     enable = true;
     allowedTCPPorts = [ 22 80 443 ];
-  };
-
-  virtualisation.docker = {
-    enable = true;
   };
 
   services.webhook = {
@@ -231,7 +264,8 @@ in {
           "id": "deploy",
           "execute-command": "${deployScript}/bin/deploy-preview",
           "command-working-directory": "/var/lib/pr-previews",
-          "response-message": "Deployment started",
+          "include-command-output-in-response": true,
+          "include-command-output-in-response-on-error": true,
           "pass-arguments-to-command": [
             {
               "source": "payload",
@@ -244,6 +278,10 @@ in {
             {
               "source": "payload",
               "name": "branch"
+            },
+            {
+              "source": "payload",
+              "name": "head_sha"
             }
           ],
           "trigger-rule": {
@@ -272,11 +310,16 @@ in {
           "id": "cleanup",
           "execute-command": "${cleanupScript}/bin/cleanup-preview",
           "command-working-directory": "/var/lib/pr-previews",
-          "response-message": "Cleanup started",
+          "include-command-output-in-response": true,
+          "include-command-output-in-response-on-error": true,
           "pass-arguments-to-command": [
             {
               "source": "payload",
               "name": "pr_number"
+            },
+            {
+              "source": "string",
+              "name": "Satchel"
             }
           ],
           "trigger-rule": {
@@ -320,6 +363,45 @@ in {
       mkdir -p /tmp/webhook-home
       chown webhook:webhook /tmp/webhook-home
     '';
+  };
+
+  systemd.services."pr-preview@" = {
+    description = "PR Preview Instance %i";
+    after = [ "network.target" "docker.service" ];
+    wants = [ "docker.service" ];
+    path = [ pkgs.nodejs_22 pkgs.pnpm_9 pkgs.jq pkgs.docker pkgs.docker-compose pkgs.coreutils pkgs.bash ];
+    serviceConfig = {
+      Type = "simple";
+      User = "webhook";
+      Group = "webhook";
+      SupplementaryGroups = [ "docker" ];
+      WorkingDirectory = "/var/lib/pr-previews";
+      ExecStart = "${previewRunner}/bin/run-pr-preview %i";
+      Restart = "on-failure";
+      RestartSec = "5s";
+      KillMode = "mixed";
+      TimeoutStopSec = "30s";
+      StandardOutput = "append:/var/lib/pr-previews/instances/%i/app.log";
+      StandardError = "append:/var/lib/pr-previews/instances/%i/app.log";
+    };
+  };
+
+  systemd.services."pr-preview-deploy@" = {
+    description = "PR Preview Deploy Job %i";
+    after = [ "network.target" "docker.service" ];
+    wants = [ "docker.service" ];
+    path = [ pkgs.git pkgs.curl pkgs.jq pkgs.rsync pkgs.openssh pkgs.nodejs_22 pkgs.pnpm_9 pkgs.docker pkgs.docker-compose pkgs.iproute2 pkgs.util-linux pkgs.coreutils pkgs.bash ];
+    serviceConfig = {
+      Type = "oneshot";
+      User = "webhook";
+      Group = "webhook";
+      SupplementaryGroups = [ "docker" ];
+      WorkingDirectory = "/var/lib/pr-previews";
+      ExecStart = "${deployScript}/bin/deploy-preview --worker %i";
+      TimeoutStartSec = "30min";
+      StandardOutput = "journal";
+      StandardError = "journal";
+    };
   };
 
   systemd.services.log-stream = {
@@ -413,10 +495,8 @@ in {
         middlewares: [ "api-strip", "api-addprefix" ]
         priority: 200
 
-      log-stream:
-        # this one probably *does* depend on host; keep Host() if your proxy preserves it,
-        # or relax to PathPrefix if you want it accessible regardless of Host.
-        rule: "PathPrefix(`/logs`)"
+      preview-status-api:
+        rule: "PathPrefix(`/logs`) || PathPrefix(`/status`)"
         entryPoints: [ "web" ]
         service: log-stream
         middlewares: [ "sse-headers" ] 
@@ -483,6 +563,8 @@ in {
   systemd.tmpfiles.rules = [
     "z /var/lib/pr-previews 2775 root webhook -"
     "z /var/lib/pr-previews/logs 2775 root webhook -"
+    "d /var/lib/pr-previews/instances 2775 webhook webhook -"
+    "d /var/lib/pr-previews/locks 2775 webhook webhook -"
     "d ${pnpmStoreDir} 2775 webhook webhook -"
     "d ${pnpmHomeDir} 2775 webhook webhook -"
     "d ${nodeCacheDir} 2775 webhook webhook -"
@@ -490,7 +572,7 @@ in {
     "d ${yarnCacheDir} 2775 webhook webhook -"
     "d ${turboCacheDir} 2775 webhook webhook -"
     "z /etc/traefik/dynamic 2775 root webhook -"
-    "z /var/lib/pr-previews/used-ports.txt 0664 root webhook -"
+    "f /var/lib/pr-previews/used-ports.txt 0664 webhook webhook -"
 
     "d /etc/webhook/keys 0700 webhook webhook -"
     "C /etc/webhook/keys/ssh-service-github 0400 webhook webhook - /home/justin/.ssh/ssh-service-github"

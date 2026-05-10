@@ -7,7 +7,6 @@
       ./nodes/omada-controller.nix
       ./nodes/pangonlin-public.nix
       ./nodes/pangolin-newt.nix
-      ./nodes/pr-previews.nix
       ./nodes/github-runner.nix
       ./nodes/vikunja.nix
     ];
