@@ -68,6 +68,7 @@
     mkProvisionApp = system: action:
       let
         pkgs = mkPkgs system;
+        terranixConfigPrPreviews = mkTerranixConfig system terranixHosts.pr-previews;
         terranixConfigUptimeKuma = mkTerranixConfig system terranixHosts.uptime-kuma;
         provisionApp = pkgs.writeShellApplication {
           name = "nixconfig-${action}";
@@ -81,6 +82,7 @@
           ];
           text = ''
             export NIX_INFRA_ACTION=${action}
+            export TERRANIX_CONFIG_PR_PREVIEWS=${terranixConfigPrPreviews}
             export TERRANIX_CONFIG_UPTIME_KUMA=${terranixConfigUptimeKuma}
             exec bash ${./scripts/provisioning/provision-host.sh} "$@"
           '';
@@ -146,6 +148,7 @@
         macbook16            = mkDarwin ./hosts/macbook16/configuration.nix;
       };
       terranixConfigurations = lib.genAttrs supportedSystems (system: {
+        pr-previews = mkTerranixConfig system terranixHosts.pr-previews;
         uptime-kuma = mkTerranixConfig system terranixHosts.uptime-kuma;
       });
       apps = lib.genAttrs supportedSystems (system: {

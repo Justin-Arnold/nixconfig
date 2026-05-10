@@ -14,20 +14,22 @@ nix run nix-darwin -- switch --flake ~/Code/personal/nixconfig#macmini
 Render the Terraform plan for a host:
 
 ```sh
-nix run .#plan -- uptime-kuma
+nix run .#plan -- <host>
 ```
 
 Create the VM in Proxmox and bootstrap it with `nixos-anywhere`:
 
 ```sh
-nix run .#provision -- uptime-kuma
+nix run .#provision -- <host>
 ```
 
 Destroy the managed VM:
 
 ```sh
-nix run .#destroy -- uptime-kuma
+nix run .#destroy -- <host>
 ```
+
+Currently managed hosts: `uptime-kuma`, `pr-previews`.
 
 The provisioning flow expects:
 

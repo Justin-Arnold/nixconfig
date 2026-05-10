@@ -15,6 +15,9 @@ fi
 shift || true
 
 case "$HOST_NAME" in
+  pr-previews)
+    TERRANIX_CONFIG="${TERRANIX_CONFIG_PR_PREVIEWS:?}"
+    ;;
   uptime-kuma)
     TERRANIX_CONFIG="${TERRANIX_CONFIG_UPTIME_KUMA:?}"
     ;;
