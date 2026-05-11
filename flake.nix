@@ -78,6 +78,7 @@
             pkgs.git
             pkgs.jq
             pkgs.openssh
+            pkgs.sops
             pkgs.terraform
             nixos-anywhere.packages.${system}.default
           ];
@@ -159,6 +160,8 @@
         plan = mkProvisionApp system "plan";
         provision = mkProvisionApp system "provision";
         destroy = mkProvisionApp system "destroy";
+        adopt = mkProvisionApp system "adopt";
+        migrate-state = mkProvisionApp system "migrate-state";
       });
     };
 }

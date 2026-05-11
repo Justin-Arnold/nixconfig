@@ -5,6 +5,7 @@
   vmId ? null,
   bootstrapTemplateId,
   bootstrapTemplateNode ? null,
+  lifecycleIgnoreChanges ? [ ],
   macAddress,
   cpuCores ? 2,
   cpuType ? null,
@@ -35,6 +36,8 @@ let
 in
 {
   terraform.required_version = ">= 1.6.0";
+
+  terraform.backend.s3 = { };
 
   terraform.required_providers = {
     proxmox = {
@@ -97,6 +100,9 @@ in
               keys = [ "\${var.bootstrap_public_key}" ];
             };
           };
+        }
+        // lib.optionalAttrs (lifecycleIgnoreChanges != [ ]) {
+          lifecycle.ignore_changes = lifecycleIgnoreChanges;
         }
         // lib.optionalAttrs hasManagedDisk {
           disk = [
