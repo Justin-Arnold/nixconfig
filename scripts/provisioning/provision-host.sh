@@ -321,7 +321,8 @@ run_nixos_switch() {
   local target_user="$2"
   local target_ip="$3"
 
-  nixos-rebuild switch \
+  NIX_SSHOPTS="-o IdentitiesOnly=yes -o IdentityFile=${SSH_PRIVATE_KEY_PATH}" \
+    nixos-rebuild switch \
     --flake "${REPO_ROOT}#${host_name}" \
     --target-host "${target_user}@${target_ip}" \
     --build-host localhost \
@@ -329,9 +330,7 @@ run_nixos_switch() {
     --use-substitutes \
     --fast \
     --no-reexec \
-    --option accept-flake-config true \
-    --ssh-option IdentitiesOnly=yes \
-    --ssh-option "IdentityFile=${SSH_PRIVATE_KEY_PATH}"
+    --option accept-flake-config true
 }
 
 terraform_apply_and_discover() {

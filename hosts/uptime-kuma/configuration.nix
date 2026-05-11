@@ -27,7 +27,8 @@
   networking.useDHCP = lib.mkDefault true;
 
   virtualisation.oci-containers.containers.uptime-kuma = {
-    image = "louislam/uptime-kuma:1";
+    image = "louislam/uptime-kuma:2";
+    pull = "newer";
     autoStart = true;
     ports = [ "3001:3001" ];
     volumes = [ "uptime-kuma:/app/data" ];
