@@ -12,6 +12,7 @@ mkProxmoxVm {
   bootstrapTemplateNode = "proxmox8";
   macAddress = "02:01:18:00:00:03";
   cpuCores = 2;
+  cpuType = "host";
   memoryMb = 4096;
   diskSizeGb = 40;
   datastore = "local-lvm";

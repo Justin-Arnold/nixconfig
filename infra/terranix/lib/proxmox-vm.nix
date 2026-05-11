@@ -7,6 +7,7 @@
   bootstrapTemplateNode ? null,
   macAddress,
   cpuCores ? 2,
+  cpuType ? null,
   memoryMb ? 2048,
   diskSizeGb ? 20,
   datastore ? "local-lvm",
@@ -72,7 +73,11 @@ in
             }
           ];
 
-          cpu.cores = cpuCores;
+          cpu = {
+            cores = cpuCores;
+          } // lib.optionalAttrs (cpuType != null) {
+            type = cpuType;
+          };
           memory.dedicated = memoryMb;
 
           tags = tags;
