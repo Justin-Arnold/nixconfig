@@ -29,7 +29,7 @@ Destroy the managed VM:
 nix run .#destroy -- <host>
 ```
 
-Currently managed hosts: `uptime-kuma`, `pr-previews`.
+Currently managed hosts: `dockhand`, `uptime-kuma`, `pr-previews`.
 
 The provisioning flow expects:
 
@@ -38,3 +38,5 @@ The provisioning flow expects:
 - an age key at `~/.config/sops/age/keys.txt` if you want that copied during install
 - a shared SSH-reachable bootstrap template in Proxmox for the target VM to clone
 - a working DHCP service on the target network; provisioning will discover the lease automatically and use that IP for `nixos-anywhere`
+
+Dockhand also expects SOPS secret values at `dockhand/env` (`ENCRYPTION_KEY=...`) and `dockhand/hawser.env` (`TOKEN=...`).

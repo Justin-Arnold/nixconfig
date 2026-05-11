@@ -15,6 +15,9 @@ fi
 shift || true
 
 case "$HOST_NAME" in
+  dockhand)
+    TERRANIX_CONFIG="${TERRANIX_CONFIG_DOCKHAND:?}"
+    ;;
   pr-previews)
     TERRANIX_CONFIG="${TERRANIX_CONFIG_PR_PREVIEWS:?}"
     ;;
