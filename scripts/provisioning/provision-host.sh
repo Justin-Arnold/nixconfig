@@ -39,6 +39,7 @@ EXTRA_FILES_DIR="${STATE_DIR}/extra-files"
 AGE_KEY_PATH="${SOPS_AGE_KEY_PATH:-$HOME/.config/sops/age/keys.txt}"
 SSH_PRIVATE_KEY_PATH="${SSH_PRIVATE_KEY_PATH:-$HOME/.ssh/id_ed25519}"
 SSH_PUBLIC_KEY_PATH="${SSH_PUBLIC_KEY_PATH:-${SSH_PRIVATE_KEY_PATH}.pub}"
+SWITCH_SSH_PRIVATE_KEY_PATH="${SWITCH_SSH_PRIVATE_KEY_PATH:-}"
 SECRETS_FILE="${NIXCONFIG_SECRETS_FILE:-${REPO_ROOT}/secrets/secrets.yaml}"
 TF_STATE_BUCKET="${TF_STATE_BUCKET:-nix-terraform-state}"
 TF_STATE_ENDPOINT="${TF_STATE_ENDPOINT:-https://fe5019fb2375a36bcf9aa82e5efc3a35.r2.cloudflarestorage.com}"
@@ -48,17 +49,6 @@ TF_STATE_R2_ACCESS_KEY_PATH="${TF_STATE_R2_ACCESS_KEY_PATH:-[\"terraform\"][\"cl
 TF_STATE_R2_SECRET_KEY_PATH="${TF_STATE_R2_SECRET_KEY_PATH:-[\"terraform\"][\"cloudflare_r2\"][\"aws_secret_access_key\"]}"
 
 mkdir -p "$STATE_DIR"
-
-if [[ ! -f "$SSH_PRIVATE_KEY_PATH" ]]; then
-  echo "missing bootstrap private key: $SSH_PRIVATE_KEY_PATH" >&2
-  exit 1
-fi
-
-if [[ ! -f "$SSH_PUBLIC_KEY_PATH" ]]; then
-  ssh-keygen -y -f "$SSH_PRIVATE_KEY_PATH" > "$SSH_PUBLIC_KEY_PATH"
-fi
-
-BOOTSTRAP_PUBLIC_KEY="$(tr -d '\n' < "$SSH_PUBLIC_KEY_PATH")"
 
 install -m 0644 "$TERRANIX_CONFIG" "$TF_CONFIG_JSON"
 
@@ -143,12 +133,6 @@ if [[ -n "${AGE_KEY_PATH}" && -f "${AGE_KEY_PATH}" ]]; then
   install -m 0400 "$AGE_KEY_PATH" "$EXTRA_FILES_DIR/home/justin/.config/sops/age/keys.txt"
 fi
 
-jq -n \
-  --arg bootstrap_public_key "$BOOTSTRAP_PUBLIC_KEY" \
-  '{
-    bootstrap_public_key: $bootstrap_public_key
-  }' > "$TF_VARS_JSON"
-
 terraform_init_args=(
   -input=false
   -backend-config="$TF_BACKEND_CONFIG"
@@ -169,6 +153,53 @@ if [[ "$ACTION" == "migrate-state" ]]; then
   echo "Migrated Terraform state for ${HOST_NAME} to ${TF_STATE_BUCKET}/${TF_STATE_KEY_PREFIX}/${HOST_NAME}/terraform.tfstate"
   exit 0
 fi
+
+current_bootstrap_public_key() {
+  terraform -chdir="$STATE_DIR" state show "proxmox_virtual_environment_vm.${HOST_NAME}" 2>/dev/null \
+    | awk '
+        /^[[:space:]]*keys[[:space:]]*=/ { in_keys = 1; next }
+        in_keys && /^[[:space:]]*]/ { exit }
+        in_keys && /ssh-|ecdsa-|sk-/ {
+          gsub(/^[[:space:]"]+/, "")
+          gsub(/[",[:space:]]+$/, "")
+          print
+          exit
+        }
+      '
+}
+
+is_public_key() {
+  [[ "$1" =~ ^(ssh-|ecdsa-|sk-) ]]
+}
+
+BOOTSTRAP_PUBLIC_KEY="$(current_bootstrap_public_key)"
+
+if ! is_public_key "$BOOTSTRAP_PUBLIC_KEY"; then
+  BOOTSTRAP_PUBLIC_KEY=""
+fi
+
+if [[ -z "$BOOTSTRAP_PUBLIC_KEY" ]]; then
+  if [[ -f "$SSH_PUBLIC_KEY_PATH" ]]; then
+    BOOTSTRAP_PUBLIC_KEY="$(tr -d '\n' < "$SSH_PUBLIC_KEY_PATH")"
+  elif [[ -f "$SSH_PRIVATE_KEY_PATH" ]]; then
+    ssh-keygen -y -f "$SSH_PRIVATE_KEY_PATH" > "$SSH_PUBLIC_KEY_PATH"
+    BOOTSTRAP_PUBLIC_KEY="$(tr -d '\n' < "$SSH_PUBLIC_KEY_PATH")"
+  fi
+fi
+
+if ! is_public_key "$BOOTSTRAP_PUBLIC_KEY"; then
+  BOOTSTRAP_PUBLIC_KEY=""
+fi
+
+if [[ -z "$BOOTSTRAP_PUBLIC_KEY" ]]; then
+  BOOTSTRAP_PUBLIC_KEY="ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA placeholder-bootstrap-key"
+fi
+
+jq -n \
+  --arg bootstrap_public_key "$BOOTSTRAP_PUBLIC_KEY" \
+  '{
+    bootstrap_public_key: $bootstrap_public_key
+  }' > "$TF_VARS_JSON"
 
 normalize_api_base() {
   local endpoint="$1"
@@ -308,6 +339,11 @@ run_nixos_anywhere() {
   local target_ip="$3"
   local hardware_config="$4"
 
+  if [[ ! -f "$SSH_PRIVATE_KEY_PATH" ]]; then
+    echo "missing bootstrap private key: $SSH_PRIVATE_KEY_PATH" >&2
+    exit 1
+  fi
+
   nixos-anywhere \
     --flake "${REPO_ROOT}#${host_name}" \
     --target-host "${target_user}@${target_ip}" \
@@ -320,15 +356,21 @@ run_nixos_switch() {
   local host_name="$1"
   local target_user="$2"
   local target_ip="$3"
+  local nixos_rebuild_cmd=(nixos-rebuild)
 
-  NIX_SSHOPTS="-o IdentitiesOnly=yes -o IdentityFile=${SSH_PRIVATE_KEY_PATH}" \
-    nixos-rebuild switch \
+  if [[ -n "$SWITCH_SSH_PRIVATE_KEY_PATH" ]]; then
+    nixos_rebuild_cmd=(
+      env
+      "NIX_SSHOPTS=-o IdentitiesOnly=yes -o IdentityFile=${SWITCH_SSH_PRIVATE_KEY_PATH}"
+      nixos-rebuild
+    )
+  fi
+
+  "${nixos_rebuild_cmd[@]}" switch \
     --flake "${REPO_ROOT}#${host_name}" \
     --target-host "${target_user}@${target_ip}" \
-    --build-host localhost \
-    --use-remote-sudo \
+    --sudo \
     --use-substitutes \
-    --fast \
     --no-reexec \
     --option accept-flake-config true
 }

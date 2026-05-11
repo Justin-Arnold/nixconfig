@@ -5,7 +5,6 @@
   vmId ? null,
   bootstrapTemplateId,
   bootstrapTemplateNode ? null,
-  lifecycleIgnoreChanges ? [ ],
   macAddress,
   cpuCores ? 2,
   cpuType ? null,
@@ -16,9 +15,14 @@
   vlanId ? null,
   tags ? [ "homelab" ],
   targetUser ? "root",
+  ignoreBootstrapKeyChanges ? true,
+  lifecycleIgnoreChanges ? [ ],
 }:
 let
   hasManagedDisk = diskSizeGb != null;
+  effectiveLifecycleIgnoreChanges =
+    lifecycleIgnoreChanges
+    ++ lib.optional ignoreBootstrapKeyChanges "initialization[0].user_account[0].keys";
   networkDevice =
     {
       bridge = bridge;
@@ -101,8 +105,8 @@ in
             };
           };
         }
-        // lib.optionalAttrs (lifecycleIgnoreChanges != [ ]) {
-          lifecycle.ignore_changes = lifecycleIgnoreChanges;
+        // lib.optionalAttrs (effectiveLifecycleIgnoreChanges != [ ]) {
+          lifecycle.ignore_changes = effectiveLifecycleIgnoreChanges;
         }
         // lib.optionalAttrs hasManagedDisk {
           disk = [
