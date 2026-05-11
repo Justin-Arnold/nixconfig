@@ -28,7 +28,7 @@
 
   virtualisation.oci-containers.containers.uptime-kuma = {
     image = "louislam/uptime-kuma:2";
-    pull = "newer";
+    pull = "always";
     autoStart = true;
     ports = [ "3001:3001" ];
     volumes = [ "uptime-kuma:/app/data" ];

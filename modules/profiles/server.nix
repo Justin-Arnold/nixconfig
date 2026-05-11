@@ -33,6 +33,16 @@
       "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHV8PNnNJ9KwJfGC1+Z5AFPPMgW+Vjr0/eHOLg2WIofh ansible-controller"
     ];
   };
+
+  # nixos-anywhere --extra-files copies bootstrap files as root. The age key is
+  # intentionally placed under the server user's home for sops-nix, so repair
+  # ownership before Home Manager tries to link files under ~/.config.
+  system.activationScripts.fixUserConfigOwnership.text = ''
+    if [ -d /home/${config.systemProfile.username}/.config ]; then
+      chown -R ${config.systemProfile.username}:users /home/${config.systemProfile.username}/.config
+    fi
+  '';
+
   security.sudo.wheelNeedsPassword = false;
 
   ############################################################

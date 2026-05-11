@@ -40,6 +40,7 @@ AGE_KEY_PATH="${SOPS_AGE_KEY_PATH:-$HOME/.config/sops/age/keys.txt}"
 SSH_PRIVATE_KEY_PATH="${SSH_PRIVATE_KEY_PATH:-$HOME/.ssh/id_ed25519}"
 SSH_PUBLIC_KEY_PATH="${SSH_PUBLIC_KEY_PATH:-${SSH_PRIVATE_KEY_PATH}.pub}"
 SWITCH_SSH_PRIVATE_KEY_PATH="${SWITCH_SSH_PRIVATE_KEY_PATH:-}"
+SWITCH_USER="${SWITCH_USER:-justin}"
 SECRETS_FILE="${NIXCONFIG_SECRETS_FILE:-${REPO_ROOT}/secrets/secrets.yaml}"
 TF_STATE_BUCKET="${TF_STATE_BUCKET:-nix-terraform-state}"
 TF_STATE_ENDPOINT="${TF_STATE_ENDPOINT:-https://fe5019fb2375a36bcf9aa82e5efc3a35.r2.cloudflarestorage.com}"
@@ -369,6 +370,7 @@ run_nixos_switch() {
   "${nixos_rebuild_cmd[@]}" switch \
     --flake "${REPO_ROOT}#${host_name}" \
     --target-host "${target_user}@${target_ip}" \
+    --build-host "${target_user}@${target_ip}" \
     --sudo \
     --use-substitutes \
     --no-reexec \
@@ -423,12 +425,12 @@ case "$ACTION" in
     terraform_apply_and_discover "$OUTPUTS_JSON" NODE_NAME VM_ID TARGET_USER DISCOVERED_IP "$@"
 
     if [[ "$ACTION" == "switch" ]]; then
-      run_nixos_switch "$HOST_NAME" "$TARGET_USER" "$DISCOVERED_IP"
+      run_nixos_switch "$HOST_NAME" "$SWITCH_USER" "$DISCOVERED_IP"
       exit 0
     fi
 
     if [[ "$ACTION" == "provision" && -f "$HARDWARE_CONFIG" ]]; then
-      run_nixos_switch "$HOST_NAME" "$TARGET_USER" "$DISCOVERED_IP"
+      run_nixos_switch "$HOST_NAME" "$SWITCH_USER" "$DISCOVERED_IP"
       exit 0
     fi
 
