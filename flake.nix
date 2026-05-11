@@ -77,6 +77,7 @@
             pkgs.curl
             pkgs.git
             pkgs.jq
+            pkgs.nixos-rebuild
             pkgs.openssh
             pkgs.sops
             pkgs.terraform
@@ -159,6 +160,8 @@
       apps = lib.genAttrs supportedSystems (system: {
         plan = mkProvisionApp system "plan";
         provision = mkProvisionApp system "provision";
+        install = mkProvisionApp system "install";
+        switch = mkProvisionApp system "switch";
         destroy = mkProvisionApp system "destroy";
         adopt = mkProvisionApp system "adopt";
         migrate-state = mkProvisionApp system "migrate-state";

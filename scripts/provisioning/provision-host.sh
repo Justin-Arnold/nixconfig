@@ -158,7 +158,7 @@ case "$ACTION" in
   migrate-state)
     terraform_init_args+=(-migrate-state -force-copy)
     ;;
-  adopt|plan|provision|destroy)
+  adopt|plan|provision|install|switch|destroy)
     terraform_init_args+=(-reconfigure)
     ;;
 esac
@@ -316,6 +316,43 @@ run_nixos_anywhere() {
     --extra-files "${EXTRA_FILES_DIR}"
 }
 
+run_nixos_switch() {
+  local host_name="$1"
+  local target_user="$2"
+  local target_ip="$3"
+
+  nixos-rebuild switch \
+    --flake "${REPO_ROOT}#${host_name}" \
+    --target-host "${target_user}@${target_ip}" \
+    --build-host localhost \
+    --use-remote-sudo \
+    --use-substitutes \
+    --fast \
+    --no-reexec \
+    --option accept-flake-config true \
+    --ssh-option IdentitiesOnly=yes \
+    --ssh-option "IdentityFile=${SSH_PRIVATE_KEY_PATH}"
+}
+
+terraform_apply_and_discover() {
+  local outputs_json="$1"
+  local node_name_ref="$2"
+  local vm_id_ref="$3"
+  local target_user_ref="$4"
+  local discovered_ip_ref="$5"
+  shift 5
+
+  terraform -chdir="$STATE_DIR" apply -input=false -auto-approve -var-file="$TF_VARS_JSON" "$@"
+  terraform -chdir="$STATE_DIR" output -json > "$outputs_json"
+
+  printf -v "$node_name_ref" '%s' "$(jq -r '.node_name.value' "$outputs_json")"
+  printf -v "$vm_id_ref" '%s' "$(jq -r '.vm_id.value' "$outputs_json")"
+  printf -v "$target_user_ref" '%s' "$(jq -r '.target_user.value' "$outputs_json")"
+  printf -v "$discovered_ip_ref" '%s' "$(discover_vm_ip "${!node_name_ref}" "${!vm_id_ref}")"
+
+  echo "Discovered DHCP IP for ${HOST_NAME}: ${!discovered_ip_ref}"
+}
+
 case "$ACTION" in
   adopt)
     IMPORT_ID="${1:-}"
@@ -332,7 +369,7 @@ case "$ACTION" in
     guard_against_duplicate_vm
     exec terraform -chdir="$STATE_DIR" plan -input=false -var-file="$TF_VARS_JSON" "$@"
     ;;
-  provision)
+  provision|install|switch)
     HARDWARE_CONFIG="${REPO_ROOT}/hosts/${HOST_NAME}/hardware-configuration.nix"
     OUTPUTS_JSON="${STATE_DIR}/outputs.json"
     NODE_NAME=""
@@ -342,16 +379,17 @@ case "$ACTION" in
 
     guard_against_duplicate_vm
 
-    rm -f "$HARDWARE_CONFIG"
-    terraform -chdir="$STATE_DIR" apply -input=false -auto-approve -var-file="$TF_VARS_JSON" "$@"
-    terraform -chdir="$STATE_DIR" output -json > "$OUTPUTS_JSON"
+    terraform_apply_and_discover "$OUTPUTS_JSON" NODE_NAME VM_ID TARGET_USER DISCOVERED_IP "$@"
 
-    NODE_NAME="$(jq -r '.node_name.value' "$OUTPUTS_JSON")"
-    VM_ID="$(jq -r '.vm_id.value' "$OUTPUTS_JSON")"
-    TARGET_USER="$(jq -r '.target_user.value' "$OUTPUTS_JSON")"
+    if [[ "$ACTION" == "switch" ]]; then
+      run_nixos_switch "$HOST_NAME" "$TARGET_USER" "$DISCOVERED_IP"
+      exit 0
+    fi
 
-    DISCOVERED_IP="$(discover_vm_ip "$NODE_NAME" "$VM_ID")"
-    echo "Discovered DHCP IP for ${HOST_NAME}: ${DISCOVERED_IP}"
+    if [[ "$ACTION" == "provision" && -f "$HARDWARE_CONFIG" ]]; then
+      run_nixos_switch "$HOST_NAME" "$TARGET_USER" "$DISCOVERED_IP"
+      exit 0
+    fi
 
     run_nixos_anywhere "$HOST_NAME" "$TARGET_USER" "$DISCOVERED_IP" "$HARDWARE_CONFIG"
 
