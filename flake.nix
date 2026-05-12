@@ -69,6 +69,7 @@
       let
         pkgs = mkPkgs system;
         terranixConfigDockhand = mkTerranixConfig system terranixHosts.dockhand;
+        terranixConfigNotifications = mkTerranixConfig system terranixHosts.notifications;
         terranixConfigPrPreviews = mkTerranixConfig system terranixHosts.pr-previews;
         terranixConfigUptimeKuma = mkTerranixConfig system terranixHosts.uptime-kuma;
         provisionApp = pkgs.writeShellApplication {
@@ -86,6 +87,7 @@
           text = ''
             export NIX_INFRA_ACTION=${action}
             export TERRANIX_CONFIG_DOCKHAND=${terranixConfigDockhand}
+            export TERRANIX_CONFIG_NOTIFICATIONS=${terranixConfigNotifications}
             export TERRANIX_CONFIG_PR_PREVIEWS=${terranixConfigPrPreviews}
             export TERRANIX_CONFIG_UPTIME_KUMA=${terranixConfigUptimeKuma}
             exec bash ${./scripts/provisioning/provision-host.sh} "$@"
@@ -146,6 +148,7 @@
         pr-previews          = mkNixos ./hosts/pr-previews/configuration.nix;
         github-runner        = mkNixos ./hosts/github-runner/configuration.nix;
         vikunja              = mkNixos ./hosts/vikunja/configuration.nix;
+        notifications        = mkNixos ./hosts/notifications/configuration.nix;
         uptime-kuma          = mkNixos ./hosts/uptime-kuma/configuration.nix;
       };
       darwinConfigurations = {
@@ -154,6 +157,7 @@
       };
       terranixConfigurations = lib.genAttrs supportedSystems (system: {
         dockhand = mkTerranixConfig system terranixHosts.dockhand;
+        notifications = mkTerranixConfig system terranixHosts.notifications;
         pr-previews = mkTerranixConfig system terranixHosts.pr-previews;
         uptime-kuma = mkTerranixConfig system terranixHosts.uptime-kuma;
       });

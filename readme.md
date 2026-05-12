@@ -29,7 +29,7 @@ Destroy the managed VM:
 nix run .#destroy -- <host>
 ```
 
-Currently managed hosts: `dockhand`, `uptime-kuma`, `pr-previews`.
+Currently managed hosts: `dockhand`, `notifications`, `uptime-kuma`, `pr-previews`.
 
 The provisioning flow expects:
 
@@ -40,3 +40,20 @@ The provisioning flow expects:
 - a working DHCP service on the target network; provisioning will discover the lease automatically and use that IP for `nixos-anywhere`
 
 Dockhand also expects SOPS secret values at `dockhand/env` (`ENCRYPTION_KEY=...`) and `dockhand/hawser.env` (`TOKEN=...`).
+
+The notifications host expects SOPS secret values at:
+
+- `notifications/alerta/secret-key`: Flask/Alerta secret key text
+- `notifications/alerta/admin-user`: Alerta admin login, such as `justin`
+- `notifications/alerta/admin-password`: Alerta admin password
+- `notifications/alerta/api-key`: fixed Alerta ingest API key for producers using `Authorization: Key ...`
+- `notifications/apprise/config`: Apprise text config for the stateful `homelab-alerts` key, one Apprise URL per line
+- `notifications/ntfy/auth-users`: ntfy comma-separated `auth-users` entries
+- `notifications/ntfy/auth-tokens`: ntfy comma-separated `auth-tokens` entries
+
+Notifications host service URLs:
+
+- Alerta web UI: `http://notifications.host.internal:5001`
+- Alerta API: `http://notifications.host.internal:5000`
+- ntfy web UI/API: `http://notifications.host.internal:8080`
+- Apprise API: `http://127.0.0.1:8000` on the notifications host only

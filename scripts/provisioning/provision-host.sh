@@ -18,6 +18,9 @@ case "$HOST_NAME" in
   dockhand)
     TERRANIX_CONFIG="${TERRANIX_CONFIG_DOCKHAND:?}"
     ;;
+  notifications)
+    TERRANIX_CONFIG="${TERRANIX_CONFIG_NOTIFICATIONS:?}"
+    ;;
   pr-previews)
     TERRANIX_CONFIG="${TERRANIX_CONFIG_PR_PREVIEWS:?}"
     ;;
@@ -156,8 +159,9 @@ if [[ "$ACTION" == "migrate-state" ]]; then
 fi
 
 current_bootstrap_public_key() {
-  terraform -chdir="$STATE_DIR" state show "proxmox_virtual_environment_vm.${HOST_NAME}" 2>/dev/null \
-    | awk '
+  {
+    terraform -chdir="$STATE_DIR" state show "proxmox_virtual_environment_vm.${HOST_NAME}" 2>/dev/null || true
+  } | awk '
         /^[[:space:]]*keys[[:space:]]*=/ { in_keys = 1; next }
         in_keys && /^[[:space:]]*]/ { exit }
         in_keys && /ssh-|ecdsa-|sk-/ {
@@ -170,7 +174,7 @@ current_bootstrap_public_key() {
 }
 
 is_public_key() {
-  [[ "$1" =~ ^(ssh-|ecdsa-|sk-) ]]
+  [[ "$1" =~ ^(ssh-|ecdsa-|sk-) && "$1" != *"placeholder-bootstrap-key"* ]]
 }
 
 BOOTSTRAP_PUBLIC_KEY="$(current_bootstrap_public_key)"

@@ -16,13 +16,18 @@
   tags ? [ "homelab" ],
   targetUser ? "root",
   ignoreBootstrapKeyChanges ? true,
+  ha ? { enable = false; },
   lifecycleIgnoreChanges ? [ ],
 }:
 let
   hasManagedDisk = diskSizeGb != null;
+  haEnabled = (ha.enable or false);
   effectiveLifecycleIgnoreChanges =
     lifecycleIgnoreChanges
     ++ lib.optional ignoreBootstrapKeyChanges "initialization[0].user_account[0].keys";
+  effectiveVmLifecycleIgnoreChanges =
+    effectiveLifecycleIgnoreChanges
+    ++ lib.optional haEnabled "node_name";
   networkDevice =
     {
       bridge = bridge;
@@ -105,8 +110,8 @@ in
             };
           };
         }
-        // lib.optionalAttrs (effectiveLifecycleIgnoreChanges != [ ]) {
-          lifecycle.ignore_changes = effectiveLifecycleIgnoreChanges;
+        // lib.optionalAttrs (effectiveVmLifecycleIgnoreChanges != [ ]) {
+          lifecycle.ignore_changes = effectiveVmLifecycleIgnoreChanges;
         }
         // lib.optionalAttrs hasManagedDisk {
           disk = [
@@ -118,6 +123,17 @@ in
           ];
         }
         // (if vmId == null then { } else { vm_id = vmId; }));
+    }
+    // lib.optionalAttrs haEnabled {
+      proxmox_haresource.${name} =
+        {
+          resource_id = "vm:\${proxmox_virtual_environment_vm.${name}.vm_id}";
+          state = ha.state or "started";
+          comment = ha.comment or "Managed by Terraform";
+        }
+        // lib.optionalAttrs (ha ? group && ha.group != null) {
+          group = ha.group;
+        };
     };
 
   output.name.value = "\${proxmox_virtual_environment_vm.${name}.name}";
@@ -125,4 +141,5 @@ in
   output.vm_id.value = "\${proxmox_virtual_environment_vm.${name}.vm_id}";
   output.mac_address.value = macAddress;
   output.target_user.value = targetUser;
+  output.ha_enabled.value = haEnabled;
 }
