@@ -3,6 +3,7 @@ let
   hostName = "notifications";
   alertaPort = 5000;
   alertaWebPort = 5001;
+  nodeRedPort = 1880;
   ntfyPort = 8080;
   apprisePort = 8000;
   appriseKey = "homelab-alerts";
@@ -65,6 +66,7 @@ let
     import urllib.error
     import urllib.parse
     import urllib.request
+    from datetime import datetime, timedelta, timezone
     from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
     APPRISE_BASE_URL = os.environ.get("APPRISE_BASE_URL", "http://127.0.0.1:${toString apprisePort}")
@@ -74,6 +76,7 @@ let
     LISTEN_ADDR = os.environ.get("LISTEN_ADDR", "127.0.0.1")
     LISTEN_PORT = int(os.environ.get("LISTEN_PORT", "${toString appriseForwarderPort}"))
     POLL_INTERVAL_SECONDS = int(os.environ.get("POLL_INTERVAL_SECONDS", "15"))
+    CLOSED_ALERT_LOOKBACK_SECONDS = int(os.environ.get("CLOSED_ALERT_LOOKBACK_SECONDS", "3600"))
     STATE_FILE = os.environ.get("STATE_FILE", "/var/lib/alerta-apprise-forwarder/state.json")
 
     TYPE_BY_SEVERITY = {
@@ -90,13 +93,22 @@ let
     def apprise_type(severity):
         return TYPE_BY_SEVERITY.get(str(severity or "").lower(), "info")
 
+    def alert_attributes(alert):
+        return alert.get("attributes") or {}
+
     def alert_title(alert):
+        attributes = alert_attributes(alert)
+        if attributes.get("notificationTitle"):
+            return str(attributes["notificationTitle"])
         severity = str(alert.get("severity") or "unknown").upper()
         resource = alert.get("resource") or "unknown-resource"
         event = alert.get("event") or "unknown-event"
         return f"[{severity}] {resource}: {event}"
 
     def alert_body(alert):
+        attributes = alert_attributes(alert)
+        if attributes.get("notificationBody"):
+            return str(attributes["notificationBody"])
         fields = [
             ("text", alert.get("text")),
             ("service", ", ".join(alert.get("service") or [])),
@@ -140,6 +152,7 @@ let
         query = urllib.parse.urlencode([
             ("status", "open"),
             ("status", "ack"),
+            ("status", "closed"),
         ])
         request = urllib.request.Request(
             f"{ALERTA_BASE_URL}/alerts?{query}",
@@ -158,8 +171,29 @@ let
             "id": alert.get("id"),
             "severity": alert.get("severity"),
             "status": alert.get("status"),
+            "text": alert.get("text"),
+            "title": alert_attributes(alert).get("notificationTitle"),
+            "body": alert_attributes(alert).get("notificationBody"),
         }
         return hashlib.sha256(json.dumps(parts, sort_keys=True).encode("utf-8")).hexdigest()
+
+    def parse_alert_time(value):
+        if not value:
+            return None
+        try:
+            return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        except ValueError:
+            return None
+
+    def should_skip_closed_alert(alert):
+        if str(alert.get("status") or "").lower() != "closed":
+            return False
+
+        last_seen = parse_alert_time(alert.get("lastReceiveTime")) or parse_alert_time(alert.get("receiveTime"))
+        if not last_seen:
+            return False
+
+        return datetime.now(timezone.utc) - last_seen > timedelta(seconds=CLOSED_ALERT_LOOKBACK_SECONDS)
 
     def load_state():
         try:
@@ -189,6 +223,10 @@ let
                         continue
                     fingerprint = alert_fingerprint(alert)
                     if state.get(alert_id) == fingerprint:
+                        continue
+                    if should_skip_closed_alert(alert):
+                        state[alert_id] = fingerprint
+                        changed = True
                         continue
                     notify_apprise(alert)
                     state[alert_id] = fingerprint
@@ -427,6 +465,7 @@ in
     "d /opt/apprise/config 0750 1000 1000 -"
     "d /opt/apprise/plugin 0750 1000 1000 -"
     "d /opt/apprise/attach 0750 1000 1000 -"
+    "d /opt/node-red/data 0750 1000 1000 -"
   ];
 
   virtualisation.oci-containers.containers.apprise = {
@@ -443,6 +482,21 @@ in
       APPRISE_STATEFUL_MODE = "simple";
       APPRISE_WORKER_COUNT = "1";
       APPRISE_ADMIN = "y";
+      TZ = "America/New_York";
+    };
+    extraOptions = [
+      "--add-host=notifications.host.internal:host-gateway"
+    ];
+  };
+
+  virtualisation.oci-containers.containers.node-red = {
+    image = "nodered/node-red:latest";
+    autoStart = true;
+    ports = [ "${toString nodeRedPort}:1880" ];
+    volumes = [
+      "/opt/node-red/data:/data"
+    ];
+    environment = {
       TZ = "America/New_York";
     };
     extraOptions = [
@@ -468,6 +522,7 @@ in
       LISTEN_ADDR = "127.0.0.1";
       LISTEN_PORT = toString appriseForwarderPort;
       POLL_INTERVAL_SECONDS = "15";
+      CLOSED_ALERT_LOOKBACK_SECONDS = "3600";
       STATE_FILE = "/var/lib/alerta-apprise-forwarder/state.json";
     };
     serviceConfig = {
@@ -487,6 +542,7 @@ in
   networking.firewall.allowedTCPPorts = [
     alertaPort
     alertaWebPort
+    nodeRedPort
     ntfyPort
   ];
 

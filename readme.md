@@ -55,5 +55,10 @@ Notifications host service URLs:
 
 - Alerta web UI: `http://notifications.host.internal:5001`
 - Alerta API: `http://notifications.host.internal:5000`
+- Node-RED UI: `http://notifications.host.internal:1880`
 - ntfy web UI/API: `http://notifications.host.internal:8080`
 - Apprise API: `http://127.0.0.1:8000` on the notifications host only
+
+Node-RED is intentionally UI-managed. Nix provisions the service and persistent
+data directory, but notification intake and transformation flows should be built
+and maintained in the Node-RED editor.
