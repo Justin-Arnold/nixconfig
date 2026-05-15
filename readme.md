@@ -51,13 +51,21 @@ The notifications host expects SOPS secret values at:
 - `notifications/ntfy/auth-users`: ntfy comma-separated `auth-users` entries
 - `notifications/ntfy/auth-tokens`: ntfy comma-separated `auth-tokens` entries
 
+Node-RED receives `ALERTA_API_KEY` from the same
+`notifications/alerta/api-key` SOPS secret. Function nodes can read it with
+`env.get("ALERTA_API_KEY")`.
+
 Notifications host service URLs:
 
 - Alerta web UI: `http://notifications.host.internal:5001`
 - Alerta API: `http://notifications.host.internal:5000`
 - Node-RED UI: `http://notifications.host.internal:1880`
-- ntfy web UI/API: `http://notifications.host.internal:8080`
+- ntfy web UI/API: `http://10.0.0.192:8080`
 - Apprise API: `http://127.0.0.1:8000` on the notifications host only
+
+For ntfy iOS push, set the iOS app's Default Server to exactly
+`http://10.0.0.192:8080`. The server uses ntfy.sh as its upstream push relay,
+but notification fetches still go back to this private URL.
 
 Node-RED is intentionally UI-managed. Nix provisions the service and persistent
 data directory, but notification intake and transformation flows should be built

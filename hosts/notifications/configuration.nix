@@ -10,7 +10,7 @@ let
   appriseForwarderPort = 9088;
   alertaUrl = "http://${hostName}.host.internal:${toString alertaPort}";
   alertaWebUrl = "http://${hostName}.host.internal:${toString alertaWebPort}";
-  ntfyUrl = "http://${hostName}.host.internal:${toString ntfyPort}";
+  ntfyUrl = "http://10.0.0.192:${toString ntfyPort}";
 
   alertaWebui = pkgs.runCommand "alerta-webui" { } ''
     mkdir -p $out
@@ -360,6 +360,17 @@ in
     mode = "0400";
   };
 
+  sops.templates."notifications-node-red.env" = {
+    path = "/run/secrets-env/notifications-node-red.env";
+    content = ''
+      ALERTA_API_KEY=${config.sops.placeholder."notifications/alerta/api-key"}
+    '';
+    owner = "root";
+    group = "root";
+    mode = "0400";
+    restartUnits = [ "docker-node-red.service" ];
+  };
+
   services.postgresql = {
     enable = true;
     ensureDatabases = [ "alerta" ];
@@ -433,6 +444,7 @@ in
     environmentFile = config.sops.templates."notifications-ntfy.env".path;
     settings = {
       base-url = ntfyUrl;
+      upstream-base-url = "https://ntfy.sh";
       listen-http = "0.0.0.0:${toString ntfyPort}";
       auth-default-access = "deny-all";
       enable-login = true;
@@ -496,6 +508,9 @@ in
     volumes = [
       "/opt/node-red/data:/data"
     ];
+    environmentFiles = [
+      config.sops.templates."notifications-node-red.env".path
+    ];
     environment = {
       TZ = "America/New_York";
     };
@@ -505,6 +520,11 @@ in
   };
 
   systemd.services.docker-apprise = {
+    after = [ "sops-nix.service" ];
+    wants = [ "sops-nix.service" ];
+  };
+
+  systemd.services.docker-node-red = {
     after = [ "sops-nix.service" ];
     wants = [ "sops-nix.service" ];
   };
