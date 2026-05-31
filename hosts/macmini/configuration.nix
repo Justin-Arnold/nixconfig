@@ -1,9 +1,11 @@
-{ config, pkgs, inputs, zen-browser, ... }:
+{ config, pkgs, inputs, zen-browser, p99, ... }:
 
 {
   imports = [ 
     ../../modules/common
     ../../modules/platforms/darwin
+    
+    p99.darwinModules.default
   ];
 
   ############################################################
@@ -33,5 +35,10 @@
     imports = [
       ../../home/roles/provisioning-runner.nix
     ];
+  };
+
+  programs.p99 = {
+    enable = true;
+    enableCompletions = true;
   };
 }

@@ -32,6 +32,9 @@
       url = "git+ssh://git@github.com/Justin-Arnold/private-config.git";
       flake = true;
     };
+    p99 = {
+      url = "github:Justin-Arnold/p99";
+    };
   };
 
   outputs = inputs@{ 
@@ -46,6 +49,7 @@
     disko,
     terranix,
     nixos-anywhere,
+    p99,
     # nocodb,
     ...
   } :
@@ -122,7 +126,7 @@
     mkDarwin = hostFile:
       darwin.lib.darwinSystem {
         system = "aarch64-darwin";
-        specialArgs = { inherit inputs home-manager sops-nix zen-browser disko; };
+        specialArgs = { inherit inputs home-manager sops-nix zen-browser disko p99; };
         modules = [ 
           nix-homebrew.darwinModules.nix-homebrew
           home-manager.darwinModules.home-manager
