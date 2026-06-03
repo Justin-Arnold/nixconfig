@@ -6,14 +6,16 @@
 
   home.username = osConfig.systemProfile.username;
   home.homeDirectory = lib.mkForce (/. + osConfig.systemProfile.homeDirectory);
-  home.stateVersion = osConfig.systemProfile.stateVersion;
+  home.stateVersion = "26.05";
 
   programs.home-manager.enable = lib.mkDefault true;
 
   programs.git = {
     enable = true;
-    userName = "Justin Arnold";
-    userEmail = osConfig.systemProfile.email;
+    settings.user = {
+      name = "Justin Arnold";
+      email = osConfig.systemProfile.email;
+    };
   };
 
   programs.direnv.enable = true;

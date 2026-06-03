@@ -11,7 +11,7 @@
   programs.zsh = {
     enable = true;
 
-    initExtra = ''
+    initContent = ''
       eval "$(direnv hook zsh)"
       source ~/.p10k.zsh
 

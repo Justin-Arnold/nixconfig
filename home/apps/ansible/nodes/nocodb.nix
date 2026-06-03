@@ -250,7 +250,7 @@ in {
   };
 
   # Environment setup for 1Password
-  programs.zsh.initExtra = ''
+  programs.zsh.initContent = ''
     # 1Password Connect helper function
     op-connect-test() {
       if [ -z "$OP_API_TOKEN" ]; then

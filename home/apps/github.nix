@@ -24,7 +24,7 @@
       nr  = "sudo nixos-rebuild switch --flake ~/Code/personal/nixconfig";
     };
 
-    initExtra = ''
+    initContent = ''
       source ~/.config/op/plugins.sh
 
       searchGithubRepos() {

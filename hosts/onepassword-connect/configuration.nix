@@ -57,7 +57,7 @@
       ../../home/apps/1password-connect.nix
     ];
 
-    programs.zsh.initExtra = ''
+    programs.zsh.initContent = ''
       export OP_API_TOKEN=$(cat ${config.sops.secrets."onepassword/OP_API_TOKEN".path})
       export OP_SERVICE_ACCOUNT_TOKEN=$(cat ${config.sops.secrets."onepassword/OP_SERVICE_ACCOUNT_TOKEN".path})
       export OP_CONNECT_TOKEN=$(cat ${config.sops.secrets."onepassword/OP_CONNECT_TOKEN".path})

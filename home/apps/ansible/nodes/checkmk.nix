@@ -236,7 +236,7 @@ in {
     ans-checkmk = "cd ~/${proj} && ./run-ansible.sh";
   };
 
-  programs.zsh.initExtra = ''
+  programs.zsh.initContent = ''
     # 1Password Connect helper function
     op-connect-test() {
       if [ -z "$OP_API_TOKEN" ]; then

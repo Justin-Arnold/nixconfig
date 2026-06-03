@@ -266,7 +266,7 @@ in {
     ans-github-runner-setup = "cd ~/${proj} && ansible-playbook setup-ssh.yml";
   };
 
-  programs.zsh.initExtra = ''
+  programs.zsh.initContent = ''
     # 1Password Connect helper function
     op-connect-test() {
       if [ -z "$OP_API_TOKEN" ]; then
