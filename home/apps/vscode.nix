@@ -4,6 +4,7 @@
   config = lib.mkIf osConfig.systemProfile.hasGui {
     programs.vscode = {
       enable = true;
+      mutableExtensionsDir = false;
       profiles.default = {
         extensions = with pkgs.vscode-extensions; [
           vue.volar
