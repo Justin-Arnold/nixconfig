@@ -5,7 +5,12 @@
     pkgs.hyprpaper
   ];
 
-  home.file = {
-    ".config/hypr/hyprpaper.conf".source = ../dotfiles/hyprland/hyprpaper.conf;
+  services.hyprpaper = {
+    enable = true;
+    settings = {
+      splash = false;
+      preload = [ "/home/justin/Downloads/wallpaper.png" ];
+      wallpaper = [ ",/home/justin/Downloads/wallpaper.png" ];
+    };
   };
 }
