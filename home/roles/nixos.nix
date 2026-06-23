@@ -2,8 +2,9 @@
   imports = [
     ../apps/oterm.nix
     ../apps/krusader.nix
-    ../apps/anyrun.nix
+    ../apps/hyprshell.nix
     ../apps/aichat.nix
+    ../apps/codex.nix
   ];
 
   home.packages = with pkgs; [ luarocks unzip ];
