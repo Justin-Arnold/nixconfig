@@ -1,6 +1,8 @@
-{ pkgs, lib, osConfig, ... }:
+{ pkgs, osConfig, ... }:
 
-{
+let
+  wallpaper = "${osConfig.systemProfile.homeDirectory}/Pictures/wallpaper.png";
+in {
   home.packages = [
     pkgs.hyprpaper
   ];
@@ -8,9 +10,15 @@
   services.hyprpaper = {
     enable = true;
     settings = {
-      splash = false;
-      preload = [ "/home/justin/Downloads/wallpaper.png" ];
-      wallpaper = [ ",/home/justin/Downloads/wallpaper.png" ];
+      preload = [
+        wallpaper
+      ];
+      wallpaper = [
+        {
+          monitor = "";
+          path = wallpaper;
+        }
+      ];
     };
   };
 }
