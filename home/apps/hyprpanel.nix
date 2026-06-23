@@ -1,4 +1,11 @@
 { inputs, ... }:
+let
+  defaultBarLayout = {
+    left = [ "dashboard" "workspaces" ];
+    middle = [ "media" ];
+    right = [ "volume" "systray" "notifications" ];
+  };
+in
 {
   programs.hyprpanel = {
     enable = true;
@@ -12,11 +19,9 @@
       # Default: null
       layout = {
         bar.layouts = {
-          "0" = {
-            left = [ "dashboard" "workspaces" ];
-            middle = [ "media" ];
-            right = [ "volume" "systray" "notifications" ];
-          };
+          "0" = defaultBarLayout;
+          "1" = defaultBarLayout;
+          "2" = defaultBarLayout;
         };
       };
 
@@ -32,7 +37,7 @@
       };
 
       menus.dashboard.directories.enabled = false;
-      menus.dashboard.stats.enable_gpu = true;
+      menus.dashboard.stats.enable_gpu = false;
 
       theme.bar.transparent = true;
 
