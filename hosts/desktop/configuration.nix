@@ -5,7 +5,8 @@
     [ 
       ./hardware-configuration.nix
       ../../modules/common
-      home-manager.nixosModules.home-manager
+      ../../modules/platforms/nixos
+      ../../modules/profiles/desktop.nix
     ];
 
   ############################################################
@@ -22,6 +23,7 @@
   ############################################################
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
+  boot.loader.timeout = 5;
   boot.kernelPackages = pkgs.linuxPackages_latest;
 
   ############################################################
@@ -32,8 +34,8 @@
   #############################################################
   ## GUI/Display Manager
   #############################################################
-  # services.displayManager.cosmic-greeter.enable = true;
-  # services.desktopManager.cosmic.enable = true;
+  services.displayManager.cosmic-greeter.enable = true;
+  services.desktopManager.cosmic.enable = true;
   #services.xserver.enable = true;
   #services.xserver.displayManager.gdm.enable = true;
   #services.xserver.desktopManager.gnome.enable = true;
@@ -61,18 +63,8 @@
   ##############################################################
   ## Home Manager Configuration
   ##############################################################
-  home-manager.useGlobalPkgs = true;
-  home-manager.useUserPackages = true;
-  home-manager.backupFileExtension = "backup";
-  home-manager.extraSpecialArgs = { inherit inputs zen-browser; };
-  home-manager.sharedModules = [
-    sops-nix.homeManagerModules.sops
-    inputs._1password-shell-plugins.hmModules.default
-  ];
   home-manager.users.justin = { ... }: {
     imports = [ 
-      ../../home/roles/base.nix
-      ../../home/roles/nixos.nix
       ../../home/roles/provisioning-runner.nix
     ];
   };

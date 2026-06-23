@@ -14,6 +14,10 @@ in {
       xwayland.enable = true;
     }; 
 
+    environment.systemPackages = [
+      pkgs.hyprshell
+    ];
+
     home-manager.users.${config.systemProfile.username} = {...}: {
       imports = [
         ../../../../home/apps/hyprland.nix

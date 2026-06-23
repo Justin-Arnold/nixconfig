@@ -1,7 +1,4 @@
 { pkgs, lib, config, ...}:{
-  imports = [
-    ../roles/slack.nix
-  ];
   environment.systemPackages = with pkgs; [
     discord
     libsForQt5.qt5ct

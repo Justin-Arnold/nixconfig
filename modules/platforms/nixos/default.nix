@@ -8,9 +8,11 @@
   ############################################################
   users.users."${config.systemProfile.username}" = {
     isNormalUser = true;
+    group = config.systemProfile.username;
     shell = pkgs.zsh;
     extraGroups = [ "wheel" "networkmanager" ];
   };
+  users.groups."${config.systemProfile.username}" = {};
 
   modules = {
     apps = {
@@ -44,6 +46,9 @@
   home-manager.sharedModules = [
     sops-nix.homeManagerModules.sops
     inputs._1password-shell-plugins.hmModules.default
+    (import "${pkgs.hyprshell.src}/nix/module.nix" {
+      packages.${pkgs.stdenv.hostPlatform.system}.hyprshell = pkgs.hyprshell;
+    })
   ];
   home-manager.users.${config.systemProfile.username} = { ... }: {
     imports = [ ../../../home/roles/base.nix ../../../home/roles/nixos.nix ];
