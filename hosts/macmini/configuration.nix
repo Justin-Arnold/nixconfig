@@ -38,7 +38,7 @@
   };
 
   programs.p99 = {
-    enable = true;
-    enableCompletions = true;
+    enable = false;
+    enableCompletions = false;
   };
 }
