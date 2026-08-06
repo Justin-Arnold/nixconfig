@@ -2,8 +2,8 @@
 
 local applications = require("hyprland.data.applications")
 local keybindings = require("hyprland.data.keybindings")
-local popout = require("hyprland.config.popout")
 
+require("hyprland.config.popout")
 require("hyprland.config.animation")
 require("hyprland.config.autostart")
 require("hyprland.config.decoration")
@@ -46,10 +46,10 @@ hl.bind(
     hl.dsp.exec_cmd(applications.terminal)
 )
 
--- Close active window, or hide focused popout
+-- Close active window
 hl.bind(
     keybindings.main_mod .. " + Q",
-    popout.close_or_hide_active()
+    hl.dsp.window.close()
 )
 
 -- Toggle floating

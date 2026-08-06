@@ -1,6 +1,7 @@
 local keybindings = require("hyprland.data.keybindings")
 
 local M = {}
+local popout_cmd = "/etc/profiles/per-user/justin/bin/hypr-popout"
 
 local popouts = {
     aichat = {
@@ -22,7 +23,7 @@ local popouts = {
 }
 
 local function toggle_popout(name)
-    return hl.dsp.exec_cmd("hypr-popout toggle " .. name)
+    return hl.dsp.exec_cmd(popout_cmd .. " toggle " .. name)
 end
 
 local function popout_rule(popout, size)
@@ -41,7 +42,7 @@ local function popout_rule(popout, size)
 end
 
 function M.close_or_hide_active()
-    return hl.dsp.exec_cmd("hypr-popout close-active")
+    return hl.dsp.exec_cmd(popout_cmd .. " close-active")
 end
 
 popout_rule(popouts.aichat, { 800, 600 })
@@ -50,7 +51,7 @@ popout_rule(popouts.terminal, { 1000, 700 })
 popout_rule(popouts.oterm, { 1200, 900 })
 
 hl.on("hyprland.start", function()
-    hl.exec_cmd("hypr-popout start all")
+    hl.exec_cmd(popout_cmd .. " start all")
 end)
 
 -- Popup keybinds

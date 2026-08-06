@@ -24,6 +24,15 @@
         enable = true;
         replaceCd = true;
       };
+      bluebubbles = {
+        enable = config.systemProfile.hasGui;
+      };
+      openbubbles = {
+        enable = config.systemProfile.hasGui;
+      };
+      greenlight = {
+        enable = config.systemProfile.hasGui;
+      };
     };
 
     roles.nixos.desktopEnvironments = {
