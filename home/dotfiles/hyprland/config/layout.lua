@@ -1,20 +1,29 @@
 local keybindings = require("hyprland.data.keybindings")
+local hy3 = assert(hl.plugin.hy3, "hy3 plugin is not loaded")
 
 hl.config({
     general = {
-        layout = "dwindle",
-    }
-})
+        layout = "hy3",
+    },
 
--- See https://wiki.hypr.land/Configuring/Layouts/Dwindle-Layout/ for more
-hl.config({
-    dwindle = {
-        preserve_split = true,
+    plugin = {
+        hy3 = {
+            autotile = {
+                enable = true,
+
+                -- Create a vertical split rather than letting
+                -- a window get narrower than this.
+                trigger_width = 800,
+
+                -- Create a horizontal split rather than letting
+                -- a window get shorter than this.
+                trigger_height = 500,
+            },
+        },
     },
 })
 
--- Toggle Dwindle split direction for the active window
 hl.bind(
     keybindings.main_mod .. " + P",
-    hl.dsp.layout("togglesplit")
+    hy3.change_group("opposite")
 )

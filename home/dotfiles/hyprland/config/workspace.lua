@@ -3,6 +3,12 @@
 local displays = require("hyprland.data.displays")
 local keybindings = require("hyprland.data.keybindings")
 
+local hy3 = assert(
+    hl.plugin.hy3,
+    "hy3 plugin is not loaded"
+)
+
+
 -- Center Monitor
 hl.workspace_rule({
     workspace = "1",
@@ -19,6 +25,7 @@ hl.workspace_rule({
     workspace = "7",
     monitor = displays.center.desc,
 })
+
 
 -- Left Monitor
 hl.workspace_rule({
@@ -37,6 +44,7 @@ hl.workspace_rule({
     monitor = displays.left.desc,
 })
 
+
 -- Right Monitor
 hl.workspace_rule({
     workspace = "3",
@@ -54,18 +62,35 @@ hl.workspace_rule({
     monitor = displays.right.desc,
 })
 
----------------------
----- KEYBINDINGS ----
----------------------
+
+-- ---- KEYBINDINGS ----
 
 -- Switch workspaces with mainMod + [0-9]
--- Move active window to a workspace with mainMod + SHIFT + [0-9]
+-- Move active hy3 node to a workspace with mainMod + SHIFT + [0-9]
 for i = 1, 10 do
     local key = i % 10 -- 10 maps to key 0
-    hl.bind(keybindings.main_mod .. " + " .. key,             hl.dsp.focus({ workspace = i}))
-    hl.bind(keybindings.main_mod .. " + SHIFT + " .. key,     hl.dsp.window.move({ workspace = i }))
+
+    hl.bind(
+        keybindings.main_mod .. " + " .. key,
+        hl.dsp.focus({ workspace = i })
+    )
+
+    hl.bind(
+        keybindings.main_mod .. " + SHIFT + " .. key,
+        hy3.move_to_workspace(tostring(i), {
+            follow = false,
+        })
+    )
 end
 
+
 -- Floating Workspace
-hl.bind(keybindings.main_mod .. " + F",         hl.dsp.workspace.toggle_special("magic"))
-hl.bind(keybindings.main_mod .. " + SHIFT + F", hl.dsp.window.move({ workspace = "special:magic" }))
+hl.bind(
+    keybindings.main_mod .. " + F",
+    hl.dsp.workspace.toggle_special("magic")
+)
+
+hl.bind(
+    keybindings.main_mod .. " + SHIFT + F",
+    hl.dsp.window.move({ workspace = "special:magic" })
+)

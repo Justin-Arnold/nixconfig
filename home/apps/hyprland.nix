@@ -124,8 +124,33 @@
     })
   ];
 
+  wayland.windowManager.hyprland = {
+    enable = true;
+
+    package = null;
+    portalPackage = null;
+    configType = "lua";
+    systemd.enable = false;
+
+    plugins = [
+      pkgs.hyprlandPlugins.hy3
+    ];
+
+    extraConfig = ''
+      local config_home =
+        os.getenv("XDG_CONFIG_HOME")
+        or (os.getenv("HOME") .. "/.config")
+
+      package.path =
+        config_home .. "/hypr/?.lua;"
+        .. config_home .. "/hypr/?/init.lua;"
+        .. package.path
+
+      require("hyprland.init")
+    '';
+  };
+
   xdg.configFile = {
-    "hypr/hyprland.lua".source = ../dotfiles/hyprland/init.lua;
     "hypr/hyprland" = {
       source = ../dotfiles/hyprland;
       recursive = true;
