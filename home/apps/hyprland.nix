@@ -132,11 +132,10 @@
     configType = "lua";
     systemd.enable = false;
 
-    plugins = [
-      pkgs.hyprlandPlugins.hy3
-    ];
-
     extraConfig = ''
+      hl.plugin.load("${pkgs.hyprlandPlugins.hy3}/lib/libhy3.so")
+
+
       local config_home =
         os.getenv("XDG_CONFIG_HOME")
         or (os.getenv("HOME") .. "/.config")
