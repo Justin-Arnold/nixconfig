@@ -1,13 +1,29 @@
-{ pkgs, ... }:
+{ inputs, pkgs, ... }:
 
-{
-  home.packages = with pkgs; [ codex ];
+let
+  codexCli =
+    inputs.codex-cli-nix.packages.${pkgs.stdenv.hostPlatform.system}.default;
+in {
+  imports = [
+    inputs.codex-desktop-linux.homeManagerModules.default
+  ];
 
-  home.file.".local/bin/codex-popup" = {
-    text = ''
-      #!/usr/bin/env bash
-      alacritty --class codex-popup -e codex
-    '';
-    executable = true;
+  home.packages = [
+    codexCli
+  ];
+
+  programs.codexDesktopLinux = {
+    enable = true;
+    cliPackage = codexCli;
+    
+    computerUseUi.enable = true;
+    remoteControl.enable = true;
+    remoteMobileControl.enable = true;
+
+    linuxFeatures = [
+      "appshots"
+      "open-target-discovery"
+      "frameless-titlebar"
+    ];
   };
 }

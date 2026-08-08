@@ -35,6 +35,8 @@
     p99 = {
       url = "github:Justin-Arnold/p99";
     };
+    codex-desktop-linux.url = "github:ilysenko/codex-desktop-linux";
+    codex-cli-nix.url = "github:sadjow/codex-cli-nix/main";
   };
 
   outputs = inputs@{ 
