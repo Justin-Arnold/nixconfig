@@ -26,41 +26,40 @@
     mutableTaps = true;
   };
 
-#   homebrew = {
-#     enable = true;
-#     onActivation.cleanup = "uninstall";
-#     onActivation.autoUpdate = true;
-#     # onActivation.upgrade = true;
+  homebrew = {
+    enable = true;
+    onActivation.cleanup = "uninstall";
+    onActivation.autoUpdate = true;
 
-#     taps = [];
-#     brews = [ "cowsay" ];
-#     casks = [
-#       "slite"
-#       "1password"
-#       "discord"
-#       "betterdisplay"
-#       "raycast"
-#       "via"
-#       "docker" # TODO - install with nix packages
-#       "arc"
-#       "mysqlworkbench"
-#       "forklift"
-#       "bambu-studio"
-#       "via"
-#       "bartender"
-#       "bettertouchtool"
-#       "cleanmymac"
-#       "cleanshot"
-#       "iina"
-#       "iterm2"
-#       "notion"
-#       "notion-calendar"
-#       "league-of-legends"
-#     ];
+    taps = [
+    ];
+    brews = [ "cowsay" "php" ];
+    casks = [
+      "slite"
+      "discord"
+      "betterdisplay"
+      "raycast"
+      "via"
+      "docker-desktop" # TODO - install with nix packages
+      "arc"
+      "mysqlworkbench"
+      "forklift"
+      # "bambu-studio" # TODO - remove manual installation and install here
+      "bartender"
+      "bettertouchtool"
+      "cleanmymac"
+      "cleanshot"
+      "iina"
+      "iterm2"
+      "notion"
+      "notion-calendar"
+      "league-of-legends"
+    ];
 
-#     # masApps = {
-#     #   "Canary Mail App" = 1236045954;
-#     #   "Session Pomodoro Focus Timer" = 1521432881;
-#     # };
-# };
+    # masApps = {
+    #   "Canary Mail App" = 1236045954;
+    #   "Session Pomodoro Focus Timer" = 1521432881;
+    #   "Xcode" = 497799835;
+    # };
+  };
 }
