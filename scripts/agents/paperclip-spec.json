@@ -69,7 +69,8 @@
       "adapterType": "hermes_gateway",
       "adapterConfig": {
         "apiBaseUrl": "http://127.0.0.1:8645",
-        "sessionKeyStrategy": "issue"
+        "sessionKeyStrategy": "issue",
+        "timeoutSec": 2400
       },
       "apiKeySecret": "reviewer-api-key",
       "heartbeat": {
@@ -85,7 +86,8 @@
       "adapterType": "hermes_gateway",
       "adapterConfig": {
         "apiBaseUrl": "http://127.0.0.1:8646",
-        "sessionKeyStrategy": "issue"
+        "sessionKeyStrategy": "issue",
+        "timeoutSec": 2400
       },
       "apiKeySecret": "infra-api-key",
       "heartbeat": {

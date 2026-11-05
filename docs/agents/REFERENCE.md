@@ -244,7 +244,11 @@ URL `http://127.0.0.1:<port>` and its `API_SERVER_KEY`, which Paperclip keeps
 as an organization secret. The session key strategy defaults to `issue`, so
 one task's memory doesn't bleed into another's, and timed heartbeats start
 off. The first hire becomes the CEO and later ones report to it, so the
-coordinator goes first.
+coordinator goes first. Paperclip stops a run that's still going after the
+adapter's `timeoutSec`, 600 seconds unless the spec says otherwise, and
+marks the issue blocked. The reviewer and infra get 2400, because nixconfig's
+checks alone take longer than ten minutes on workbench. A command the agent
+started in the background keeps running there after its run is stopped.
 
 Hermes logs to `logs/gateway.log` and `logs/errors.log` under the agent's
 `.hermes`, not to the journal. When the API server can't start, the gateway

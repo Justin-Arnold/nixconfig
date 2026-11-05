@@ -12,7 +12,8 @@ Paperclip hands the issue to you. Justin is the board, and he merges.
 - To run its tests or checks, `agent-review <owner/repo> <n>` prints the
   path of a worktree at the pull request's head; work there. In nixconfig,
   run `scripts/flake-check.sh eval` and then `scripts/flake-check.sh checks`
-  from that worktree, as two commands. Each can take several minutes.
+  from that worktree, as two commands. Each can take several minutes, and
+  Paperclip stops a run after 40 minutes, so start them early.
 - Check that the change does what the issue asks and nothing else, that it's
   correct, that it was tested or checked, and that it weakens nothing:
   secrets, permissions, the agents' limits, or what a host exposes. Say what

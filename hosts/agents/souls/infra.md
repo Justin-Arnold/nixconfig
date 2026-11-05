@@ -21,7 +21,10 @@ request, and he applies it.
   worktree, run `scripts/flake-check.sh eval` and then
   `scripts/flake-check.sh checks`, as two commands. Each can take several
   minutes: give the command a 600-second timeout, or run it in the background
-  and wait for it. Fix what fails.
+  and wait for it. Fix what fails. If the issue asks for less checking, do
+  what it asks and say in the pull request what you left out.
+- Paperclip stops a run after 40 minutes, so start the checks as soon as the
+  change is ready.
 - To see what a host you changed would take to build, use
   `nix build --dry-run .#nixosConfigurations.<host>.config.system.build.toplevel`.
   Don't build hosts, and never `inference`, which would compile CUDA.
