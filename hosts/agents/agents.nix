@@ -59,6 +59,26 @@ let
 
   agents = config.roles.hermesAgents.instances;
 
+  # Read-only lab tools (Proxmox, Beszel, Kuma, Alerta) for the coordinator,
+  # infra and the researcher, and read-only GitHub for the coordinator and
+  # the researcher (docs/agents/REFERENCE.md, "Lab state"). A source is on
+  # once it's in observeReady, with its credential in
+  # secrets/hosts/agents.yaml; Proxmox needs its nodes and CA here too.
+  observeReady = [ "proxmox" "beszel" "kuma" "alerta" ];
+  withGithubToken = true;
+  # Two nodes, tried in turn (proxmox1 and proxmox8; proxmox2 is the GPU
+  # node), and the cluster's CA certificate, /etc/pve/pve-root-ca.pem on any
+  # node. Each node's certificate names its address.
+  proxmoxNodes = [ "10.0.0.22" "10.0.0.101" ];
+  proxmoxCa = ./proxmox-ca.pem;
+  dashboard = "10.0.0.151";
+  lab118 = "10.118.0.1";
+
+  observe = config.roles.hermesAgents.observe;
+  observing = lib.any (source: source != null) (lib.attrValues observe);
+  observers = map (name: "hermes-${name}") (lib.attrNames (lib.filterAttrs (_: a: a.observe.enable) agents));
+  hostOf = url: lib.head (lib.splitString ":" (lib.last (lib.splitString "://" url)));
+
   # Runs the hermes CLI as one agent, against that agent's state, e.g.
   # `sudo hermes-agent coordinator auth add openai-codex`.
   hermesAgentCli = pkgs.writeShellApplication {
@@ -115,6 +135,20 @@ in
     # sources only (docs/agents/REFERENCE.md).
     jev.enable = true;
 
+    observe = {
+      proxmox = if lib.elem "proxmox" observeReady && proxmoxNodes != [ ] && proxmoxCa != null then {
+        urls = map (address: "https://${address}:8006") proxmoxNodes;
+        caFile = proxmoxCa;
+      } else null;
+      beszel = if lib.elem "beszel" observeReady then {
+        url = "https://beszel.servicestack.xyz";
+        user = "hello+beszelagents@justin-arnold.com";
+      } else null;
+      # The status page made for the agents: every monitor, no links or tags.
+      kuma = if lib.elem "kuma" observeReady then { url = "http://${lab118}:3002"; slug = "agents"; } else null;
+      alerta = if lib.elem "alerta" observeReady then { url = "http://${lab118}:5000"; } else null;
+    };
+
     instances = {
       # Paperclip's CEO: breaks objectives into issues and assigns them.
       coordinator = {
@@ -124,6 +158,8 @@ in
         fallbacks = [ (codex "gpt-6-sol") (claude "claude-opus-5-5") ];
         soul = builtins.readFile ./souls/coordinator.md;
         secrets = paperclipKey "coordinator";
+        observe.enable = observing;
+        github.enable = withGithubToken;
       };
 
       # Writes code, on workbench once its host key is above.
@@ -161,6 +197,7 @@ in
         fallbacks = [ (codex "gpt-6-sol") (claude "claude-opus-5-5") ];
         soul = builtins.readFile ./souls/infra.md;
         secrets = paperclipKey "infra";
+        observe.enable = observing;
       };
 
       # Answers questions and writes them up, on the local model, with Codex's
@@ -173,6 +210,8 @@ in
         auxiliary.compression = codex "gpt-6.1-terra";
         soul = builtins.readFile ./souls/researcher.md;
         secrets = paperclipKey "researcher";
+        observe.enable = observing;
+        github.enable = withGithubToken;
       };
     };
   };
@@ -192,6 +231,23 @@ in
         tcpPorts = [ 22 ];
         users = map (name: "hermes-${name}") (lib.attrNames (lib.filterAttrs (_: a: a.terminal.ssh != null) agents));
       };
+    }
+    # The lab tools' sources, only for the agents that have them.
+    // lib.optionalAttrs (observe.proxmox != null) (lib.listToAttrs (lib.imap1 (i: url:
+      lib.nameValuePair "proxmox-${toString i}" { address = hostOf url; tcpPorts = [ 8006 ]; users = observers; })
+      observe.proxmox.urls))
+    // lib.optionalAttrs (observe.beszel != null) {
+      beszel = { address = dashboard; tcpPorts = [ 443 ]; users = observers; };
+    }
+    // lib.optionalAttrs (observe.kuma != null || observe.alerta != null) {
+      # Kuma's status page and Alerta over the lab tunnel, and nothing else
+      # there: Node-RED (1880) holds the Alerta key, and ntfy (8080) reaches
+      # the phone.
+      lab118 = {
+        address = lab118;
+        tcpPorts = lib.optional (observe.kuma != null) 3002 ++ lib.optional (observe.alerta != null) 5000;
+        users = observers;
+      };
     };
   };
 
@@ -200,6 +256,10 @@ in
   assertions = [ {
     assertion = lib.all (c: lib.elem c agents.reviewer.settings.approvals.deny) [ "git push*" "gh pr create*" "gh pr edit*" ];
     message = "agents: the reviewer must not be able to push or change pull requests (its extraDenyCommands).";
+  } {
+    assertion = lib.all (a: a.address != lab118 || (lib.subtractLists [ 3002 5000 ] a.tcpPorts == [ ] && (a.udpPorts or [ ]) == [ ]))
+      (lib.attrValues config.roles.agentEgress.allow);
+    message = "agents: on lab118 the agents may reach only Kuma's status page (3002) and Alerta (5000).";
   } ];
 
   environment.systemPackages = [ hermesAgentCli ];

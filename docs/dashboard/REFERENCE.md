@@ -277,7 +277,12 @@ user for Homarr, and PocketBase superusers. Create the readonly user as a
 superuser in `/_/` (users collection, new record, role `readonly`, verified).
 The email has to be a real address; it's
 `hello+beszelhomarr@justin-arnold.com`, and Homarr signs in with it.
-`SHARE_ALL_SYSTEMS=true` lets it see every system.
+`SHARE_ALL_SYSTEMS=true` lets it see every system. The Hermes agents on the
+agents VM have a readonly user of their own, `hello+beszelagents@justin-arnold.com`,
+made the same way, so either can be revoked alone
+(`docs/agents/REFERENCE.md`, "Lab state"). A readonly user can still read
+each system's agent fingerprint and edit its own settings, so the agents'
+tool reads only systems, stats and systemd services.
 
 The Proxmox hosts aren't NixOS, so their agents are installed by hand from the
 release `.deb` of the same version as the hub:

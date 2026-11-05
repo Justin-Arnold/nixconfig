@@ -19,6 +19,11 @@ them, and checks what came back:
   decide    the researcher asks Jev one fixed question with its decide tool
             and comments the call id it got back, which has to be in the Jev
             server's own call log as a successful call
+  observe   the researcher reads each lab source it has (Proxmox, Beszel,
+            Kuma, Alerta) once and comments the call ids, each of which has to
+            be a successful call of that source in the lab server's call log.
+            With GitHub on, it also quotes nixconfig pull request #1's title,
+            which has to match GitHub's.
   change    the engineer pushes an agent/engineer/* branch to agent-scratch
             with the one file it was asked for and opens a pull request. The
             pull request is closed and its branch deleted afterwards, unless
@@ -72,11 +77,13 @@ ENGINEER_LOGS = "/var/lib/hermes-engineer/.hermes/logs"
 # agents.watch.alertaUrl and the secret agent-watch reads its key from.
 ALERTA = "http://10.118.0.1:5000"
 ALERTA_KEY = "/run/secrets/agent-watch/alerta-key"
-STAGES = ["rulesets", "refused", "watch", "ping", "local", "decide", "change", "review", "infra", "gate"]
+STAGES = ["rulesets", "refused", "watch", "ping", "local", "decide", "observe", "change", "review", "infra", "gate"]
 RESEARCHER_CONFIG = "/var/lib/hermes-researcher/.hermes/config.yaml"
 RESEARCHER_LOGS = "/var/lib/hermes-researcher/.hermes/logs"
 # The Jev MCP server's call log: one line per call, ids and outcomes only.
 JEV_LOG = "/var/lib/hermes-researcher/.hermes/logs/jev.log"
+# The lab MCP server's call log: one line per call, ids, tools and outcomes only.
+LAB_LOG = "/var/lib/hermes-researcher/.hermes/logs/lab.log"
 # Hermes logs this line, at INFO in agent.log, when a run moves to a fallback model.
 FALLBACKS = 'cat "$logs"/agent.log* 2>/dev/null | grep -c "Fallback activated" || true'
 # inference's access log: time, address, client=<key's name>, method, path, status, ...
@@ -357,6 +364,53 @@ awk -v since="$since" '$1 >= since && $3 == "client=agents" && $5 == "/v1/chat/c
             raise Fail(f"the researcher quoted {', '.join(sorted(quoted))} on {issue['identifier']}, but the Jev server "
                        "logged no successful call with that id, so the tool wasn't used")
         return f"the researcher asked Jev (call {found[0]}) and reported it on {issue['identifier']}"
+
+    def observe(self):
+        researcher = self.agent("Researcher")
+        # Which tools the researcher has comes from its rendered config.
+        config = remote("agents", 'cat "$config"', config=RESEARCHER_CONFIG).stdout
+        sources = [s for s in ("proxmox", "beszel", "kuma", "alerta") if f"{s}_" in config]
+        github = "github-observe-mcp" in config
+        if not sources and not github:
+            raise Fail("not tried: the researcher has no lab or GitHub tools yet (observeReady and withGithubToken "
+                       "in hosts/agents/agents.nix)")
+        first = {"proxmox": "proxmox_cluster", "beszel": "beszel_systems", "kuma": "kuma_monitors",
+                 "alerta": "alerta_alerts"}
+        asks = [f"`{first[s]}`" for s in sources]
+        task = ("An automated smoke test of the read-only lab tools. ")
+        if asks:
+            task += (f"Call each of these once, and nothing else from the lab tools: {', '.join(asks)} "
+                     "(find them with tool_search). In one comment, give each call's `call_id` and one fact from "
+                     "its answer. ")
+        if github:
+            task += (f"With your GitHub tools, read pull request #1 in {NIXCONFIG} and quote its title exactly, "
+                     "in backticks. ")
+        task += "Then set this issue to done."
+        issue = self.file("researcher reads the lab", task, assignee=researcher)
+        done = self.wait(issue)
+        if done["status"] != "done":
+            raise self.ended(issue, done["status"], researcher)
+        said = " ".join(self.comments(issue, researcher))
+        problems, seen = [], []
+        if sources:
+            quoted = set(re.findall(r"\b[0-9a-f]{12}\b", said))
+            log = remote("agents", 'tail -n 400 "$log" 2>/dev/null', log=LAB_LOG).stdout
+            calls = dict(re.findall(r"call=([0-9a-f]{12}) tool=(\w+) status=ok", log))
+            for source in sources:
+                hits = [c for c in quoted if calls.get(c, "").startswith(source + "_")]
+                if hits:
+                    seen.append(f"{source} ({hits[0]})")
+                else:
+                    problems.append(f"no quoted call id is a successful {source} call in the lab server's log")
+        if github:
+            title = gh("api", f"repos/{NIXCONFIG}/pulls/1", "--jq", ".title").strip()
+            if f"`{title}`" in said or title in said:
+                seen.append("GitHub")
+            else:
+                problems.append(f"it didn't quote pull request #1's title, {title!r}")
+        if problems:
+            raise Fail(f"{issue['identifier']}: " + "; ".join(problems) + f"; it said: {text(said, 300)}")
+        return f"the researcher read {', '.join(seen)} and reported it on {issue['identifier']}"
 
     def fallbacks(self):
         out = remote("agents", FALLBACKS, logs=RESEARCHER_LOGS).stdout.strip()

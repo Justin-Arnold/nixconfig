@@ -216,6 +216,7 @@
           sqlite-backup = import ./modules/roles/sqlite-backup/check.nix { inherit pkgs lib; };
           agent-watch = import ./hosts/agents/agent-watch/check.nix { inherit pkgs; };
           jev-mcp = import ./modules/roles/hermes-agents/jev-mcp/check.nix { inherit pkgs; };
+          lab-mcp = import ./modules/roles/hermes-agents/lab-mcp/check.nix { inherit pkgs; };
           provisioning = import ./scripts/provisioning/tests/check.nix {
             inherit pkgs;
             manifest = mkInfraManifest system;
@@ -358,6 +359,15 @@
                 # reviewer's (and mkForce would land in it as a value).
                 reviewer-extras-dropped = { roles.hermesAgents.instances.reviewer.settings.approvals.deny = agentsExample.config.roles.hermesAgents.instances.engineer.settings.approvals.deny; };
                 claude-key-not-from-sops-on-reviewer = { roles.hermesAgents.instances.reviewer.secrets.ANTHROPIC_API_KEY = lib.mkForce "jev/api-key"; };
+                lab-takes-other-key = { roles.hermesAgents.instances.researcher.mcpServers.lab.env.X = "\${PAPERCLIP_AGENT_KEY}"; };
+                lab-key-without-tools = { roles.hermesAgents.instances.engineer.secrets.LAB_PROXMOX_TOKEN = "observe/proxmox-token"; };
+                lab-key-not-from-sops = { roles.hermesAgents.instances.infra.secrets.LAB_ALERTA_KEY = lib.mkForce "agent-watch/alerta-key"; };
+                lab-plain-http-proxmox = { roles.hermesAgents.observe.proxmox = lib.mkOverride 40 { urls = [ "http://10.0.0.14:8006" ]; caFile = ./flake.nix; }; };
+                lab-plain-http-off-tunnel = { roles.hermesAgents.observe.kuma = lib.mkOverride 40 { url = "http://10.0.0.5:3002"; slug = "agents"; }; };
+                egress-to-node-red = { roles.agentEgress.allow.lab118.tcpPorts = lib.mkForce [ 3002 5000 1880 ]; };
+                github-writable = { roles.hermesAgents.instances.researcher.mcpServers.github.args = [ "--read-only=false" ]; };
+                github-token-not-from-sops = { roles.hermesAgents.instances.coordinator.secrets.GITHUB_OBSERVE_TOKEN = lib.mkForce "jev/api-key"; };
+                github-through-settings = { roles.hermesAgents.instances.engineer.settings.mcp_servers.github.command = "github-mcp-server"; };
               };
             in
             assert lib.assertMsg (lib.all lib.id (lib.attrValues results))

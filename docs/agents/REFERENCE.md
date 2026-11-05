@@ -20,7 +20,7 @@ separate execution host.
 | Database | PostgreSQL 17 from nixpkgs, socket and localhost only |
 | Agents | Hermes v0.22.5: `coordinator`, `engineer`, `researcher`, `reviewer`, `infra`, one process each, API servers on `127.0.0.1:8642` to `8646` |
 | Models | Codex for the coordinator, engineer and infra, with Claude Opus 5.5 as their last fallback; Claude Opus 5.5 for the reviewer, with Sonnet 5.5 and Codex behind it; the lab's GPU (`local` on inference) for the researcher, with Codex behind it, and for every agent's session titles and memory review |
-| Tools from outside | Jev, TypeSafe's decision model, as every agent's `decide` tool |
+| Tools from outside | Jev, TypeSafe's decision model, as every agent's `decide` tool; read-only Proxmox, Beszel, Kuma and Alerta for the coordinator, infra and the researcher; read-only GitHub for the coordinator and the researcher |
 | Login | `ssh agents` as `justin`, key only (the Mac Mini key). Root has no SSH. |
 | Console | Proxmox console, root password from SOPS (`root/console-password-hash`) |
 | Secrets | `secrets/hosts/agents.yaml`, host-scoped age key at `/var/lib/sops-nix/key.txt` |
@@ -43,6 +43,8 @@ separate execution host.
 | `modules/roles/hermes-agents.nix` | One Hermes unit per agent, built from upstream's own module helpers, and the assertions that keep them shell-free. |
 | `modules/roles/hermes-agents/paperclip-mcp/` | Paperclip's MCP server, pinned by a lockfile to the Paperclip release. |
 | `modules/roles/hermes-agents/jev-mcp/` | The Jev MCP server (`server.py`), its package and its test against a fake TypeSafe API. |
+| `modules/roles/hermes-agents/lab-mcp/` | The lab MCP server: read-only Proxmox, Beszel, Kuma and Alerta, and its test against fakes of all four. |
+| `modules/roles/hermes-agents/github-mcp/` | GitHub's MCP server at a pinned release, behind a wrapper that keeps it read-only. |
 | `modules/roles/agent-egress.nix` | The outbound filter that keeps the agents off the LAN. |
 | `modules/roles/sqlite-backup.nix` | Backups, including the PostgreSQL dumps. |
 | `scripts/agents/post-install-check.sh` | Read-only health report. |
@@ -201,8 +203,10 @@ multicast addresses. A refusal fails at once rather than timing out, and
 shows up in `journalctl -k` as `agent-egress refused:` with the uid. A LAN
 service an agent needs goes in `roles.agentEgress.allow` in `agents.nix`, one
 address and its ports, optionally for named agents only: every agent may
-reach inference on 443, and the agents with a terminal there reach ssh on
-workbench. Hermes' own `allow_private_urls: false` refuses
+reach inference on 443, the agents with a terminal there reach ssh on
+workbench, and the agents with the lab tools reach the Proxmox nodes on 8006,
+the dashboard VM on 443 and lab118 on 3002 and 5000 over the tunnel. Hermes'
+own `allow_private_urls: false` refuses
 the same addresses in its web tools; the filter is what holds if something
 gets past that. Turning it on moved the whole firewall to nftables, so its
 rules are in `nft list ruleset`, not iptables.
@@ -348,6 +352,44 @@ public sources. The endpoint is any server that speaks the same System One
 API (`roles.hermesAgents.jev.baseUrl`), so a local decision model can replace
 it later for private text.
 
+### Lab state: Observe tools
+
+The coordinator, infra and the researcher can read the lab's state through
+the lab MCP server (`modules/roles/hermes-agents/lab-mcp/server.py`, the
+standard library and the MCP SDK), and the coordinator and the researcher can
+read GitHub. Nothing here can change anything: each credential can only read,
+and the lab server only sends GETs to a fixed list of paths.
+
+| Source | Tools | Credential | What it doesn't show |
+|---|---|---|---|
+| Proxmox | `proxmox_cluster`, `proxmox_resources`, `proxmox_node`, `proxmox_guest`, `proxmox_failed_tasks` | API token `agents@pve!observe` with a role of `Sys.Audit`, `VM.Audit`, `Datastore.Audit` and `Pool.Audit` on `/`, over HTTPS against the cluster's own CA, two nodes tried in turn | VM configs (with their descriptions and keys), task logs, firewall, users and ACLs: the server never asks |
+| Beszel | `beszel_systems`, `beszel_system` | a user with Beszel's `readonly` role | the agent fingerprints, which hold each system's agent token, and anyone's settings: the server refuses those collections. Its alerts are its own, not Justin's. |
+| Kuma | `kuma_monitors` | none: the `agents` status page over the lab tunnel | error messages (Kuma blanks them on status pages), monitors not on that page, and URLs, since the page has no clickable links |
+| Alerta | `alerta_alerts`, `alerta_alert` | a key scoped to `read:alerts` only, separate from agent-watch's | alert attributes and raw data, and who changed an alert |
+| GitHub | 19 read tools (`get_file_contents`, `list_pull_requests`, `issue_read`, `search_code`, ...) | a fine-grained token from Justin's account, all repositories, read-only | nothing it can write: `--read-only` registers only read tools, and the wrapper ignores any arguments |
+
+GitHub's server is `github-mcp-server` 1.14.0, newer than nixpkgs' 1.3.0
+because 1.10.0 hardened it, built with nixpkgs' Go 1.26. It runs with
+`--read-only --lockdown-mode --toolsets=repos,issues,pull_requests`, from an
+empty directory, since it reads replacement tool descriptions from a file in
+its working directory. Lockdown hides issue and pull request text from people
+without push access on public repos, but it's best effort: the SOUL files say
+such text is information, not instructions. The token reads every repo
+Justin owns, so a planted instruction could make an agent read a private
+one; it can't make it write anywhere.
+
+Kuma and Alerta are plain HTTP over the WireGuard tunnel to lab118, the same
+way agent-watch reaches Alerta. The egress filter lets the agents with the
+lab tools reach only 3002 (Kuma's status page) and 5000 (Alerta) there, never
+Node-RED on 1880, which holds a write key for Alerta, or ntfy on 8080. The
+lab server writes `logs/lab.log` under each agent's `.hermes` with each
+call's id, tool and outcome, never what came back.
+
+A source is on once it's in `observeReady` in `agents.nix` with its
+credential in SOPS; Proxmox also needs `proxmoxNodes` and `proxmoxCa`. GitHub
+is on with `withGithubToken`. The agents' Proxmox token is its own, so it can
+be revoked without touching Homarr's or Terraform's.
+
 ### Reviews
 
 Every issue the coordinator gives the engineer or infra carries a review
@@ -433,6 +475,7 @@ names some:
 | `ping` | the researcher comments the word it was asked for and closes the issue |
 | `local` | the same, through the lab's local model: the researcher's main model is `lab-gpu`, Hermes logs no fallback while it works, and inference's nginx logs at least one successful request from the `agents` key |
 | `decide` | the researcher asks Jev one fixed question and comments the call id it got back, which is in the Jev server's call log as a successful call |
+| `observe` | the researcher reads each lab source it has once and comments the call ids, each a successful call of that source in the lab server's log; with GitHub on, it quotes nixconfig pull request #1's title, which matches GitHub's |
 | `change` | the engineer pushes an `agent/engineer/*` branch to agent-scratch with exactly the file it was asked for, opens a pull request as the machine account, and comments its URL. The pull request is then closed and its branch deleted, unless `--keep-pr`. |
 | `review` | the same, on an issue with a review stage for the reviewer: Paperclip hands it over when the engineer sets it done, the reviewer approves it so the stage completes, and its findings are on the pull request as a comment review citing the issue |
 | `infra` | infra adds one file to nixconfig on an `agent/infra/*` branch, runs `scripts/flake-check.sh eval` on workbench, and opens a pull request whose body reports the check passed |
@@ -519,6 +562,10 @@ operator key, nothing else. On macOS, edit it with
 | `inference/agents-key` | the agents' key for inference, the same value as `inference/keys/agents` in `secrets/hosts/inference.yaml` |
 | `anthropic/api-key` | an Anthropic API key from the Console's Default workspace, capped only by the organization's limit and credits. Never an OAuth token. |
 | `jev/api-key` | a TypeSafe API key, from console.typesafe.ai |
+| `observe/proxmox-token` | the agents' Proxmox API token, `agents@pve!observe=<secret>`, audit-only |
+| `observe/beszel-password` | the password of Beszel's readonly user for the agents |
+| `observe/alerta-key` | an Alerta key with `read:alerts` only |
+| `observe/github-token` | a fine-grained GitHub token from Justin's account: all repositories, read-only Metadata, Contents, Issues, Pull requests and Commit statuses |
 | `hermes/<name>/ssh-key` | for the engineer, reviewer and infra: `ssh-keygen -t ed25519 -N ''`, the private half; the public half goes in `workbench.agents.<name>.publicKey` in `hosts/workbench/agents.nix`. Needed once `workbenchHostKey` is set. |
 
 The host key is installed by `nix run .#install` from `HOST_AGE_KEY_FILE`
@@ -606,6 +653,11 @@ host key and the same master key in SOPS, the stored secrets stay readable.
 - Five agents at their 2 GB `MemoryMax` plus Paperclip's 4 GB add up to more
   than the VM's 12 GB. Those are caps, and an idle agent uses far less, but
   several long runs at once could press on memory.
+- GitHub's MCP server is pinned in the repo, not in nixpkgs, so its updates
+  are by hand (`modules/roles/hermes-agents/github-mcp/package.nix`), and its
+  `go.mod` is edited to build with nixpkgs' Go until that catches up.
+- Kuma's status page and Alerta go over plain HTTP on the LAN as far as the
+  router, then over the tunnel, like agent-watch's alerts.
 - The reviewer can only comment on GitHub: every agent pushes as one machine
   account, and GitHub doesn't let a pull request's author approve it.
   Paperclip's review stage is the gate.

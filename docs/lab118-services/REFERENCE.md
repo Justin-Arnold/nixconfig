@@ -289,7 +289,12 @@ The dashboard VM's monitors (its health URL, the Beszel hub, and the push
 monitors for its backups and the hub's heartbeat) are listed in
 `docs/dashboard/REFERENCE.md`. Homarr reads Kuma through a status page over
 the tunnel (port 3002), so whatever you want on the dashboard has to be on
-that status page.
+that status page. The Hermes agents read a status page of their own, slug
+`agents`, the same way: every monitor, with no clickable links and no tags,
+so it shows states and response times but no URLs. They also read Alerta on
+port 5000 with a key scoped to `read:alerts`, made with
+`alertad key --username <admin> --scope read:alerts --text "agents read-only"`
+(`docs/agents/REFERENCE.md`, "Lab state").
 
 ## Secrets
 

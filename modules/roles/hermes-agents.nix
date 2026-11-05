@@ -32,13 +32,34 @@ let
   hermesPackage = inputs.hermes-agent.packages.${pkgs.stdenv.hostPlatform.system}.default;
   paperclipMcp = pkgs.callPackage ./hermes-agents/paperclip-mcp/package.nix { };
   jevMcp = pkgs.callPackage ./hermes-agents/jev-mcp/package.nix { };
+  labMcp = pkgs.callPackage ./hermes-agents/lab-mcp/package.nix { };
+  githubMcp = pkgs.callPackage ./hermes-agents/github-mcp/package.nix { };
 
   # The MCP servers an agent may run: this role's own packages, each taking
-  # only its own key from .env.
+  # only its own keys from .env.
   mcpAllowed = {
-    paperclip = { command = lib.getExe paperclipMcp; key = "PAPERCLIP_AGENT_KEY"; };
-    jev = { command = lib.getExe jevMcp; key = "JEV_API_KEY"; };
+    paperclip = { command = lib.getExe paperclipMcp; keys = [ "PAPERCLIP_AGENT_KEY" ]; };
+    jev = { command = lib.getExe jevMcp; keys = [ "JEV_API_KEY" ]; };
+    lab = { command = lib.getExe labMcp; keys = lib.attrValues labKeys; };
+    github = { command = lib.getExe githubMcp; keys = [ "GITHUB_OBSERVE_TOKEN" ]; };
   };
+
+  # The lab server's keys in .env, by source.
+  labKeys = { proxmox = "LAB_PROXMOX_TOKEN"; beszel = "LAB_BESZEL_PASSWORD"; alerta = "LAB_ALERTA_KEY"; };
+  labSecrets = lib.mapAttrs' (source: var: lib.nameValuePair var cfg.observe.${source}.secret)
+    (lib.filterAttrs (source: _: cfg.observe.${source} != null) labKeys);
+  # GitHub's server registers only read tools with --read-only; these are the
+  # ones an agent is offered (the organization-only ones left out).
+  githubTools = [
+    "get_commit" "get_file_contents" "get_label" "get_latest_release" "get_release_by_tag" "get_tag"
+    "issue_read" "list_branches" "list_commits" "list_issues" "list_pull_requests" "list_releases" "list_tags"
+    "pull_request_read" "search_code" "search_commits" "search_issues" "search_pull_requests" "search_repositories"
+  ];
+  labTools = lib.optionals (cfg.observe.proxmox != null)
+      [ "proxmox_cluster" "proxmox_resources" "proxmox_node" "proxmox_guest" "proxmox_failed_tasks" ]
+    ++ lib.optionals (cfg.observe.beszel != null) [ "beszel_systems" "beszel_system" ]
+    ++ lib.optional (cfg.observe.kuma != null) "kuma_monitors"
+    ++ lib.optionals (cfg.observe.alerta != null) [ "alerta_alerts" "alerta_alert" ];
   # The variables a string asks Hermes to fill in: ${VAR} or ${env:VAR}.
   refsIn = s: map (m: lib.removePrefix "env:" (lib.trim (lib.head m)))
     (lib.filter lib.isList (builtins.split "\\$\\{([^}]*)}" s));
@@ -189,6 +210,21 @@ let
         description = "Give this agent the Jev decision tool.";
       };
 
+      observe.enable = lib.mkOption {
+        type = lib.types.bool;
+        default = false;
+        description = ''
+          Give this agent the lab tools: read-only Proxmox, Beszel, Kuma and
+          Alerta, whichever roles.hermesAgents.observe sets up.
+        '';
+      };
+
+      github.enable = lib.mkOption {
+        type = lib.types.bool;
+        default = false;
+        description = "Give this agent GitHub's MCP server, read-only, with roles.hermesAgents.github's token.";
+      };
+
       soul = lib.mkOption {
         type = lib.types.lines;
         description = "SOUL.md: who the agent is and how it works.";
@@ -267,7 +303,9 @@ let
         // lib.optionalAttrs (usesClaude && cfg.anthropic.keySecret != null) {
           ANTHROPIC_API_KEY = lib.mkDefault cfg.anthropic.keySecret;
         }
-        // lib.optionalAttrs config.jev.enable { JEV_API_KEY = lib.mkDefault cfg.jev.keySecret; };
+        // lib.optionalAttrs config.jev.enable { JEV_API_KEY = lib.mkDefault cfg.jev.keySecret; }
+        // lib.optionalAttrs config.observe.enable (lib.mapAttrs (_: lib.mkDefault) labSecrets)
+        // lib.optionalAttrs config.github.enable { GITHUB_OBSERVE_TOKEN = lib.mkDefault cfg.github.tokenSecret; };
       hermesHomeFiles."SOUL.md" = config.soul;
       environment = {
         API_SERVER_ENABLED = "true";
@@ -301,6 +339,41 @@ let
               JEV_CALL_LOG = "${stateDirOf name}/.hermes/logs/jev.log";
             };
             tools.include = [ "decide" ];
+            timeout = 60;
+            sampling.enabled = false;
+          };
+        })
+        (lib.mkIf config.observe.enable {
+          lab = {
+            command = lib.getExe labMcp;
+            env = lib.optionalAttrs (cfg.observe.proxmox != null) {
+              PROXMOX_URLS = lib.concatStringsSep "," cfg.observe.proxmox.urls;
+              PROXMOX_CA = "${cfg.observe.proxmox.caFile}";
+              PROXMOX_TOKEN = "\${${labKeys.proxmox}}";
+            } // lib.optionalAttrs (cfg.observe.beszel != null) {
+              BESZEL_URL = cfg.observe.beszel.url;
+              BESZEL_USER = cfg.observe.beszel.user;
+              BESZEL_PASSWORD = "\${${labKeys.beszel}}";
+            } // lib.optionalAttrs (cfg.observe.kuma != null) {
+              KUMA_URL = cfg.observe.kuma.url;
+              KUMA_SLUG = cfg.observe.kuma.slug;
+            } // lib.optionalAttrs (cfg.observe.alerta != null) {
+              ALERTA_URL = cfg.observe.alerta.url;
+              ALERTA_KEY = "\${${labKeys.alerta}}";
+            } // {
+              # Call ids, tools and outcomes only; the smoke test reads it.
+              LAB_CALL_LOG = "${stateDirOf name}/.hermes/logs/lab.log";
+            };
+            tools.include = labTools;
+            timeout = 60;
+            sampling.enabled = false;
+          };
+        })
+        (lib.mkIf config.github.enable {
+          github = {
+            command = lib.getExe githubMcp;
+            env.GITHUB_PERSONAL_ACCESS_TOKEN = "\${GITHUB_OBSERVE_TOKEN}";
+            tools.include = githubTools;
             timeout = 60;
             sampling.enabled = false;
           };
@@ -342,7 +415,9 @@ let
         # the agent should see has to be named.
         platform_toolsets.api_server = config.toolsets
           ++ lib.optional (config.secrets ? PAPERCLIP_AGENT_KEY) "paperclip"
-          ++ lib.optional config.jev.enable "jev";
+          ++ lib.optional config.jev.enable "jev"
+          ++ lib.optional config.observe.enable "lab"
+          ++ lib.optional config.github.enable "github";
         agent.disabled_toolsets = neverToolsets
           ++ lib.optionals (config.terminal.ssh == null) machineToolsets;
         terminal = if config.terminal.ssh == null then { backend = "local"; } else {
@@ -499,6 +574,74 @@ in
       };
     };
 
+    # The lab server's sources (modules/roles/hermes-agents/lab-mcp). Each is
+    # read-only by its credential and by the server, which only sends GETs to
+    # fixed paths. A source left null has no tools.
+    observe = {
+      proxmox = lib.mkOption {
+        type = lib.types.nullOr (lib.types.submodule {
+          options = {
+            urls = lib.mkOption {
+              type = lib.types.nonEmptyListOf lib.types.str;
+              description = "Node API URLs (https://<address>:8006), tried in turn.";
+            };
+            caFile = lib.mkOption {
+              type = lib.types.path;
+              description = "The cluster's CA certificate (/etc/pve/pve-root-ca.pem on a node).";
+            };
+            secret = lib.mkOption {
+              type = lib.types.str;
+              default = "observe/proxmox-token";
+              description = "SOPS secret with an audit-only API token, <user>@<realm>!<id>=<secret>.";
+            };
+          };
+        });
+        default = null;
+      };
+      beszel = lib.mkOption {
+        type = lib.types.nullOr (lib.types.submodule {
+          options = {
+            url = lib.mkOption { type = lib.types.str; description = "The hub, HTTPS."; };
+            user = lib.mkOption { type = lib.types.str; description = "A user with Beszel's readonly role."; };
+            secret = lib.mkOption {
+              type = lib.types.str;
+              default = "observe/beszel-password";
+              description = "SOPS secret with that user's password.";
+            };
+          };
+        });
+        default = null;
+      };
+      kuma = lib.mkOption {
+        type = lib.types.nullOr (lib.types.submodule {
+          options = {
+            url = lib.mkOption { type = lib.types.str; description = "Where Kuma's status page API is served."; };
+            slug = lib.mkOption { type = lib.types.strMatching "[a-z0-9-]{1,64}"; description = "The status page made for the agents."; };
+          };
+        });
+        default = null;
+      };
+      alerta = lib.mkOption {
+        type = lib.types.nullOr (lib.types.submodule {
+          options = {
+            url = lib.mkOption { type = lib.types.str; description = "Alerta's API."; };
+            secret = lib.mkOption {
+              type = lib.types.str;
+              default = "observe/alerta-key";
+              description = "SOPS secret with an Alerta key scoped to read:alerts only.";
+            };
+          };
+        });
+        default = null;
+      };
+    };
+
+    github.tokenSecret = lib.mkOption {
+      type = lib.types.str;
+      default = "observe/github-token";
+      description = "SOPS secret with a fine-grained GitHub token that can only read, for agents with github.enable.";
+    };
+
     instances = lib.mkOption {
       type = lib.types.attrsOf (lib.types.submodule instanceModule);
       default = { };
@@ -537,6 +680,22 @@ in
           assertion = lib.hasPrefix "https://" cfg.jev.baseUrl;
           message = "roles.hermesAgents.jev.baseUrl: HTTPS only (got ${cfg.jev.baseUrl}).";
         }
+        {
+          # The lab server refuses anything else too; plain HTTP only over the
+          # lab tunnel, where Kuma's status page and Alerta are.
+          assertion = let
+            o = cfg.observe;
+            tunnelOk = url: lib.hasPrefix "https://" url || lib.hasPrefix "http://10.118.0." url;
+          in (o.proxmox == null || lib.all (lib.hasPrefix "https://") o.proxmox.urls)
+            && (o.beszel == null || lib.hasPrefix "https://" o.beszel.url)
+            && (o.kuma == null || tunnelOk o.kuma.url)
+            && (o.alerta == null || tunnelOk o.alerta.url);
+          message = "roles.hermesAgents.observe: Proxmox and Beszel over HTTPS; Kuma and Alerta over HTTPS or plain HTTP to the lab tunnel (10.118.0.x) only.";
+        }
+        {
+          assertion = lib.any (i: i.observe.enable) (lib.attrValues instances) -> labTools != [ ];
+          message = "roles.hermesAgents.observe: an agent has observe.enable but no source is set up.";
+        }
       ]
       ++ lib.concatMap (name:
         let
@@ -560,10 +719,10 @@ in
           claudeModels = map (m: m.name) claudeTyped ++ map (e: e.model or e.default or "") claudeRendered;
           servers = s.mcp_servers or { };
           serverOk = n: srv: mcpAllowed ? ${n}
-            && (srv.command or null) == mcpAllowed.${n}.command
+            && (srv.command or null) == mcpAllowed.${n}.command && (srv.args or [ ]) == [ ]
             && !(srv ? url) && !(srv ? headers) && !(srv ? auth)
             && ((srv.sampling or { }).enabled or true) == false
-            && lib.all (ref: ref == mcpAllowed.${n}.key) (refsIn (builtins.toJSON srv))
+            && lib.all (ref: lib.elem ref mcpAllowed.${n}.keys) (refsIn (builtins.toJSON srv))
             && lib.all (var: builtins.match ".*(KEY|TOKEN|SECRET|PASSWORD).*" (lib.toUpper var) == null
               || lib.hasPrefix "\${" srv.env.${var}) (lib.attrNames (srv.env or { }));
         in
@@ -634,13 +793,27 @@ in
           {
             assertion = lib.all (n: mcpAllowed ? ${n}) (lib.attrNames inst.mcpServers)
               && lib.all lib.id (lib.mapAttrsToList serverOk servers);
-            message = "${opt}: MCP servers are only paperclip and jev, each running this role's own package with no url, headers or auth, sampling off, and only its own key from .env (\${PAPERCLIP_AGENT_KEY} or \${JEV_API_KEY}).";
+            message = "${opt}: MCP servers are only paperclip, jev, lab and github, each running this role's own package with no arguments, url, headers or auth, sampling off, and only its own keys from .env.";
           }
           {
             assertion = inst.jev.enable == (inst.secrets ? JEV_API_KEY)
               && (!inst.jev.enable || (inst.secrets.JEV_API_KEY == cfg.jev.keySecret && servers ? jev
                 && lib.elem "jev" (s.platform_toolsets.api_server or [ ])));
             message = "${opt}: an agent with the Jev tool has its key from roles.hermesAgents.jev.keySecret and jev in its toolsets; one without has neither.";
+          }
+          {
+            assertion = lib.all (var: (inst.observe.enable && labSecrets ? ${var}) == (inst.secrets ? ${var})
+                && (!(inst.secrets ? ${var}) || inst.secrets.${var} == labSecrets.${var})) (lib.attrValues labKeys)
+              && inst.observe.enable == (servers ? lab)
+              && inst.observe.enable == lib.elem "lab" (s.platform_toolsets.api_server or [ ]);
+            message = "${opt}: an agent with observe.enable has the lab server, in its toolsets, and the keys of the sources that are set up, from roles.hermesAgents.observe; one without has none of them.";
+          }
+          {
+            assertion = inst.github.enable == (inst.secrets ? GITHUB_OBSERVE_TOKEN)
+              && inst.github.enable == (servers ? github)
+              && inst.github.enable == lib.elem "github" (s.platform_toolsets.api_server or [ ])
+              && (!inst.github.enable || inst.secrets.GITHUB_OBSERVE_TOKEN == cfg.github.tokenSecret);
+            message = "${opt}: an agent with github.enable has GitHub's server, in its toolsets, with the token from roles.hermesAgents.github.tokenSecret; one without has none of them.";
           }
           {
             assertion = (claudeTyped != [ ]) == (inst.secrets ? ANTHROPIC_API_KEY)
