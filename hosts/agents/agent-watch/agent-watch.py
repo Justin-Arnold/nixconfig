@@ -16,6 +16,17 @@ the forwarder on lab118-services sends to the phone:
   BudgetWarning    a budget is past its warning level (warning) or stopped
                    (major)
 
+and, from what agent-costs writes for each agent (COSTS_DIR/<agent>/
+month.json), alerts about the money behind them (resource anthropic/credits
+or typesafe/credits):
+
+  ClaudeSpend      this month's estimated Claude spend across the agents has
+                   passed CLAUDE_WARN_PERCENT of CLAUDE_MONTHLY_CREDITS
+                   dollars (warning), or all of it (major)
+  ClaudeCreditsOut Claude refused an agent for credits, and it hasn't worked
+                   for that agent since (major); the agent is on its fallback
+  JevCreditsOut    the same for Jev (major); agents carry on without it
+
 Every pass sends each alert that still holds. Alerta counts a repeat as a
 duplicate and the forwarder only notifies on a change, so a text never
 carries anything that moves on its own, like a duration. Alerts it raised
@@ -23,10 +34,12 @@ earlier that no longer hold are cleared; it finds them by asking Alerta for
 its open ones, so it keeps no state. After a good pass it reports to Kuma's
 push URL, so Kuma notices when it stops.
 
-Environment: PAPERCLIP_URL, ALERTA_URL, STUCK_AFTER_MINUTES (60), and
+Environment: PAPERCLIP_URL, ALERTA_URL, STUCK_AFTER_MINUTES (60), COSTS_DIR,
+CLAUDE_MONTHLY_CREDITS (100), CLAUDE_WARN_PERCENT (80), and
 CREDENTIALS_DIRECTORY holding paperclip-key, alerta-key and kuma-push-url.
 """
 import datetime
+import glob
 import json
 import os
 import pathlib
@@ -82,13 +95,13 @@ def short(text, limit=200):
     return text if len(text) <= limit else text[: limit - 1] + "…"
 
 
-def alert(resource, event, severity, title, text):
+def alert(resource, event, severity, title, text, service="Paperclip"):
     return {
         "environment": ENVIRONMENT,
-        "resource": f"paperclip/{resource}",
+        "resource": resource if "/" in resource else f"paperclip/{resource}",
         "event": event,
         "severity": severity,
-        "service": ["Paperclip"],
+        "service": [service],
         "group": "Agents",
         "origin": ORIGIN,
         "tags": [ORIGIN],
@@ -147,6 +160,42 @@ def watch(get, stuck_after, now):
     return alerts
 
 
+def credits(costs_dir, monthly_dollars, warn_percent, now):
+    """The credit alerts, from each agent's month.json. A file that can't be
+    read is skipped: spend reporting failing shouldn't stop the other alerts."""
+    month = now.strftime("%Y-%m")
+    files = {}
+    for path in sorted(glob.glob(os.path.join(costs_dir, "*", "month.json"))):
+        try:
+            data = json.loads(pathlib.Path(path).read_text())
+        except (OSError, ValueError):
+            print(f"skipping {path}: unreadable")
+            continue
+        files[data.get("agent") or pathlib.Path(path).parent.name] = data
+    alerts = []
+
+    spent = sum(float(d["claude"]["cents"]) for d in files.values() if d.get("month") == month) / 100
+    if spent >= monthly_dollars * warn_percent / 100:
+        full = spent >= monthly_dollars
+        # The threshold, not the amount, so the text doesn't change every pass.
+        alerts.append(alert("anthropic/credits", "ClaudeSpend", "major" if full else "warning", "Claude credits",
+                            (f"The agents' estimated Claude spend this month has passed the ${monthly_dollars} of credit."
+                             if full else f"The agents' estimated Claude spend this month has passed {warn_percent}% "
+                             f"of the ${monthly_dollars} of credit."), service="Agents"))
+
+    for provider, event, resource, name, after in (
+            ("claude", "ClaudeCreditsOut", "anthropic/credits", "Claude", "they're on their fallback models"),
+            ("jev", "JevCreditsOut", "typesafe/credits", "Jev", "they're carrying on without it")):
+        out = sorted(agent for agent, d in files.items()
+                     if (d.get(provider) or {}).get("last_refused")
+                     and (d[provider]["last_refused"] > ((d[provider].get("last_ok")) or "")))
+        if out:
+            alerts.append(alert(resource, event, "major", f"{name} credits ran out",
+                                f"{name} refused {', '.join(out)} for credits, so {after}. Top up the {name} credits.",
+                                service="Agents"))
+    return alerts
+
+
 def main():
     paperclip = os.environ.get("PAPERCLIP_URL", "http://127.0.0.1:3100").rstrip("/")
     alerta = os.environ["ALERTA_URL"].rstrip("/")
@@ -157,7 +206,11 @@ def main():
     def get(path):
         return request("GET", paperclip + path, paperclip_auth)
 
-    alerts = watch(get, stuck_after, datetime.datetime.now(datetime.timezone.utc))
+    now = datetime.datetime.now(datetime.timezone.utc)
+    alerts = watch(get, stuck_after, now)
+    if os.environ.get("COSTS_DIR"):
+        alerts += credits(os.environ["COSTS_DIR"], int(os.environ.get("CLAUDE_MONTHLY_CREDITS", "100")),
+                          int(os.environ.get("CLAUDE_WARN_PERCENT", "80")), now)
     wanted = {(a["resource"], a["event"]) for a in alerts}
 
     query = urllib.parse.urlencode([("environment", ENVIRONMENT), ("origin", ORIGIN),
@@ -169,7 +222,7 @@ def main():
             cleared += 1
             request("POST", f"{alerta}/alert", alerta_auth, {
                 "environment": ENVIRONMENT, "resource": old["resource"], "event": old["event"],
-                "severity": "cleared", "service": ["Paperclip"], "group": "Agents", "origin": ORIGIN,
+                "severity": "cleared", "service": old.get("service") or ["Paperclip"], "group": "Agents", "origin": ORIGIN,
                 "tags": [ORIGIN], "text": "Resolved.",
                 "attributes": {"notificationTitle": (old.get("attributes") or {}).get("notificationTitle", old["resource"])},
             })

@@ -35,6 +35,7 @@ separate execution host.
 | `hosts/agents/nginx/paperclip-guard.conf` | The locations that keep Paperclip's MCP endpoint and public routine webhooks unreachable. |
 | `hosts/agents/backup.nix` | The NFS mount and what gets backed up. |
 | `hosts/agents/agent-watch.nix`, `hosts/agents/agent-watch/` | The timer that turns Paperclip's state into Alerta alerts, and its test against fakes. |
+| `hosts/agents/agent-costs.nix`, `hosts/agents/agent-costs/` | Each agent's Claude and Jev spend, reported to Paperclip and summed for agent-watch's credit alerts, and its test. |
 | `hosts/agents/eval-test.nix` | Example values for the flake checks, not used by the real host. |
 | `infra/terranix/hosts/agents.nix` | The VM, its storage, CPU type and HA resource. |
 | `hosts/agents/agents.nix` | The Hermes agents, their models, which ones have a Paperclip key, and what they may reach in the LAN. |
@@ -49,7 +50,8 @@ separate execution host.
 | `modules/roles/sqlite-backup.nix` | Backups, including the PostgreSQL dumps. |
 | `scripts/agents/post-install-check.sh` | Read-only health report. |
 | `scripts/agents/paperclip-apply.py`, `paperclip-spec.json` | Paperclip's company setting, labels and agents as a spec, applied through its API. |
-| `scripts/agents/tests/` | A fake Paperclip that `paperclip-apply.py` is tested against in the `provisioning` check. |
+| `scripts/agents/paperclip-cancel.py` | Cancels Paperclip issues by identifier, such as a smoke test's leftovers. |
+| `scripts/agents/tests/` | Fake Paperclips that `paperclip-apply.py` and `paperclip-cancel.py` are tested against in the `provisioning` check. |
 | `scripts/agents/smoke-e2e.py` | The end-to-end smoke test: real issues for the agents, checked against GitHub, workbench and Alerta. |
 
 ## How it's reached
@@ -156,12 +158,15 @@ create an account while it's off, which is what a single-user instance wants.
 
 ### Budgets and providers
 
-Budgets work per company, agent and project, per calendar month, and stop a
-scope at 100%. They only limit priced usage. Every `hermes_gateway` run is
-recorded as unpriced, whether it ran on Codex or on the local model, so none
-of them count, and the local model needs no price. Unpriced usage is only
-blocked under a hard-stop budget whose `unpricedUsagePolicy` is `block`; a
-hard-stop budget for these agents needs it set to `allow`.
+There are no Paperclip budgets, on purpose. Paperclip records every
+`hermes_gateway` run as unpriced, provider `hermes_gateway`, whatever the
+model, and a budget policy blocks on unpriced usage unless its
+`unpricedUsagePolicy` is `allow`; with the default, a budget pauses its agent
+after the first run. A paused agent also stops its free work on Codex and the
+local model. So the limit is the money itself: the Claude credits loaded each
+month and Jev's credits, with alerts as they run low or out ("Spend" below).
+A budget added later needs `unpricedUsagePolicy: allow`, and only counts what
+agent-costs reports.
 
 ## Hermes agents
 
@@ -302,7 +307,10 @@ organization's spend limit and the credit balance, shared with everything
 else on the account. Paperclip records every `hermes_gateway` run as
 unpriced, whatever the model, so it doesn't cap Claude either. A dedicated
 workspace with its own monthly limit would cap the agents alone; it spends
-the same credits. The key reaches only the agents whose model, fallbacks or side
+the same credits. When the credits run out, Hermes takes Anthropic's refusal
+as a billing failure and moves to the next fallback at once: the reviewer to
+Sonnet, which uses the same credits, then Codex; the others keep running on
+Codex. agent-watch alerts both before and when that happens ("Spend"). The key reaches only the agents whose model, fallbacks or side
 tasks name Claude, as `ANTHROPIC_API_KEY`, so the researcher doesn't have it,
 and only the models in `roles.hermesAgents.anthropic.models` are allowed.
 Hermes would also take a Claude login or OAuth token, ahead of the key, and
@@ -390,6 +398,41 @@ credential in SOPS; Proxmox also needs `proxmoxNodes` and `proxmoxCa`. GitHub
 is on with `withGithubToken`. The agents' Proxmox token is its own, so it can
 be revoked without touching Homarr's or Terraform's.
 
+### Spend
+
+Only Claude and Jev cost money: Codex is part of the ChatGPT plan, and the
+lab's model is free. Hermes keeps what every call used in each agent's
+`state.db` (`session_model_usage`, by session, model and task, side tasks and
+fallbacks included), and the Jev server's `logs/jev.log` has each call's
+input tokens. agent-costs (`hosts/agents/agent-costs.nix`) carries that to
+Paperclip.
+
+Every 15 minutes, for each agent, a unit `agent-costs-<name>` runs as that
+agent, reads only its own state and logs, and posts what's new as cost
+events with the agent's own Paperclip key, which can only report that
+agent's costs. Claude is priced from its tokens with the rate card in
+`roles.hermesAgents.anthropic.prices` (Opus 5.5 $4 and $20 per million in
+and out, Sonnet 5.5 $2 and $10, Haiku 5.5 $0.10 and $0.50, cache writes at
+1.25 times input, cache reads at 0.1 times), since Hermes' own table doesn't
+know every model; a Claude model not on the card falls back to Hermes'
+estimate. Jev is $0.042 per million input tokens. The events are marked
+`estimated`, carry the token counts in their pricing note rather than as
+tokens, so Paperclip doesn't count tokens twice next to the run's own event,
+and have keys that make a repeat harmless. Anthropic's console has what was
+actually billed.
+
+Each run also writes `/var/lib/agent-costs/<name>/month.json`: this month's
+Claude and Jev cents, and when each last worked and last refused for
+credits (Hermes' warning `… via anthropic refused for billing/credits`, and
+`reason=billing` in `jev.log`). agent-watch reads those for the credit
+alerts below. `agents.costs` in `agent-costs.nix` sets the month's Claude
+credit (`claudeMonthlyCredits`, $100) and when to warn (`claudeWarnPercent`,
+80%).
+
+```sh
+ssh agents 'sudo systemctl start agent-costs-reviewer; cat /var/lib/agent-costs/*/month.json'
+```
+
 ### Reviews
 
 Every issue the coordinator gives the engineer or infra carries a review
@@ -460,6 +503,18 @@ uses that key instead and leaves it alone. The `paperclip-spec` flake check
 fails when the Hermes agents in the spec don't match `agents.nix` or their
 ports differ.
 
+`scripts/agents/paperclip-cancel.py` cancels issues by identifier, signing in
+the same way:
+
+```sh
+scripts/agents/paperclip-cancel.py LAB-29 LAB-33
+```
+
+It lists each issue's status and title, leaves the ones already done or
+cancelled alone, and cancels the rest once you answer yes (`--yes` skips the
+question). If an identifier isn't found it cancels nothing. A cancelled issue
+can be reopened in Paperclip.
+
 ## End-to-end smoke test
 
 `scripts/agents/smoke-e2e.py`, run from the Mac, checks the whole path from
@@ -478,6 +533,7 @@ names some:
 | `observe` | the researcher reads each lab source it has once and comments the call ids, each a successful call of that source in the lab server's log; with GitHub on, it quotes nixconfig pull request #1's title, which matches GitHub's |
 | `change` | the engineer pushes an `agent/engineer/*` branch to agent-scratch with exactly the file it was asked for, opens a pull request as the machine account, and comments its URL. The pull request is then closed and its branch deleted, unless `--keep-pr`. |
 | `review` | the same, on an issue with a review stage for the reviewer: Paperclip hands it over when the engineer sets it done, the reviewer approves it so the stage completes, and its findings are on the pull request as a comment review citing the issue |
+| `costs` | agent-costs reports the reviewer's Claude spend from the review stage: its `month.json` shows some this month, and Paperclip shows the same amount against the Reviewer |
 | `infra` | infra adds one file to nixconfig on an `agent/infra/*` branch, runs `scripts/flake-check.sh eval` on workbench, and opens a pull request whose body reports the check passed |
 | `gate` | asked to run `rm -rf ~/smoke-<nonce>` on workbench, the engineer is refused by Hermes' deny list, the refusal is in its log, and the canary file in that directory survives |
 
@@ -520,6 +576,9 @@ alerts in Alerta on lab118-services, environment `Homelab`, origin
 | `ApprovalWaiting` | `paperclip/approval-<id>` | an approval waits on the board | warning |
 | `MarkedChange`, `MarkedSensitive` | `paperclip/LAB-<n>` | an open issue carries that label | warning |
 | `BudgetWarning` | `paperclip/budget-<id>` | a budget is past its warning level, or stopped (major) | warning |
+| `ClaudeSpend` | `anthropic/credits` | this month's estimated Claude spend across the agents has passed 80% of the month's credit, or all of it (major) | warning |
+| `ClaudeCreditsOut` | `anthropic/credits` | Claude refused an agent for credits and hasn't worked for it since; the agent is on its fallback | major |
+| `JevCreditsOut` | `typesafe/credits` | the same for Jev; agents carry on without it | major |
 
 An alert is cleared, which sends a resolved notification, on the first pass
 where it no longer holds. agent-watch finds its open alerts by asking Alerta,

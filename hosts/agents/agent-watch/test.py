@@ -237,6 +237,48 @@ pushes = len(fake.pushes)
 code, sent = watch()
 check("fails when Paperclip does, without touching Alerta or Kuma", code != 0 and sent == {} and len(fake.pushes) == pushes)
 
+# Credit alerts, from agent-costs' month.json files.
+costs = pathlib.Path(tempfile.mkdtemp())
+MONTH = NOW.strftime("%Y-%m")
+
+
+def spend(agent, cents, claude=(None, None), jev=(None, None), month=MONTH):
+    (costs / agent).mkdir(exist_ok=True)
+    (costs / agent / "month.json").write_text(json.dumps({
+        "agent": agent, "month": month,
+        "claude": {"cents": str(cents), "last_ok": claude[0], "last_refused": claude[1]},
+        "jev": {"cents": "0.01", "last_ok": jev[0], "last_refused": jev[1]}}))
+
+
+fake.paperclip_broken = False
+env.update({"COSTS_DIR": str(costs), "CLAUDE_MONTHLY_CREDITS": "100", "CLAUDE_WARN_PERCENT": "80"})
+spend("reviewer", 7000, claude=(ago(60), ago(5)), jev=(ago(5), ago(60)))
+spend("coordinator", 1500, claude=(ago(30), None))
+spend("engineer", 9000, month="2000-01")
+(costs / "broken").mkdir()
+(costs / "broken" / "month.json").write_text("{not json")
+code, sent = watch()
+credit = {k: p for k, p in sent.items() if k[0] in ("anthropic/credits", "typesafe/credits")}
+check("a pass with spend files succeeds, skipping one it can't read", code == 0 and "skipping" in watch.output)
+check("$85 of $100 this month raises ClaudeSpend as a warning, not counting last month",
+      credit.get(("anthropic/credits", "ClaudeSpend"), {}).get("severity") == "warning"
+      and "passed 80% of the $100" in credit[("anthropic/credits", "ClaudeSpend")]["text"])
+out = credit.get(("anthropic/credits", "ClaudeCreditsOut"), {})
+check("Claude refusing the reviewer since it last worked raises ClaudeCreditsOut naming it",
+      out.get("severity") == "major" and "refused reviewer for credits" in out.get("text", "")
+      and out.get("service") == ["Agents"])
+check("Jev working again after a refusal raises nothing", ("typesafe/credits", "JevCreditsOut") not in credit)
+
+spend("reviewer", 9000, claude=(ago(1), ago(5)), jev=(ago(60), ago(2)))
+code, sent = watch()
+check("Claude working again clears ClaudeCreditsOut",
+      sent.get(("anthropic/credits", "ClaudeCreditsOut"), {}).get("severity") == "cleared"
+      and sent[("anthropic/credits", "ClaudeCreditsOut")]["service"] == ["Agents"])
+check("spend past the whole $100 makes ClaudeSpend major",
+      sent.get(("anthropic/credits", "ClaudeSpend"), {}).get("severity") == "major")
+check("Jev refusing the reviewer since it last worked raises JevCreditsOut",
+      "refused reviewer for credits" in sent.get(("typesafe/credits", "JevCreditsOut"), {}).get("text", ""))
+
 server.shutdown()
 if failures:
     sys.exit(f"{len(failures)} check(s) failed")

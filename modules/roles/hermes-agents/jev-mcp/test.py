@@ -54,6 +54,8 @@ class Handler(BaseHTTPRequestHandler):
         if fake.throttle:
             fake.throttle -= 1
             return self.reply(429, {"error": "rate limited"}, {"Retry-After": "0.2"})
+        if fake.mode == "billing":
+            return self.reply(402, {"error": "insufficient credits: top up your account"})
         if fake.mode == "unauthorized":
             return self.reply(401, {"detail": f"invalid key {self.headers.get('Authorization')}"})
         answers = {}
@@ -178,6 +180,11 @@ fake.reset(mode="unauthorized")
 why = refused(STATE, QUESTIONS) or ""
 check("an error that echoes the key doesn't repeat it", "HTTP 401" in why and KEY not in why)
 check("errors carry the call id", "(call " in why)
+check("an ordinary refusal isn't logged as billing", "reason=" not in LOG.read_text().splitlines()[-1])
+fake.reset(mode="billing")
+why = refused(STATE, QUESTIONS) or ""
+check("running out of credit is an error that says so", "HTTP 402" in why)
+check("and the call log marks it reason=billing", LOG.read_text().splitlines()[-1].endswith("status=refused reason=billing"))
 key, os.environ["JEV_API_KEY"] = os.environ["JEV_API_KEY"], ""
 check("without a key nothing is sent", "no JEV_API_KEY" in (refused(STATE, QUESTIONS) or ""))
 os.environ["JEV_API_KEY"] = key

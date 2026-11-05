@@ -548,6 +548,24 @@ in
         default = [ "claude-opus-5-5" "claude-sonnet-5-5" "claude-haiku-5-5" ];
         description = "The Claude models an agent may use; anything else is refused.";
       };
+      prices = lib.mkOption {
+        type = lib.types.attrsOf (lib.types.submodule {
+          options = {
+            input = lib.mkOption { type = lib.types.number; description = "Dollars per million input tokens."; };
+            output = lib.mkOption { type = lib.types.number; description = "Dollars per million output tokens."; };
+          };
+        });
+        default = {
+          claude-opus-5-5 = { input = 4; output = 20; };
+          claude-sonnet-5-5 = { input = 2; output = 10; };
+          claude-haiku-5-5 = { input = 0.10; output = 0.50; };
+        };
+        description = ''
+          The rate card agent-costs prices Claude with. Cache writes count at
+          1.25 times input and cache reads at 0.1 times, so a total is an
+          estimate; Anthropic's console has what was billed.
+        '';
+      };
     };
 
     jev = {
@@ -676,6 +694,10 @@ in
         }
       ]) cfg.providers)
       ++ [
+        {
+          assertion = lib.all (m: cfg.anthropic.prices ? ${m}) cfg.anthropic.models;
+          message = "roles.hermesAgents.anthropic.prices: every model in anthropic.models needs a price, so its spend is counted.";
+        }
         {
           assertion = lib.hasPrefix "https://" cfg.jev.baseUrl;
           message = "roles.hermesAgents.jev.baseUrl: HTTPS only (got ${cfg.jev.baseUrl}).";

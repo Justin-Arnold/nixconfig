@@ -13,6 +13,11 @@ pkgs.runCommand "provisioning-tests"
       cat paperclip.log
       exit 1
     fi
+    # The whole directory, since paperclip-cancel.py loads paperclip-apply.py from beside it.
+    if ! python3 -I ${../../agents}/tests/paperclip-cancel-test.py ${../../agents}/paperclip-cancel.py >paperclip-cancel.log 2>&1; then
+      cat paperclip-cancel.log
+      exit 1
+    fi
     if ! python3 -I ${../../inference/tests/model-test-test.py} ${../../inference/model-test.py} >model-test.log 2>&1; then
       cat model-test.log
       exit 1

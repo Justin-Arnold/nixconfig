@@ -33,6 +33,9 @@ them, and checks what came back:
             whose approval completes the stage, and whose findings are on the
             pull request as a comment review citing the issue. Closed and
             deleted afterwards too, unless --keep-pr.
+  costs     agent-costs reports the reviewer's Claude spend: its month.json
+            shows some this month (the review stage just spent it), and
+            Paperclip shows the same amount against the Reviewer
   infra     infra adds one file to nixconfig on an agent/infra/* branch, runs
             scripts/flake-check.sh eval on workbench, and opens a pull
             request that reports the check passed. Closed and deleted
@@ -64,6 +67,7 @@ import shlex
 import subprocess
 import sys
 import time
+from decimal import Decimal
 
 HERE = pathlib.Path(__file__).resolve().parent
 SPEC = HERE / "paperclip-spec.json"
@@ -77,7 +81,8 @@ ENGINEER_LOGS = "/var/lib/hermes-engineer/.hermes/logs"
 # agents.watch.alertaUrl and the secret agent-watch reads its key from.
 ALERTA = "http://10.118.0.1:5000"
 ALERTA_KEY = "/run/secrets/agent-watch/alerta-key"
-STAGES = ["rulesets", "refused", "watch", "ping", "local", "decide", "observe", "change", "review", "infra", "gate"]
+STAGES = ["rulesets", "refused", "watch", "ping", "local", "decide", "observe", "change", "review", "costs", "infra",
+          "gate"]
 RESEARCHER_CONFIG = "/var/lib/hermes-researcher/.hermes/config.yaml"
 RESEARCHER_LOGS = "/var/lib/hermes-researcher/.hermes/logs"
 # The Jev MCP server's call log: one line per call, ids and outcomes only.
@@ -464,6 +469,23 @@ awk -v since="$since" '$1 >= since && $3 == "client=agents" && $5 == "/v1/chat/c
         rounds = state.get("changesRequestedCount") or 0
         return (f"the reviewer approved {issue['identifier']} after {rounds} change request(s) and reviewed "
                 f"#{pr['number']} on GitHub; " + self.close(REPO, pr, issue))
+
+    def costs(self):
+        proc = remote("agents", "systemctl start agent-costs-reviewer && cat /var/lib/agent-costs/reviewer/month.json")
+        if proc.returncode != 0:
+            raise Fail(f"agent-costs-reviewer failed: {text(proc.stdout + proc.stderr)}; "
+                       "see journalctl -u agent-costs-reviewer")
+        month = json.loads(proc.stdout)
+        claude = Decimal(month["claude"]["cents"])
+        if claude <= 0:
+            raise Fail("the reviewer has no Claude spend this month, so there was nothing to report; run the review "
+                       "stage first")
+        rows = self.pc.call("get", f"/api/companies/{self.cid}/costs/by-agent-model?period=month")
+        shown = sum(Decimal(str(r.get("costCentsExact") or r.get("costCents") or 0)) for r in rows
+                    if r.get("agentName") == "Reviewer" and r.get("provider") == "anthropic")
+        if abs(shown - claude) > Decimal("0.01"):
+            raise Fail(f"agent-costs counts {claude}¢ of Claude for the reviewer this month, but Paperclip shows {shown}¢")
+        return f"the reviewer's estimated Claude spend this month is ${claude / 100:.2f}, and Paperclip shows the same"
 
     def infra(self):
         infra = self.agent("Infra")

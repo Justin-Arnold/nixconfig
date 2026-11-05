@@ -1,7 +1,9 @@
 # agent-watch: every five minutes, a read-only pass over Paperclip that
 # raises and clears Alerta alerts for agents whose last run failed, issues
 # stuck in progress, approvals waiting on the board, open issues labelled
-# change or sensitive, and budgets past their warning level. Alerta's
+# change or sensitive, and budgets past their warning level, and, from what
+# agent-costs writes, Claude spend nearing the month's credit and Claude or
+# Jev refusing an agent for credits. Alerta's
 # forwarder on lab118-services sends them to the phone. See
 # agent-watch/agent-watch.py for what each alert means.
 #
@@ -56,6 +58,12 @@ in
           PAPERCLIP_URL = "http://127.0.0.1:${toString config.roles.paperclip.port}";
           ALERTA_URL = cfg.alertaUrl;
           STUCK_AFTER_MINUTES = toString cfg.stuckAfterMinutes;
+        } // lib.optionalAttrs config.agents.costs.enable {
+          # Each agent's spend, from agent-costs (./agent-costs.nix).
+          COSTS_DIR = "/var/lib/agent-costs";
+          CLAUDE_MONTHLY_CREDITS = toString config.agents.costs.claudeMonthlyCredits;
+          CLAUDE_WARN_PERCENT = toString config.agents.costs.claudeWarnPercent;
+        } // {
           # For the HTTPS push to Kuma; Python doesn't find the bundle itself.
           SSL_CERT_FILE = config.security.pki.caBundle;
         };

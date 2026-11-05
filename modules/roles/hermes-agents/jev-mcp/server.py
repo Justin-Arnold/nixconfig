@@ -89,7 +89,16 @@ The result has `call_id`, `model`, `answers` (keyed by your question names) and 
 
 
 class Refused(Exception):
-    """A request this tool won't send, or an answer it couldn't get."""
+    """A request this tool won't send, or an answer it couldn't get. reason
+    is "billing" when TypeSafe refused for credits, so the call log can say."""
+
+    def __init__(self, message, reason=None):
+        super().__init__(message)
+        self.reason = reason
+
+
+# TypeSafe's ways of saying the account has no credit left.
+BILLING = re.compile(r"(?i)credit|balance|quota|payment|billing")
 
 
 def _text(value, limit):
@@ -218,7 +227,9 @@ def post(body, key):
                 if time.monotonic() + wait < deadline - 2:
                     time.sleep(wait)
                     continue
-            raise Refused(f"Jev answered HTTP {err.code}: {' '.join(detail.split())[:300]}") from None
+            billing = err.code == 402 or (err.code in (400, 403) and bool(BILLING.search(detail)))
+            raise Refused(f"Jev answered HTTP {err.code}: {' '.join(detail.split())[:300]}",
+                          "billing" if billing else None) from None
         except (urllib.error.URLError, TimeoutError, OSError) as err:
             reason = getattr(err, "reason", err)
             raise Refused(f"couldn't reach Jev: {_scrub(str(reason), key)}") from None
@@ -227,12 +238,14 @@ def post(body, key):
     raise Refused("Jev was still rate-limiting after retries")
 
 
-def log_call(call_id, questions, status, model=None, tokens=None):
+def log_call(call_id, questions, status, model=None, tokens=None, reason=None):
     """One line per call: never the state, the questions or the answers."""
     if not CALL_LOG:
         return
     when = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     line = f"{when} call={call_id} questions={questions} status={status}"
+    if reason:
+        line += f" reason={reason}"
     if model:
         line += f" model={model}"
     if tokens is not None:
@@ -260,8 +273,8 @@ def decide(state, questions):
         if not isinstance(answer, dict) or not isinstance(answer.get("answers"), dict):
             raise Refused("Jev's answer had no answers")
     except Refused as err:
-        log_call(call_id, count, "refused")
-        raise Refused(f"{err} (call {call_id})") from None
+        log_call(call_id, count, "refused", reason=err.reason)
+        raise Refused(f"{err} (call {call_id})", err.reason) from None
     usage = answer.get("usage") if isinstance(answer.get("usage"), dict) else {}
     model = answer.get("model") or MODEL
     log_call(call_id, count, "ok", model, usage.get("input_tokens"))

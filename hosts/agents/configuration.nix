@@ -41,6 +41,7 @@ in
       ./endpoints.nix
       ./backup.nix
       ./agent-watch.nix
+      ./agent-costs.nix
       ../../modules/common
       ../../modules/profiles/server.nix
       ../../modules/platforms/nixos
