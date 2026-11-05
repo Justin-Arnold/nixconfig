@@ -84,10 +84,10 @@ in
   # independent of user-tool downloads.
   home-manager.users = lib.mkForce { };
 
-  services.journald.extraConfig = ''
-    SystemMaxUse=1G
-    MaxRetentionSec=30day
-  '';
+  services.journald.settings.Journal = {
+    SystemMaxUse = "1G";
+    MaxRetentionSec = "30day";
+  };
 
   ############################################################
   ## Users and secrets (SOPS, host-scoped key)

@@ -168,8 +168,9 @@ changed there.
 ## Checking nixconfig here
 
 `nix flake check` fails on nixconfig while the legacy hosts (checkmk, gitea,
-onepassword-connect, omada-controller, parallels) don't evaluate, so infra
-and the reviewer run `scripts/flake-check.sh` from a worktree instead:
+onepassword-connect, omada-controller, parallels, pr-previews) don't
+evaluate, so infra and the reviewer run `scripts/flake-check.sh` from a
+worktree instead:
 `eval` evaluates every other NixOS host, and `checks` builds every flake check
 for this system, one by one, with a line each and a summary. They're separate
 because Hermes stops a terminal command after 600 seconds. Nothing builds a

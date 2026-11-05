@@ -83,10 +83,10 @@ in
 
   # Agent runs and their tool calls are logged at length; keep a month, but
   # never let the journal crowd the disk.
-  services.journald.extraConfig = ''
-    SystemMaxUse=2G
-    MaxRetentionSec=30day
-  '';
+  services.journald.settings.Journal = {
+    SystemMaxUse = "2G";
+    MaxRetentionSec = "30day";
+  };
 
   ############################################################
   ## Users and secrets (SOPS, host-scoped key)
@@ -114,6 +114,10 @@ in
   # gets a container socket.
   virtualisation.podman.enable = true;
   virtualisation.oci-containers.backend = "podman";
+  # nixpkgs opens DNS (port 53) on every podman interface by default.
+  # Paperclip uses the host's network and needs no container DNS, so it
+  # stays shut and the firewall guard below still holds.
+  virtualisation.podman.dns.openFirewall = false;
 
   roles.paperclip = {
     enable = true;

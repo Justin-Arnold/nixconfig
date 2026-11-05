@@ -63,10 +63,15 @@ in
   # independent of user-tool downloads.
   home-manager.users = lib.mkForce { };
 
-  services.journald.extraConfig = ''
-    SystemMaxUse=1G
-    MaxRetentionSec=30day
-  '';
+  # nixpkgs opens DNS (port 53) on every podman interface by default.
+  # Whisper's container is on Podman's default network, which runs no DNS
+  # server, so it stays shut and the firewall guard below still holds.
+  virtualisation.podman.dns.openFirewall = false;
+
+  services.journald.settings.Journal = {
+    SystemMaxUse = "1G";
+    MaxRetentionSec = "30day";
+  };
 
   ############################################################
   ## Users and secrets (SOPS, host-scoped key)
