@@ -282,10 +282,11 @@ def decide(state, questions):
 
 
 def main():
-    from mcp.server.fastmcp import FastMCP
+    from mcp.server.mcpserver import MCPServer
+    from mcp.server.mcpserver.exceptions import ToolError
     from mcp.types import ToolAnnotations
 
-    server = FastMCP("jev")
+    server = MCPServer("jev")
 
     @server.tool(name="decide", description=DESCRIPTION, structured_output=False,
                  annotations=ToolAnnotations(title="Ask Jev", readOnlyHint=True, idempotentHint=True,
@@ -294,8 +295,9 @@ def main():
         try:
             return json.dumps(decide(state, questions), ensure_ascii=False)
         except Refused as err:
-            # FastMCP turns this into an MCP error result the agent can read.
-            raise ValueError(str(err)) from None
+            # Only a ToolError's message reaches the agent; anything else
+            # comes back as a bare "Error executing tool".
+            raise ToolError(str(err)) from None
 
     server.run()
 

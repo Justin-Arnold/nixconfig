@@ -151,6 +151,10 @@ in
 
     # Rootless only: no Docker-compatible socket, nothing running as root.
     virtualisation.podman.enable = true;
+    # nixpkgs opens DNS (port 53) on every podman interface by default.
+    # Podman here is rootless, so its networks never touch the host's
+    # interfaces; it stays shut and workbench's firewall guard still holds.
+    virtualisation.podman.dns.openFirewall = false;
 
     sops.secrets = lib.mkIf (github != null) {
       "github/token" = {

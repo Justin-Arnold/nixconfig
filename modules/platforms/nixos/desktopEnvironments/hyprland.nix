@@ -22,7 +22,7 @@ in {
       imports = [
         ../../../../home/apps/hyprland.nix
         ../../../../home/apps/hyprpaper.nix
-        ../../../../home/apps/hyprpanel.nix
+        ../../../../home/apps/wayle.nix
       ];
     };
   };

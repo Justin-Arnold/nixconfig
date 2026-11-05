@@ -420,10 +420,11 @@ def enabled_sources():
 
 
 def main():
-    from mcp.server.fastmcp import FastMCP
+    from mcp.server.mcpserver import MCPServer
+    from mcp.server.mcpserver.exceptions import ToolError
     from mcp.types import ToolAnnotations
 
-    server = FastMCP("lab")
+    server = MCPServer("lab")
 
     def register(name, fn, description):
         annotations = ToolAnnotations(title=name.replace("_", " "), readOnlyHint=True, idempotentHint=True,
@@ -433,9 +434,10 @@ def main():
             try:
                 return json.dumps(run(name, fn, *args), ensure_ascii=False)
             except Refused as err:
-                raise ValueError(str(err)) from None
+                # Only a ToolError's message reaches the agent.
+                raise ToolError(str(err)) from None
 
-        # FastMCP reads each tool's arguments from its signature, so each gets
+        # MCPServer reads each tool's arguments from its signature, so each gets
         # its own small function.
         if fn in (proxmox_cluster, beszel_systems, kuma_monitors):
             def tool() -> str:
