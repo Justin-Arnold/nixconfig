@@ -18,8 +18,8 @@ separate execution host.
 | VM | Proxmox, 4 vCPU (`x86-64-v2-AES`), 12 GB, 80 GB on `nas-shared`, MAC `02:01:18:00:00:06`, HA resource |
 | Paperclip | `https://paperclip.servicestack.xyz` (2026.1023.0, official image pinned by digest, under Podman) |
 | Database | PostgreSQL 17 from nixpkgs, socket and localhost only |
-| Agents | Hermes v0.22.5: `coordinator`, `engineer`, `researcher`, one process each, API servers on `127.0.0.1:8642` to `8644` |
-| Models | Codex for the coordinator and engineer, with Claude Opus 5.5 as their last fallback; the lab's GPU (`local` on inference) for the researcher, with Codex behind it, and for every agent's session titles and memory review |
+| Agents | Hermes v0.22.5: `coordinator`, `engineer`, `researcher`, `reviewer`, `infra`, one process each, API servers on `127.0.0.1:8642` to `8646` |
+| Models | Codex for the coordinator, engineer and infra, with Claude Opus 5.5 as their last fallback; Claude Opus 5.5 for the reviewer, with Sonnet 5.5 and Codex behind it; the lab's GPU (`local` on inference) for the researcher, with Codex behind it, and for every agent's session titles and memory review |
 | Tools from outside | Jev, TypeSafe's decision model, as every agent's `decide` tool |
 | Login | `ssh agents` as `justin`, key only (the Mac Mini key). Root has no SSH. |
 | Console | Proxmox console, root password from SOPS (`root/console-password-hash`) |
@@ -186,10 +186,10 @@ Paperclip and an agent talk both ways without a shell on this host:
 
 What an agent can do on a machine depends on its terminal backend. Without
 one, the terminal, file and code execution toolsets are switched off, because
-they'd act on this VM. The engineer gets the terminal and file toolsets with
-an ssh backend on workbench, logging in as `agent-engineer` with
-`hermes/engineer/ssh-key`, once workbench's host key is set as
-`workbenchHostKey` in `agents.nix` (`docs/workbench/REFERENCE.md`). Browser,
+they'd act on this VM. The engineer, reviewer and infra get the terminal and
+file toolsets with an ssh backend on workbench, each logging in as
+`agent-<name>` with `hermes/<name>/ssh-key`, once workbench's host key is set
+as `workbenchHostKey` in `agents.nix` (`docs/workbench/REFERENCE.md`). Browser,
 computer use, cron, kanban, outside connections and chat platforms are off
 for everyone.
 
@@ -201,7 +201,8 @@ multicast addresses. A refusal fails at once rather than timing out, and
 shows up in `journalctl -k` as `agent-egress refused:` with the uid. A LAN
 service an agent needs goes in `roles.agentEgress.allow` in `agents.nix`, one
 address and its ports, optionally for named agents only: every agent may
-reach inference on 443, and the engineer its ssh on workbench. Hermes' own `allow_private_urls: false` refuses
+reach inference on 443, and the agents with a terminal there reach ssh on
+workbench. Hermes' own `allow_private_urls: false` refuses
 the same addresses in its web tools; the filter is what holds if something
 gets past that. Turning it on moved the whole firewall to nftables, so its
 rules are in `nft list ruleset`, not iptables.
@@ -211,9 +212,12 @@ give one. Paperclip starts runs through `/v1/runs`, which tells Hermes a
 client could answer, but Paperclip's adapter never does, so a flagged command
 is denied when `approvals.timeout` runs out, after 5 seconds rather than the
 default 300. The `approvals.deny` globs (sudo, force pushes, merges,
-switches, deletes) are refused at once and hold even under `--yolo`. Hermes
-flags `bash -c`, `sh -c` and `python3 -c` too, since the deny globs can't see
-inside them; the engineer's SOUL.md says to run commands directly. config.yaml, .env and SOUL.md belong to root, so an agent can read
+switches, deletes) are refused at once and hold even under `--yolo`. An agent
+can have more of its own (`extraDenyCommands`): the reviewer can't push, or
+create, edit, close or ready a pull request. Hermes flags `bash -c`, `sh -c`
+and `python3 -c` too, since the deny globs can't see inside them; the SOUL.md
+of every agent with a terminal says to run commands directly. config.yaml,
+.env and SOUL.md belong to root, so an agent can read
 them but not change them, and Hermes runs managed, so it refuses to rewrite
 its own config. The assertions in the role refuse a build that opens any of
 this up; `agents-exposure-guards` proves they fire.
@@ -254,9 +258,12 @@ so the other agents can't use it.
 ### Models
 
 Each agent has a main model, fallbacks Hermes moves to when a run fails on
-it, and models for its side tasks, chosen for its job. The coordinator and
-engineer run on Codex, fall back a Codex generation, and then to Claude Opus
-5.5 (`claude-opus-5-5`). The researcher runs on `local`, the model inference serves to the lab
+it, and models for its side tasks, chosen for its job. The coordinator,
+engineer and infra run on Codex, fall back a Codex generation, and then to
+Claude Opus 5.5 (`claude-opus-5-5`). The reviewer runs on Claude Opus 5.5 with
+high reasoning effort, so code is reviewed by a different model family from
+the one that wrote it, and falls back to Sonnet 5.5 and then Codex. The
+researcher runs on `local`, the model inference serves to the lab
 (`docs/inference/REFERENCE.md`), with Codex's middle tier behind it. Every
 agent's session titles and post-turn memory review run on `local` too
 (`sideTasks` in `agents.nix`), and context compression stays on Codex, since
@@ -270,8 +277,9 @@ set to a slot's 64K, since llama-server reports the model's own, much larger
 one.
 
 When inference is down or busy, Hermes retries and then falls back: the
-researcher to Codex, and side tasks to the agent's main model, which is Codex
-for the other two and so quietly uses the plan's limits. inference's nginx
+researcher to Codex, and side tasks to the agent's main model: Codex for most,
+which quietly uses the plan's limits, and Claude for the reviewer, which
+spends from the Anthropic key. inference's nginx
 gives the `agents` key two requests at a time and answers a third with a 429,
 which Hermes retries.
 
@@ -279,18 +287,22 @@ llama-server only reads a thinking switch from `chat_template_kwargs`, and
 Hermes doesn't send one, so the researcher runs with the model's default, no
 thinking. That's how it passed the model test.
 
-Claude runs on an Anthropic API key, `anthropic/api-key`, from a Console
-workspace (`lab-agents`) with a monthly spend limit. That limit is the only
-cap on it: Paperclip records every `hermes_gateway` run as unpriced, whatever
-the model. The key reaches only the agents whose model, fallbacks or side
+Claude runs on an Anthropic API key, `anthropic/api-key`, from the Console
+organization's Default workspace, which spends the account's monthly credits.
+The Default workspace can't have a limit of its own, so the only caps are the
+organization's spend limit and the credit balance, shared with everything
+else on the account. Paperclip records every `hermes_gateway` run as
+unpriced, whatever the model, so it doesn't cap Claude either. A dedicated
+workspace with its own monthly limit would cap the agents alone; it spends
+the same credits. The key reaches only the agents whose model, fallbacks or side
 tasks name Claude, as `ANTHROPIC_API_KEY`, so the researcher doesn't have it,
 and only the models in `roles.hermesAgents.anthropic.models` are allowed.
 Hermes would also take a Claude login or OAuth token, ahead of the key, and
 Anthropic's terms don't allow those in a third-party harness. So none can be
 set in Nix, and each agent refuses to start if one turns up in its
 `auth.json` or the key in SOPS is an OAuth token. What Claude sees is what
-the agent sees: its SOUL.md, memory, Paperclip issues, and for the engineer
-code and terminal output from workbench.
+the agent sees: its SOUL.md, memory, Paperclip issues, and for the engineer,
+reviewer and infra, code and terminal output from workbench.
 
 Hermes merges these settings into the config.yaml it keeps on disk and keeps
 keys that are no longer set. So the role always writes the side tasks it
@@ -309,6 +321,9 @@ advisory. Each SOUL.md says when to use it:
   `sensitive` label, and Jev can only add a label;
 - the engineer checks a step that deletes, rewrites history or touches CI,
   and a high score is never an approval;
+- infra checks a change that removes a host, a service or a firewall rule
+  against what the issue asked;
+- the reviewer rarely needs it, and never sends it code;
 - the researcher scores or classifies findings.
 
 The server is `modules/roles/hermes-agents/jev-mcp/server.py`, the standard
@@ -328,6 +343,24 @@ That's why the SOUL files limit what goes to Jev to Paperclip issues and
 public sources. The endpoint is any server that speaks the same System One
 API (`roles.hermesAgents.jev.baseUrl`), so a local decision model can replace
 it later for private text.
+
+### Reviews
+
+Every issue the coordinator gives the engineer or infra carries a review
+stage for the reviewer, as the issue's execution policy (Paperclip's own
+mechanism for cross-agent review). When the engineer or infra sets the issue
+`done`, Paperclip moves it to `in_review` and hands it to the reviewer. The
+reviewer reads the pull request (`gh pr diff`), checks it out with
+`agent-review <owner/repo> <n>` on workbench to run its tests or
+`scripts/flake-check.sh`, and decides in one update: `done` with a comment
+starting "Approved:", or `in_progress` with numbered findings, which hands
+the issue back. Two rounds of changes is the limit the coordinator sets;
+after that the reviewer asks the board instead.
+
+The reviewer also posts its findings on the pull request as a comment review
+citing the issue. Every agent pushes as the same machine account, and GitHub
+doesn't let a pull request's author approve or request changes on it, so the
+comment is the record and Paperclip holds the verdict. Merging stays yours.
 
 ## How agents and tasks are meant to be set up
 
@@ -397,10 +430,14 @@ names some:
 | `local` | the same, through the lab's local model: the researcher's main model is `lab-gpu`, Hermes logs no fallback while it works, and inference's nginx logs at least one successful request from the `agents` key |
 | `decide` | the researcher asks Jev one fixed question and comments the call id it got back, which is in the Jev server's call log as a successful call |
 | `change` | the engineer pushes an `agent/engineer/*` branch to agent-scratch with exactly the file it was asked for, opens a pull request as the machine account, and comments its URL. The pull request is then closed and its branch deleted, unless `--keep-pr`. |
+| `review` | the same, on an issue with a review stage for the reviewer: Paperclip hands it over when the engineer sets it done, the reviewer approves it so the stage completes, and its findings are on the pull request as a comment review citing the issue |
+| `infra` | infra adds one file to nixconfig on an `agent/infra/*` branch, runs `scripts/flake-check.sh eval` on workbench, and opens a pull request whose body reports the check passed |
 | `gate` | asked to run `rm -rf ~/smoke-<nonce>` on workbench, the engineer is refused by Hermes' deny list, the refusal is in its log, and the canary file in that directory survives |
 
-The last five wait on real model runs, so a full run takes 10 to 30
-minutes; `--timeout-minutes` (20) bounds each. The issues stay in Paperclip,
+Most stages wait on real model runs, so a full run takes 20 to 45 minutes;
+`--timeout-minutes` (20) bounds each. The pull requests from `change`,
+`review` and `infra` are closed and their branches deleted afterwards, unless
+`--keep-pr`. The issues stay in Paperclip,
 titled `Smoke test <nonce>: ...`. It needs `gh` signed in as Justin and
 `ssh agents`, `ssh workbench` and `ssh inference` with sudo. The Alerta key never leaves the
 agents VM: the alert lookups run there.
@@ -476,9 +513,9 @@ operator key, nothing else. On macOS, edit it with
 | `hermes/<name>/api-server-key` | `openssl rand -hex 32`, one per agent. Also goes into Paperclip as that agent's adapter `apiKey`. |
 | `hermes/<name>/paperclip-key` | the agent's Paperclip key, only for agents listed in `withPaperclipKey` |
 | `inference/agents-key` | the agents' key for inference, the same value as `inference/keys/agents` in `secrets/hosts/inference.yaml` |
-| `anthropic/api-key` | an Anthropic API key from the `lab-agents` workspace, which has a monthly spend limit. Never an OAuth token. |
+| `anthropic/api-key` | an Anthropic API key from the Console's Default workspace, capped only by the organization's limit and credits. Never an OAuth token. |
 | `jev/api-key` | a TypeSafe API key, from console.typesafe.ai |
-| `hermes/engineer/ssh-key` | `ssh-keygen -t ed25519 -N ''`, the private half; the public half goes in `workbench.agents.engineer.publicKey` in `hosts/workbench/agents.nix`. Needed once `workbenchHostKey` is set. |
+| `hermes/<name>/ssh-key` | for the engineer, reviewer and infra: `ssh-keygen -t ed25519 -N ''`, the private half; the public half goes in `workbench.agents.<name>.publicKey` in `hosts/workbench/agents.nix`. Needed once `workbenchHostKey` is set. |
 
 The host key is installed by `nix run .#install` from `HOST_AGE_KEY_FILE`
 (`hostAgeKey = true` in `infra/terranix/default.nix`), the same way as on
@@ -562,6 +599,12 @@ host key and the same master key in SOPS, the stored secrets stay readable.
   `state.db` until its first run.
 - Nothing caches Hermes' build, so the first switch after a Hermes update
   builds it on this VM.
+- Five agents at their 2 GB `MemoryMax` plus Paperclip's 4 GB add up to more
+  than the VM's 12 GB. Those are caps, and an idle agent uses far less, but
+  several long runs at once could press on memory.
+- The reviewer can only comment on GitHub: every agent pushes as one machine
+  account, and GitHub doesn't let a pull request's author approve it.
+  Paperclip's review stage is the gate.
 - The egress filter knows the LAN by its private IPv4 ranges and IPv6's
   local ones. If the LAN ever gets a routed IPv6 prefix, its hosts become
   reachable at their global addresses until the prefix is added to the

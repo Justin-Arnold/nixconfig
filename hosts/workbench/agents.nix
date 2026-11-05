@@ -43,6 +43,12 @@ let
     text = builtins.readFile ./agent-worktree.sh;
   };
 
+  agentReview = pkgs.writeShellApplication {
+    name = "agent-review";
+    runtimeInputs = [ pkgs.git pkgs.coreutils ];
+    text = builtins.readFile ./agent-review.sh;
+  };
+
   pruneWorktrees = pkgs.writeShellApplication {
     name = "prune-worktrees";
     runtimeInputs = [ pkgs.git pkgs.coreutils pkgs.findutils pkgs.gnused pkgs.gnugrep ];
@@ -96,6 +102,8 @@ in
     # uids mirror the Hermes instances' (3202 there, 3302 here).
     workbench.agents = {
       engineer = { uid = 3302; publicKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOc8FUXO9eZx+gHjhspUd9TkuQjY6EmV6hQO8PtdszlQ hermes-engineer@agents"; };
+      reviewer = { uid = 3304; publicKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIsKmq7E0NybXkmvaJitV2vUqY+aySmkVnYd1tL3+QJS hermes-reviewer@agents"; };
+      infra = { uid = 3305; publicKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAII6+doCJGGnlBkECECWRuJ5o0WDMM2cPbN9Dp7BGfvF8 hermes-infra@agents"; };
     };
     workbench.github = {
       login = "flickering-text-387";
@@ -164,7 +172,7 @@ in
       };
     };
 
-    environment.systemPackages = [ agentWorktree pkgs.gnumake pkgs.file pkgs.tree pkgs.unzip ]
+    environment.systemPackages = [ agentWorktree agentReview pkgs.gnumake pkgs.file pkgs.tree pkgs.unzip ]
       ++ lib.optional (github != null) gh;
 
     # Worktrees nobody touched for two weeks go, when everything in them is

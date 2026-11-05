@@ -352,6 +352,12 @@
                 jev-plain-http = { roles.hermesAgents.jev.baseUrl = lib.mkForce "http://10.0.0.63:8080/v1"; };
                 jev-key-not-from-sops = { roles.hermesAgents.instances.researcher.secrets.JEV_API_KEY = lib.mkForce "hermes/researcher/paperclip-key"; };
                 jev-key-without-tool = { roles.hermesAgents.instances.researcher = { jev.enable = lib.mkForce false; secrets.JEV_API_KEY = "jev/api-key"; }; };
+                reviewer-may-push = { roles.hermesAgents.instances.reviewer.extraDenyCommands = lib.mkForce [ ]; };
+                # The engineer has no extras, so its list is exactly every agent's.
+                # settings merges with recursiveUpdate, so this list replaces the
+                # reviewer's (and mkForce would land in it as a value).
+                reviewer-extras-dropped = { roles.hermesAgents.instances.reviewer.settings.approvals.deny = agentsExample.config.roles.hermesAgents.instances.engineer.settings.approvals.deny; };
+                claude-key-not-from-sops-on-reviewer = { roles.hermesAgents.instances.reviewer.secrets.ANTHROPIC_API_KEY = lib.mkForce "jev/api-key"; };
               };
             in
             assert lib.assertMsg (lib.all lib.id (lib.attrValues results))
@@ -375,7 +381,7 @@
                 everyone-nix-trusted = { nix.settings.trusted-users = [ "*" ]; };
                 nix-sandbox-off = { nix.settings.sandbox = lib.mkForce false; };
                 egress-off = { roles.agentEgress.enable = lib.mkForce false; };
-                egress-misses-agent = { users.users.agent-reviewer = { isNormalUser = true; uid = 3304; }; };
+                egress-misses-agent = { users.users.agent-stray = { isNormalUser = true; uid = 3399; }; };
                 egress-misses-builds = { roles.agentEgress.groups = lib.mkForce [ ]; };
                 key-from-anywhere = { users.users.agent-engineer.openssh.authorizedKeys.keys = [ "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAILoose loose" ]; };
                 key-with-forwarding = { users.users.agent-engineer.openssh.authorizedKeys.keys = [ ''restrict,port-forwarding,from="10.0.0.152" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAILoose loose'' ]; };

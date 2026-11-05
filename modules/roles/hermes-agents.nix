@@ -102,7 +102,9 @@ let
     "git push * --delete *" "git push * :*" "git branch -D *" "git reset --hard *" "git clean -*"
     "rm -rf /*" "rm -rf ~*" "rm -fr /*" "mkfs*" "dd *of=/dev/*" "shutdown*" "reboot*" "systemctl *"
     "nix run *#switch*" "nixos-rebuild *" "terraform apply*" "terraform destroy*" "tofu apply*" "tofu destroy*"
-    "gh pr merge*" "gh repo delete*" "gh release delete*" "gh api * -X DELETE*" "gh api * --method DELETE*"
+    "gh pr merge*" "gh repo delete*" "gh release delete*"
+    # DELETE calls, with -X or --method anywhere after `gh api`, spaced or not.
+    "gh api *-X DELETE*" "gh api *-XDELETE*" "gh api *--method DELETE*" "gh api *--method=DELETE*"
     "curl * | *sh*" "wget * | *sh*"
   ];
 
@@ -221,6 +223,16 @@ let
         });
         default = null;
         description = "Run the terminal, file and code tools on this host over ssh.";
+      };
+
+      extraDenyCommands = lib.mkOption {
+        type = lib.types.listOf lib.types.str;
+        default = [ ];
+        example = [ "git push*" ];
+        description = ''
+          Commands this agent may never run, on top of the deny list every
+          agent has (fnmatch on the command, like approvals.deny).
+        '';
       };
 
       secrets = lib.mkOption {
@@ -351,7 +363,7 @@ let
           unattended_mode = "deny";
           cron_mode = "deny";
           single_query_mode = "deny";
-          deny = denyCommands;
+          deny = denyCommands ++ config.extraDenyCommands;
         };
         cron.allow_agent_scheduling = false;
         kanban = { dispatch_in_gateway = false; notify_in_gateway = false; auto_subscribe_on_create = false; };
@@ -449,9 +461,9 @@ in
         default = null;
         example = "anthropic/api-key";
         description = ''
-          SOPS secret with an Anthropic API key, from a Console workspace with
-          a monthly spend limit: that limit is the only cap on it, since
-          Paperclip doesn't price these runs. It reaches only the agents whose
+          SOPS secret with an Anthropic API key. The Console's spend limits
+          (the workspace's, else the organization's) are the only cap on it,
+          since Paperclip doesn't price these runs. It reaches only the agents whose
           model, fallbacks or side tasks use the `anthropic` provider, as
           ANTHROPIC_API_KEY.
         '';
@@ -606,8 +618,8 @@ in
           }
           {
             assertion = (s.approvals.mode or null) != "off" && (s.approvals.unattended_mode or null) == "deny"
-              && lib.all (c: lib.elem c (s.approvals.deny or [ ])) denyCommands;
-            message = "${opt}: approvals must stay on, unattended requests denied, and the deny list complete.";
+              && lib.all (c: lib.elem c (s.approvals.deny or [ ])) (denyCommands ++ inst.extraDenyCommands);
+            message = "${opt}: approvals must stay on, unattended requests denied, and the deny list complete (every agent's list plus extraDenyCommands).";
           }
           {
             assertion = !(env ? HERMES_YOLO_MODE) && !(inst.secrets ? HERMES_YOLO_MODE)

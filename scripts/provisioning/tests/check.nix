@@ -5,7 +5,7 @@ pkgs.runCommand "provisioning-tests"
     nativeBuildInputs = with pkgs; [ age bash coreutils diffutils findutils gnugrep gnused jq python3 shellcheck ];
   }
   ''
-    shellcheck ${../provision-host.sh} ${../inspect-cloud-host.sh} ${../../lab118/post-install-check.sh} ${../../lab118/send-test-alert.sh} ${../../lab118/check-lab-tunnel.sh} ${../../lab118/diagnose-lab-dns.sh} ${../../dashboard/post-install-check.sh} ${../../dashboard/probe-mcp-block.sh} ${../../agents/post-install-check.sh} ${../../workbench/post-install-check.sh} ${../../workbench/land-pr.sh} ${../../openclaw/post-install-check.sh} ${../../inference/post-install-check.sh}
+    shellcheck ${../provision-host.sh} ${../inspect-cloud-host.sh} ${../../lab118/post-install-check.sh} ${../../lab118/send-test-alert.sh} ${../../lab118/check-lab-tunnel.sh} ${../../lab118/diagnose-lab-dns.sh} ${../../dashboard/post-install-check.sh} ${../../dashboard/probe-mcp-block.sh} ${../../agents/post-install-check.sh} ${../../workbench/post-install-check.sh} ${../../workbench/land-pr.sh} ${../../openclaw/post-install-check.sh} ${../../inference/post-install-check.sh} ${../../flake-check.sh}
     python3 -c 'import ast, sys; [ast.parse(open(f).read(), f) for f in sys.argv[1:]]' ${../../dashboard/homarr-apply.py} ${../../agents/smoke-e2e.py}
     jq -e '.boards and .apps' ${../../dashboard/homarr-spec.json} >/dev/null
     jq -e '.company.issuePrefix and .labels and .agents' ${../../agents/paperclip-spec.json} >/dev/null

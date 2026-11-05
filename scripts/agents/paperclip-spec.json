@@ -63,6 +63,38 @@
       "canCreateAgents": false
     },
     {
+      "name": "Reviewer",
+      "role": "qa",
+      "reportsTo": "Coordinator",
+      "adapterType": "hermes_gateway",
+      "adapterConfig": {
+        "apiBaseUrl": "http://127.0.0.1:8645",
+        "sessionKeyStrategy": "issue"
+      },
+      "apiKeySecret": "reviewer-api-key",
+      "heartbeat": {
+        "enabled": false,
+        "wakeOnDemand": true
+      },
+      "canCreateAgents": false
+    },
+    {
+      "name": "Infra",
+      "role": "devops",
+      "reportsTo": "Coordinator",
+      "adapterType": "hermes_gateway",
+      "adapterConfig": {
+        "apiBaseUrl": "http://127.0.0.1:8646",
+        "sessionKeyStrategy": "issue"
+      },
+      "apiKeySecret": "infra-api-key",
+      "heartbeat": {
+        "enabled": false,
+        "wakeOnDemand": true
+      },
+      "canCreateAgents": false
+    },
+    {
       "name": "Concierge",
       "role": "general",
       "reportsTo": "Coordinator",

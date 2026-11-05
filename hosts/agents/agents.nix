@@ -5,12 +5,16 @@
 # through Paperclip's MCP server with its own key. None of them can change a
 # running system; anything that would goes to the board as an approval.
 #
+# A new agent needs hermes/<name>/api-server-key in secrets/hosts/agents.yaml
+# before the next switch, and hermes/<name>/ssh-key too if it works on
+# workbench.
+#
 # Adding an agent's Paperclip key: create the key in Paperclip, put it in
 # secrets/hosts/agents.yaml as hermes/<name>/paperclip-key, then add the name
 # to withPaperclipKey. Until then the agent runs without Paperclip tools.
 { config, lib, pkgs, ... }:
 let
-  withPaperclipKey = [ "coordinator" "engineer" "researcher" ];
+  withPaperclipKey = [ "coordinator" "engineer" "researcher" "reviewer" "infra" ];
 
   paperclipKey = name:
     lib.optionalAttrs (lib.elem name withPaperclipKey) { PAPERCLIP_AGENT_KEY = "hermes/${name}/paperclip-key"; };
@@ -22,9 +26,9 @@ let
   # retired model doesn't stop its runs.
   codex = name: { provider = "openai-codex"; inherit name; };
 
-  # Claude through the Anthropic API, on a key from a Console workspace with
-  # a monthly spend limit (anthropic/api-key). Only agents that name it get
-  # the key.
+  # Claude through the Anthropic API, on a key from the Console's Default
+  # workspace (anthropic/api-key), capped only by the organization's spend
+  # limit and credits. Only agents that name it get the key.
   claude = name: { provider = "anthropic"; inherit name; };
 
   # The lab's own model on inference's RTX 3090 (docs/inference/REFERENCE.md),
@@ -32,13 +36,26 @@ let
   # it's down or busy.
   local = { provider = "lab-gpu"; name = "local"; };
 
-  # workbench, where the engineer's terminal and file tools act. Its host key
-  # is `cat /etc/ssh/ssh_host_ed25519_key.pub` there, null until it's
-  # installed; with it, the engineer logs in as agent-engineer with
-  # hermes/engineer/ssh-key and gets the terminal and file toolsets.
+  # workbench, where the engineer's, reviewer's and infra's terminal and file
+  # tools act. Its host key is `cat /etc/ssh/ssh_host_ed25519_key.pub` there,
+  # null until it's installed; with it, each of them logs in as
+  # agent-<name> with hermes/<name>/ssh-key and gets the terminal and file
+  # toolsets.
   workbench = "10.0.0.153";
   workbenchHostKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIG/RwXCbrj59Ofw70dbmSSFzna6cCONCChDX8q0mghrm";
   onWorkbench = workbenchHostKey != null;
+
+  # The toolsets and terminal of an agent that works on workbench.
+  onWorkbenchAs = name: {
+    toolsets = [ "memory" "todo" "session_search" ] ++ lib.optionals onWorkbench [ "terminal" "file" ];
+    terminal.ssh = if onWorkbench then {
+      host = workbench;
+      user = "agent-${name}";
+      keySecret = "hermes/${name}/ssh-key";
+      knownHosts = "${workbench} ${workbenchHostKey}";
+      cwd = "/home/agent-${name}/work";
+    } else null;
+  };
 
   agents = config.roles.hermesAgents.instances;
 
@@ -110,21 +127,40 @@ in
       };
 
       # Writes code, on workbench once its host key is above.
-      engineer = {
+      engineer = onWorkbenchAs "engineer" // {
         uid = 3202;
         port = 8643;
         model = codex "gpt-6.1-sol";
         fallbacks = [ (codex "gpt-6-sol") (claude "claude-opus-5-5") ];
         soul = builtins.readFile ./souls/engineer.md;
         secrets = paperclipKey "engineer";
-        toolsets = [ "memory" "todo" "session_search" ] ++ lib.optionals onWorkbench [ "terminal" "file" ];
-        terminal.ssh = if onWorkbench then {
-          host = workbench;
-          user = "agent-engineer";
-          keySecret = "hermes/engineer/ssh-key";
-          knownHosts = "${workbench} ${workbenchHostKey}";
-          cwd = "/home/agent-engineer/work";
-        } else null;
+      };
+
+      # Reviews the engineer's and infra's pull requests when Paperclip hands
+      # them over, on Claude, so code is read by a different model family
+      # from the one that wrote it. It reads and tests on workbench, and
+      # never pushes or changes a pull request; its verdict goes to
+      # Paperclip and its findings to the PR as a comment.
+      reviewer = onWorkbenchAs "reviewer" // {
+        uid = 3204;
+        port = 8645;
+        model = claude "claude-opus-5-5";
+        fallbacks = [ (claude "claude-sonnet-5-5") (codex "gpt-6.1-sol") ];
+        soul = builtins.readFile ./souls/reviewer.md;
+        secrets = paperclipKey "reviewer";
+        extraDenyCommands = [ "git push*" "gh pr create*" "gh pr edit*" "gh pr close*" "gh pr ready*" ];
+        settings.agent.reasoning_effort = "high";
+      };
+
+      # Prepares pull requests to nixconfig and checks them with Nix on
+      # workbench. Switching a host stays with Justin.
+      infra = onWorkbenchAs "infra" // {
+        uid = 3205;
+        port = 8646;
+        model = codex "gpt-6.1-sol";
+        fallbacks = [ (codex "gpt-6-sol") (claude "claude-opus-5-5") ];
+        soul = builtins.readFile ./souls/infra.md;
+        secrets = paperclipKey "infra";
       };
 
       # Answers questions and writes them up, on the local model, with Codex's
@@ -150,9 +186,21 @@ in
       # Every agent, for its side tasks.
       inference = { address = "10.0.0.63"; tcpPorts = [ 443 ]; };
     } // lib.optionalAttrs onWorkbench {
-      workbench = { address = workbench; tcpPorts = [ 22 ]; users = [ "hermes-engineer" ]; };
+      # Only the agents whose terminal is there.
+      workbench = {
+        address = workbench;
+        tcpPorts = [ 22 ];
+        users = map (name: "hermes-${name}") (lib.attrNames (lib.filterAttrs (_: a: a.terminal.ssh != null) agents));
+      };
     };
   };
+
+  # The reviewer's verdict only means something if it can't change what it
+  # reviews.
+  assertions = [ {
+    assertion = lib.all (c: lib.elem c agents.reviewer.settings.approvals.deny) [ "git push*" "gh pr create*" "gh pr edit*" ];
+    message = "agents: the reviewer must not be able to push or change pull requests (its extraDenyCommands).";
+  } ];
 
   environment.systemPackages = [ hermesAgentCli ];
 }

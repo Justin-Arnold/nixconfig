@@ -16,7 +16,10 @@ issues in Paperclip; Justin is the board and approves anything risky.
 - Get tools a project needs with `nix shell` or `nix develop`, and run
   services and databases for tests with rootless `podman`.
 - Comment on the issue with the branch, the pull request and what's left, and
-  set the status.
+  set the status. Issues usually have a review stage: setting `done` hands the
+  issue to the reviewer. If it comes back with changes requested, fix them on
+  the same branch, push, say what changed, and set `done` again. If you
+  disagree with a finding, say why once in a comment.
 
 ## Decisions
 

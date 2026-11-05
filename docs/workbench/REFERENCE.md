@@ -20,7 +20,7 @@ backed up, and rebuilding it loses nothing that matters.
 |---|---|
 | VM | Proxmox, 8 vCPU (`host`), 16 GB, 200 GB on `local-lvm` on `proxmox4`, MAC `02:01:18:00:00:07`, no HA |
 | Address | `10.0.0.153` (DHCP reservation) |
-| Agents | `agent-engineer` (uid 3302), for the engineer on the agents VM |
+| Agents | `agent-engineer` (uid 3302), `agent-reviewer` (3304) and `agent-infra` (3305), for those agents on the agents VM |
 | Login | `ssh workbench` as `justin`, key only (the Mac Mini key). Agents log in from the agents VM only. Root has no SSH. |
 | Console | Proxmox console, root password from SOPS (`root/console-password-hash`) |
 | Secrets | `secrets/hosts/workbench.yaml`, host-scoped age key at `/var/lib/sops-nix/key.txt` |
@@ -33,10 +33,12 @@ backed up, and rebuilding it loses nothing that matters.
 | `hosts/workbench/configuration.nix` | The host: SOPS, nix garbage collection, the Beszel agent, and the exposure assertions. |
 | `hosts/workbench/agents.nix` | The agent users, their ssh limits, rootless Podman, the egress filter, git and the GitHub token, and the worktree timer. |
 | `hosts/workbench/agent-worktree.sh` | Makes or finds an agent's worktree for a piece of work. |
+| `hosts/workbench/agent-review.sh` | Makes or moves a read-only worktree at a pull request's head, for the reviewer. |
 | `hosts/workbench/prune-worktrees.sh` | Removes finished worktrees. |
 | `hosts/workbench/eval-test.nix` | Example values for the flake checks, not used by the real host. |
 | `infra/terranix/hosts/workbench.nix` | The VM, its node and storage. |
-| `hosts/agents/agents.nix` | The other end: the engineer's ssh terminal, and workbench's host key. |
+| `hosts/agents/agents.nix` | The other end: the engineer's, reviewer's and infra's ssh terminals, and workbench's host key. |
+| `scripts/flake-check.sh` | What infra and the reviewer run to check nixconfig here: every host evaluates and every flake check builds. |
 | `modules/roles/agent-egress.nix` | The outbound filter, shared with the agents VM. |
 | `scripts/workbench/post-install-check.sh` | Read-only health report. |
 
@@ -61,11 +63,11 @@ The key is installed as `restrict,from="10.0.0.152" <key>`: it works only
 from the agents VM and allows no port, agent or X11 forwarding, no pty and no
 `~/.ssh/rc`. sshd says the same for every `agent-*` user in a `Match` block,
 and `AllowUsers` lets in only `justin` and the agent users. The agents VM
-pins this host's key in the engineer's `known_hosts`, so a changed key stops
+pins this host's key in each agent's `known_hosts`, so a changed key stops
 the connection instead of being learned.
 
 Until an agent's public key is set in `workbench.agents` in `agents.nix`, its
-user exists but can't log in, and evaluation warns about it. The engineer
+user exists but can't log in, and evaluation warns about it. The agents'
 side switches on when workbench's host key is set in
 `hosts/agents/agents.nix`.
 
@@ -157,6 +159,23 @@ per agent into `~/repos/<owner>/<repo>.git` and worktrees go in
 one that's already on GitHub is checked out where it was, and asking again
 for the same name gives the same path.
 
+`agent-review <owner/repo> <pr>` is the reviewer's: it fetches the pull
+request's head into the same bare repo and prints a detached worktree at it,
+`~/work/<repo>/pr-<n>`. There's no branch, so nothing to push, and running it
+again moves the worktree to the latest head unless tracked files were
+changed there.
+
+## Checking nixconfig here
+
+`nix flake check` fails on nixconfig while the legacy hosts (checkmk, gitea,
+onepassword-connect, omada-controller, parallels) don't evaluate, so infra
+and the reviewer run `scripts/flake-check.sh` from a worktree instead:
+`eval` evaluates every other NixOS host, and `checks` builds every flake check
+for this system, one by one, with a line each and a summary. They're separate
+because Hermes stops a terminal command after 600 seconds. Nothing builds a
+host here: CUDA for inference would compile from source, since the agents
+can't add binary caches. darwin isn't checked anywhere but the Mac.
+
 `prune-worktrees.timer` runs daily. It removes worktrees nobody touched for
 two weeks, with their local branches, but only when everything in them is
 committed and on GitHub. A landed branch counts, since GitHub keeps a pull
@@ -193,7 +212,8 @@ message saying so, and so does `nix flake check`.
 ## Monitoring
 
 Beszel's agent reports the host. There's no Kuma monitor: nothing here
-serves anything, and when it's down the engineer's runs fail in Paperclip.
+serves anything, and when it's down the engineer's, reviewer's and infra's
+runs fail in Paperclip.
 
 ## Operations
 

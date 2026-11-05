@@ -23,11 +23,20 @@ them, and checks what came back:
             with the one file it was asked for and opens a pull request. The
             pull request is closed and its branch deleted afterwards, unless
             --keep-pr.
+  review    the same, on an issue with a review stage for the reviewer: when
+            the engineer sets it done, Paperclip hands it to the reviewer,
+            whose approval completes the stage, and whose findings are on the
+            pull request as a comment review citing the issue. Closed and
+            deleted afterwards too, unless --keep-pr.
+  infra     infra adds one file to nixconfig on an agent/infra/* branch, runs
+            scripts/flake-check.sh eval on workbench, and opens a pull
+            request that reports the check passed. Closed and deleted
+            afterwards, unless --keep-pr.
   gate      the engineer is asked to run `rm -rf ~/smoke-<nonce>` on workbench,
             where a canary file waits. Hermes' deny list has to refuse it, the
             refusal has to be in Hermes' log, and the canary has to survive.
 
-The last three wait on model runs, so the whole test takes 10 to 30 minutes.
+Most stages wait on model runs, so the whole test takes 20 to 45 minutes.
 Issues are titled "Smoke test <nonce>: ..." and stay in Paperclip as a record.
 
 It needs gh signed in as Justin, and `ssh agents`, `ssh workbench` and
@@ -55,6 +64,7 @@ HERE = pathlib.Path(__file__).resolve().parent
 SPEC = HERE / "paperclip-spec.json"
 RULESETS = HERE.parent / "workbench" / "github-rulesets"
 REPO = "Justin-Arnold/agent-scratch"
+NIXCONFIG = "Justin-Arnold/nixconfig"
 # The account the agents push as (hosts/workbench/agents.nix).
 MACHINE_ACCOUNT = "flickering-text-387"
 ENGINEER_USER = "agent-engineer"
@@ -62,7 +72,7 @@ ENGINEER_LOGS = "/var/lib/hermes-engineer/.hermes/logs"
 # agents.watch.alertaUrl and the secret agent-watch reads its key from.
 ALERTA = "http://10.118.0.1:5000"
 ALERTA_KEY = "/run/secrets/agent-watch/alerta-key"
-STAGES = ["rulesets", "refused", "watch", "ping", "local", "decide", "change", "gate"]
+STAGES = ["rulesets", "refused", "watch", "ping", "local", "decide", "change", "review", "infra", "gate"]
 RESEARCHER_CONFIG = "/var/lib/hermes-researcher/.hermes/config.yaml"
 RESEARCHER_LOGS = "/var/lib/hermes-researcher/.hermes/logs"
 # The Jev MCP server's call log: one line per call, ids and outcomes only.
@@ -73,6 +83,11 @@ FALLBACKS = 'cat "$logs"/agent.log* 2>/dev/null | grep -c "Fallback activated" |
 INFERENCE_LOG = "/var/log/nginx/inference.log"
 # Where an agent leaves an issue when its run is over.
 SETTLED = {"done", "in_review", "blocked", "cancelled"}
+# The same for an issue with a review stage, where in_review means the
+# reviewer has it.
+REVIEWED = {"done", "blocked", "cancelled"}
+# The last line scripts/flake-check.sh prints when everything passed.
+FLAKE_CHECK_PASSED = "all passed"
 
 
 class Fail(Exception):
@@ -132,20 +147,23 @@ class Smoke:
             raise Fail(f"there's no agent called {name}")
         return self.agents[name]["id"]
 
-    def file(self, what, description, assignee=None, status="todo", labels=()):
+    def file(self, what, description, assignee=None, status="todo", labels=(), policy=None):
         body = {"title": f"Smoke test {self.nonce}: {what}", "description": description,
                 "status": status, "priority": "low"}
         if assignee:
             body["assigneeAgentId"] = assignee
         if labels:
             body["labelIds"] = list(labels)
+        if policy:
+            body["executionPolicy"] = policy
         issue = self.pc.call("post", f"/api/companies/{self.cid}/issues", body)
         print(f"    filed {issue['identifier']}: {body['title']}")
         return issue
 
-    def wait(self, issue):
+    def wait(self, issue, settled=SETTLED):
         """The issue once its agent is done with it. A run that ends and leaves
-        it open gets three minutes for a follow-up run before this gives up."""
+        it open gets three minutes for a follow-up run, or the next agent's,
+        before this gives up."""
         deadline = time.monotonic() + self.args.timeout_minutes * 60
         last, ran, idle = None, False, None
         while True:
@@ -155,7 +173,7 @@ class Smoke:
                 print(f"    {issue['identifier']} is {last}")
             if now.get("activeRun"):
                 ran, idle = True, None
-            elif last in SETTLED:
+            elif last in settled:
                 return now
             elif ran:
                 idle = idle or time.monotonic()
@@ -348,42 +366,117 @@ awk -v since="$since" '$1 >= since && $3 == "client=agents" && $5 == "/v1/chat/c
 
     def change(self):
         engineer = self.agent("Engineer")
-        path = f"smoke/{self.nonce}.txt"
         title = f"Smoke test {self.nonce}"
-        issue = self.file("open a pull request in agent-scratch", f"""An automated smoke test of the agent platform.
-
-In {REPO}, get a worktree with `agent-worktree {REPO} smoke-{self.nonce}`. Add one file, `{path}`, \
-containing the single line `{self.nonce}`, commit it, push the branch, and open a pull request with \
-`gh pr create --title "{title}" --body "Automated smoke test."`. Change nothing else.
-
-Then comment here with the pull request's URL and set this issue to done.""", assignee=engineer)
+        issue = self.file("open a pull request in agent-scratch",
+                          self.one_file_task(REPO, f"smoke-{self.nonce}", f"smoke/{self.nonce}.txt", title),
+                          assignee=engineer)
         done = self.wait(issue)
         if done["status"] not in ("done", "in_review"):
             raise self.ended(issue, done["status"], engineer)
+        pr = self.pull_request(REPO, title, "agent/engineer/", f"smoke/{self.nonce}.txt", issue, engineer)
+        return self.close(REPO, pr, issue)
 
-        pulls = json.loads(gh("api", f"repos/{REPO}/pulls?state=all&per_page=50"))
+    def review(self):
+        engineer, reviewer = self.agent("Engineer"), self.agent("Reviewer")
+        title = f"Smoke test {self.nonce}: review"
+        path = f"smoke/{self.nonce}-review.txt"
+        policy = {"stages": [{"type": "review", "participants": [{"type": "agent", "agentId": reviewer}]}],
+                  "maxReviewRounds": 2}
+        issue = self.file("a pull request the reviewer checks",
+                          self.one_file_task(REPO, f"smoke-{self.nonce}-review", path, title)
+                          + " Paperclip hands it to the reviewer from there.",
+                          assignee=engineer, policy=policy)
+        filed = self.pc.call("get", f"/api/issues/{issue['id']}")
+        if not (filed.get("executionPolicy") or {}).get("stages"):
+            raise Fail(f"{issue['identifier']} was filed without its review stage, so there's nothing to test")
+        done = self.wait(issue, REVIEWED)
+        state = done.get("executionState") or {}
+        if done["status"] != "done":
+            said = self.comments(issue, reviewer)
+            raise self.ended(issue, done["status"], reviewer if said else engineer)
+        pr = self.pull_request(REPO, title, "agent/engineer/", path, issue, engineer)
+        problems = []
+        if state.get("status") != "completed":
+            problems.append(f"its review stage is {state.get('status')!r}, not completed")
+        verdicts = [c for c in self.comments(issue, reviewer) if c.lstrip().startswith("Approved")]
+        if not verdicts:
+            problems.append(f"the reviewer left no approval comment on {issue['identifier']}")
+        reviews = json.loads(gh("api", f"repos/{REPO}/pulls/{pr['number']}/reviews"))
+        if not any(r["user"]["login"] == MACHINE_ACCOUNT and issue["identifier"] in (r.get("body") or "")
+                   for r in reviews):
+            problems.append(f"#{pr['number']} has no review from {MACHINE_ACCOUNT} citing {issue['identifier']}")
+        if problems:
+            raise Fail(f"{issue['identifier']}: " + "; ".join(problems))
+        rounds = state.get("changesRequestedCount") or 0
+        return (f"the reviewer approved {issue['identifier']} after {rounds} change request(s) and reviewed "
+                f"#{pr['number']} on GitHub; " + self.close(REPO, pr, issue))
+
+    def infra(self):
+        infra = self.agent("Infra")
+        # Infra's worktree starts from the default branch, so the check has to be there.
+        found = run(["gh", "api", f"repos/{NIXCONFIG}/contents/scripts/flake-check.sh", "--jq", ".path"])
+        if found.returncode != 0:
+            raise Fail(f"not tried: {NIXCONFIG}'s default branch has no scripts/flake-check.sh yet, "
+                       "so infra couldn't check its work; merge the branch that adds it first")
+        title = f"Smoke test {self.nonce}: infra"
+        path = f"docs/smoke/{self.nonce}.md"
+        issue = self.file("a pull request to nixconfig", f"""An automated smoke test of the agent platform.
+
+In {NIXCONFIG}, get a worktree with `agent-worktree {NIXCONFIG} smoke-{self.nonce}`. Add one file, `{path}`, \
+containing the single line `{self.nonce}`, and change nothing else. Add it with `git add -N`, then run \
+`scripts/flake-check.sh eval` from the worktree (not the `checks` part this time). Commit, push the branch, \
+and open a pull request titled `{title}` whose body is the check's last line of output.
+
+Then comment here with the pull request's URL and set this issue to done.""", assignee=infra)
+        done = self.wait(issue)
+        if done["status"] not in ("done", "in_review"):
+            raise self.ended(issue, done["status"], infra)
+        pr = self.pull_request(NIXCONFIG, title, "agent/infra/", path, issue, infra)
+        if FLAKE_CHECK_PASSED not in (pr.get("body") or ""):
+            raise Fail(f"#{pr['number']}'s body doesn't report {FLAKE_CHECK_PASSED!r} from scripts/flake-check.sh: "
+                       f"{text(pr.get('body'), 200)!r}")
+        return self.close(NIXCONFIG, pr, issue)
+
+    def one_file_task(self, repo, name, path, title):
+        return f"""An automated smoke test of the agent platform.
+
+In {repo}, get a worktree with `agent-worktree {repo} {name}`. Add one file, `{path}`, \
+containing the single line `{self.nonce}`, commit it, push the branch, and open a pull request with \
+`gh pr create --title "{title}" --body "Automated smoke test."`. Change nothing else.
+
+Then comment here with the pull request's URL and set this issue to done."""
+
+    def pull_request(self, repo, title, branches, path, issue, author):
+        """The pull request titled title, checked to come from the machine
+        account on a branch under branches, change only path (holding the
+        nonce), and be named in one of author's comments on issue."""
+        pulls = json.loads(gh("api", f"repos/{repo}/pulls?state=all&per_page=50"))
         pr = next((p for p in pulls if p["title"] == title), None)
         if pr is None:
-            raise Fail(f"no pull request titled {title!r} in {REPO}")
+            raise Fail(f"no pull request titled {title!r} in {repo}")
         number, head = pr["number"], pr["head"]["ref"]
-        files = [f["filename"] for f in json.loads(gh("api", f"repos/{REPO}/pulls/{number}/files"))]
-        content = gh("api", "-H", "Accept: application/vnd.github.raw+json", f"repos/{REPO}/contents/{path}?ref={head}")
+        files = [f["filename"] for f in json.loads(gh("api", f"repos/{repo}/pulls/{number}/files"))]
+        content = gh("api", "-H", "Accept: application/vnd.github.raw+json", f"repos/{repo}/contents/{path}?ref={head}")
         problems = []
-        if not head.startswith("agent/engineer/"):
-            problems.append(f"its branch is {head}, not agent/engineer/*")
+        if not head.startswith(branches):
+            problems.append(f"its branch is {head}, not {branches}*")
         if pr["user"]["login"] != MACHINE_ACCOUNT:
             problems.append(f"it was opened by {pr['user']['login']}, not {MACHINE_ACCOUNT}")
         if files != [path]:
             problems.append(f"it changes {files}, not just {path}")
         if content.strip() != self.nonce:
             problems.append(f"{path} says {text(content, 60)!r}")
-        if not any(pr["html_url"] in body for body in self.comments(issue, engineer)):
-            problems.append(f"the engineer didn't comment its URL on {issue['identifier']}")
+        if not any(pr["html_url"] in body for body in self.comments(issue, author)):
+            problems.append(f"its URL isn't in a comment on {issue['identifier']}")
         if problems:
             raise Fail(f"#{number}: " + "; ".join(problems))
+        return pr
+
+    def close(self, repo, pr, issue):
+        head = pr["head"]["ref"]
         if self.args.keep_pr:
             return f"{pr['html_url']} from {head}, left open (--keep-pr)"
-        gh("pr", "close", str(number), "-R", REPO, "--delete-branch",
+        gh("pr", "close", str(pr["number"]), "-R", repo, "--delete-branch",
            "--comment", f"Checked by smoke-e2e for {issue['identifier']}; closing.")
         return f"{pr['html_url']} from {head} checked, then closed and its branch deleted"
 
@@ -420,7 +513,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--url", default="https://paperclip.servicestack.xyz")
     ap.add_argument("--only", default=",".join(STAGES), help=f"comma-separated, from {','.join(STAGES)}")
-    ap.add_argument("--keep-pr", action="store_true", help="leave the engineer's pull request open")
+    ap.add_argument("--keep-pr", action="store_true", help="leave the agents' pull requests open")
     ap.add_argument("--timeout-minutes", type=int, default=20, help="how long to wait for each agent run")
     args = ap.parse_args()
     stages = [s.strip() for s in args.only.split(",") if s.strip()]
