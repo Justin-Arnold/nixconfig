@@ -1,11 +1,13 @@
-# sqlite-backup: consistent, encrypted backups of SQLite databases and the
-# files that belong with them, and the restore that puts them back.
+# sqlite-backup: consistent, encrypted backups of SQLite databases (and
+# PostgreSQL databases, as pg_dump archives) and the files that belong with
+# them, and the restore that puts them back.
 #
 #   run                    Snapshot every database with SQLite's online backup,
-#                          check its integrity, pack the snapshots, the extra
-#                          files and a metadata.json into one age-encrypted
-#                          archive on the destination, read it back, prune old
-#                          archives, and report to the push URL.
+#                          check its integrity, dump every PostgreSQL database
+#                          and check the dump reads back, pack the snapshots,
+#                          the extra files and a metadata.json into one
+#                          age-encrypted archive on the destination, read it
+#                          back, prune old archives, and report to the push URL.
 #   push up|down MESSAGE   Report to the push URL (the failure unit uses this).
 #   restore ARCHIVE [--force]
 #                          Decrypt and check an archive, stop the services that
@@ -15,6 +17,8 @@
 #
 # Snapshots are taken as the database file's owner, so SQLite never leaves a
 # root-owned -wal or -shm file behind that the application can't open.
+# PostgreSQL dumps and restores run as the server's superuser over the local
+# socket (peer authentication).
 #
 # The spec (SQLITE_BACKUP_SPEC) is JSON written by the NixOS module. The push
 # URL contains a token and is never printed.
@@ -40,8 +44,28 @@ die() {
   exit 1
 }
 
-entries() { # .databases or .files -> "name<TAB>path" lines
-  jq -r --arg k "$1" '.[$k] | to_entries[] | "\(.key)\t\(.value)"' "$spec"
+entries() { # .databases, .postgresDatabases or .files -> "name<TAB>value" lines
+  jq -r --arg k "$1" '(.[$k] // {}) | to_entries[] | "\(.key)\t\(.value)"' "$spec"
+}
+
+pg_bin() { # tool -> path in the server's own package, so versions match
+  local dir
+  dir="$(jq -r '.postgresBin // empty' "$spec")"
+  if [[ -n "$dir" ]]; then
+    printf '%s/%s' "$dir" "$1"
+  else
+    printf '%s' "$1"
+  fi
+}
+
+pg_owner() { # uid:gid of the PostgreSQL superuser the dumps run as
+  local user
+  user="$(jq -r '.postgresUser // "postgres"' "$spec")"
+  printf '%s:%s' "$(id -u "$user")" "$(id -g "$user")"
+}
+
+pg_check() { # dump file: does pg_restore read its table of contents?
+  "$(pg_bin pg_restore)" --list "$1" >/dev/null 2>&1
 }
 
 as_owner() { # uid:gid command...
@@ -147,6 +171,23 @@ cmd_run() {
       '{($n): {path: $p, owner: $o, bytes: $b, integrity: "ok"}}' >> "$work/databases.jsonl"
   done < <(entries databases)
 
+  : > "$work/postgres.jsonl"
+  if [[ -n "$(entries postgresDatabases)" ]]; then
+    owner="$(pg_owner)"
+    while IFS=$'\t' read -r db_name db_path; do
+      stage="$work/db/.stage-$db_name"
+      install -d -m 0700 -o "${owner%:*}" -g "${owner#*:}" "$stage"
+      as_owner "$owner" "$(pg_bin pg_dump)" --format=custom --file="$stage/$db_name.pgdump" --dbname="$db_path" \
+        || die "pg_dump failed for $db_name (database $db_path)"
+      mv "$stage/$db_name.pgdump" "$work/db/$db_name.pgdump"
+      rmdir "$stage"
+      pg_check "$work/db/$db_name.pgdump" || die "the dump of $db_name doesn't read back with pg_restore --list"
+      jq -cn --arg n "$db_name" --arg d "$db_path" \
+        --argjson b "$(stat -c %s "$work/db/$db_name.pgdump")" \
+        '{($n): {database: $d, bytes: $b, check: "ok"}}' >> "$work/postgres.jsonl"
+    done < <(entries postgresDatabases)
+  fi
+
   while IFS=$'\t' read -r f_name f_path; do
     if [[ -e "$f_path" ]]; then
       cp -a -- "$f_path" "$work/files/$f_name"
@@ -156,10 +197,11 @@ cmd_run() {
   done < <(entries files)
 
   jq -n --arg name "$name" --arg created "$ts" --arg host "$(uname -n)" \
-    --slurpfile s "$spec" --slurpfile dbs "$work/databases.jsonl" \
+    --slurpfile s "$spec" --slurpfile dbs "$work/databases.jsonl" --slurpfile pgs "$work/postgres.jsonl" \
     '{name: $name, created: $created, host: $host, metadata: $s[0].metadata,
-      databases: ($dbs | add // {}), files: ($s[0].files | keys)}' > "$work/metadata.json"
-  rm "$work/databases.jsonl"
+      databases: ($dbs | add // {}), postgresDatabases: ($pgs | add // {}),
+      files: ($s[0].files | keys)}' > "$work/metadata.json"
+  rm "$work/databases.jsonl" "$work/postgres.jsonl"
 
   mapfile -t recipients < <(jq -r '.recipients[]' "$spec")
   if [[ -n "$identity" ]]; then
@@ -203,6 +245,11 @@ cmd_restore() {
     [[ "$(integrity "$tmp/db/$n.sqlite")" == "ok" ]] || die "database $n in $archive fails its integrity check"
   done < <(entries databases)
 
+  while IFS=$'\t' read -r n live; do
+    [[ -f "$tmp/db/$n.pgdump" ]] || die "$archive has no dump of PostgreSQL database $n"
+    pg_check "$tmp/db/$n.pgdump" || die "the dump of $n in $archive doesn't read with pg_restore --list"
+  done < <(entries postgresDatabases)
+
   # Files that must already match, such as the fingerprint of an encryption
   # key: restoring data the current key can't decrypt helps nobody.
   while IFS= read -r n; do
@@ -237,6 +284,25 @@ cmd_restore() {
     install -m "$mode" -o "${owner%:*}" -g "${owner#*:}" "$tmp/db/$n.sqlite" "$live"
   done < <(entries databases)
 
+  # The server keeps running (it isn't one of the units); only the
+  # applications that use it are stopped. The current contents are dumped
+  # first and kept, like the replaced SQLite files. One transaction per
+  # database, so a failed restore leaves it as it was.
+  if [[ -n "$(entries postgresDatabases)" ]]; then
+    owner="$(pg_owner)"
+    mkdir -p "$work_root"
+    chmod 0711 "$work_root"
+    install -d -m 0700 -o "${owner%:*}" -g "${owner#*:}" "$work_root/pre-restore"
+    while IFS=$'\t' read -r n live; do
+      as_owner "$owner" "$(pg_bin pg_dump)" --format=custom \
+        --file="$work_root/pre-restore/$n.pre-restore-$ts.pgdump" --dbname="$live" \
+        || die "could not dump the current $n before restoring; nothing was changed in it"
+      as_owner "$owner" "$(pg_bin pg_restore)" --clean --if-exists --single-transaction --exit-on-error \
+        --dbname="$live" < "$tmp/db/$n.pgdump" \
+        || die "pg_restore failed for $n; the database is unchanged, and $(jq -r '.units | join(" ")' "$spec") are still stopped"
+    done < <(entries postgresDatabases)
+  fi
+
   while IFS=$'\t' read -r n live; do
     [[ -e "$tmp/files/$n" ]] || continue
     if [[ -e "$live" ]]; then
@@ -249,6 +315,9 @@ cmd_restore() {
     "$SYSTEMCTL_BIN" start "${units[@]}"
   fi
   log "restored $(basename "$archive"); the replaced files are kept as *.pre-restore-$ts"
+  if [[ -n "$(entries postgresDatabases)" ]]; then
+    log "the PostgreSQL databases as they were are in $work_root/pre-restore/*.pre-restore-$ts.pgdump"
+  fi
 }
 
 case "${1:-}" in

@@ -13,6 +13,26 @@ dashboard_recipients: &dashboard_recipients
   - age16x0c6zvx6n6k7fax0pd75j6mmmrcn7gvln0yffrqq92sp0mckc4qaf9nul # dashboard host
   - age1ljfvx33psxcat4wwjpq6u26f5fv9jzntg8z266mhykpxh78upalqxfflz3 # operator
 
+# Same arrangement for the agents VM.
+agents_recipients: &agents_recipients
+  - age16kyfuxm27v88ppn8q0ks5nls7zljnjxmn74f9uwu6xt0j595cgqqmspmqq # agents host
+  - age1ljfvx33psxcat4wwjpq6u26f5fv9jzntg8z266mhykpxh78upalqxfflz3 # operator
+
+# Same arrangement for workbench.
+workbench_recipients: &workbench_recipients
+  - age1chk9733ecfgw60tmhcaqfmegucz9rymz887glfzcnhlc8g5pgccqsn2hqu # workbench host
+  - age1ljfvx33psxcat4wwjpq6u26f5fv9jzntg8z266mhykpxh78upalqxfflz3 # operator
+
+# Same arrangement for openclaw.
+openclaw_recipients: &openclaw_recipients
+  - age1qrt3qqhc20y2n2pm9jwc4kf4k4276jmgqg9xqzqt0cga0ee2yc7qe306je # openclaw host
+  - age1ljfvx33psxcat4wwjpq6u26f5fv9jzntg8z266mhykpxh78upalqxfflz3 # operator
+
+# Same arrangement for inference.
+inference_recipients: &inference_recipients
+  - age1lkg6gqckpdjdgkdsuch87c69yg37ewuhh9rkdt3zdfp0u5xkgqjqyrck3x # inference host
+  - age1ljfvx33psxcat4wwjpq6u26f5fv9jzntg8z266mhykpxh78upalqxfflz3 # operator
+
 creation_rules:
   - path_regex: ^secrets/hosts/lab118-services\.ya?ml$
     key_groups:
@@ -20,6 +40,18 @@ creation_rules:
   - path_regex: ^secrets/hosts/dashboard\.ya?ml$
     key_groups:
       - age: *dashboard_recipients
+  - path_regex: ^secrets/hosts/agents\.ya?ml$
+    key_groups:
+      - age: *agents_recipients
+  - path_regex: ^secrets/hosts/workbench\.ya?ml$
+    key_groups:
+      - age: *workbench_recipients
+  - path_regex: ^secrets/hosts/openclaw\.ya?ml$
+    key_groups:
+      - age: *openclaw_recipients
+  - path_regex: ^secrets/hosts/inference\.ya?ml$
+    key_groups:
+      - age: *inference_recipients
   - path_regex: ^secrets/.*\.ya?ml$
     key_groups:
       - age: *age_recipients

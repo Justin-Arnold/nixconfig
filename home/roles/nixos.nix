@@ -1,6 +1,5 @@
 { lib, pkgs, osConfig, zen-browser, ... }: {
   imports = [
-    ../apps/oterm.nix
     ../apps/krusader.nix
     ../apps/hyprshell.nix
     ../apps/aichat.nix

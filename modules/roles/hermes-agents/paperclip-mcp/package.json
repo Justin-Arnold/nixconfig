@@ -1,0 +1,8 @@
+{
+  "name": "paperclip-mcp-server-pin",
+  "private": true,
+  "description": "Pins @paperclipai/mcp-server to the Paperclip release on the agents VM.",
+  "dependencies": {
+    "@paperclipai/mcp-server": "2026.1023.0"
+  }
+}

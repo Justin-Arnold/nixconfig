@@ -196,12 +196,14 @@ entered in its UI. Use a dedicated, least-privilege account for each.
 | slskd | downloads | an API key with role `readonly` in slskd's config | |
 | llama.cpp | health, models, metrics | none (start it with `--metrics`) | |
 
-There's no native integration for Omada, AMP, Ollama monitoring or the agent
-services (Hermes, OpenClaw, Paperclip). They're links for now; a Custom API
-widget can fill the gap later. GPU usage of the RTX 3090 comes from the Beszel
-agent on `ollama`. Homarr's Assistant can use the local Ollama as an
-OpenAI-compatible provider (`http://10.0.0.63:11434/v1`) instead of Homarr's
-hosted one.
+There's no native integration for Omada, AMP or the agent services (Hermes,
+OpenClaw, Paperclip). They're links for now; a Custom API widget can fill the
+gap later. The llama.cpp widget doesn't fit inference either: it needs
+llama-server's metrics, which inference keeps off, so its tile is a link with
+a ping on `/health`. GPU usage of the RTX 3090 comes from the Beszel agent on
+`inference`. Homarr's Assistant could use the lab's local model instead of
+Homarr's hosted one, but inference wants a key per client, so it would need
+its own (a new client in `hosts/inference/endpoints.nix`).
 
 The Proxmox account, on any node:
 
@@ -242,7 +244,7 @@ include them.
 | `infrastructure` | Proxmox nodes, VMs and storage, Beszel time series per host, Kuma's backup push monitors |
 | `network` | OPNsense, AdGuard, Kuma's network monitors (tunnel, WAN, DNS), Omada and VPN links |
 | `services` | Kuma, apps grouped by purpose |
-| `ai-infrastructure` | Beszel GPU stats for `ollama`, Ollama and agent links |
+| `ai-infrastructure` | Beszel GPU stats for `inference`, the inference tile and agent links |
 | `media-gaming` | Navidrome, slskd and AMP links |
 
 ## Beszel
@@ -264,11 +266,11 @@ nothing. `roles.beszelAgent` sets them up:
 - `TOKEN` is a permanent universal token from the hub (Settings, Tokens),
   kept in SOPS as `beszel/agent-token`.
 
-The agent runs on dashboard, dockhand, pr-previews, ollama and
-lab118-services. It gets no Docker access. Container stats would need the
-Docker API, and the calls the agent makes expose every container's
-environment, so they're off. On `ollama` the role passes through the NVIDIA
-device nodes, and only those.
+The agent runs on dashboard, dockhand, pr-previews, agents, workbench,
+openclaw, inference and lab118-services. It gets no Docker access. Container
+stats would need the Docker API, and the calls the agent makes expose every
+container's environment, so they're off. On `inference` the role passes
+through the NVIDIA device nodes, and only those.
 
 The hub has three kinds of account. The admin you create first, a `readonly`
 user for Homarr, and PocketBase superusers. Create the readonly user as a
@@ -308,8 +310,8 @@ operator key, a key that isn't in `.sops.yaml`, a file it can't decrypt with
 the host key, and any value still set to `pending`. Until the file exists the
 real host fails to build with a message saying so.
 
-dockhand, pr-previews and ollama read their agent token from
-`secrets/secrets.yaml`, and lab118-services from its own host file.
+dockhand and pr-previews read their agent token from `secrets/secrets.yaml`,
+and the others from their own host files.
 
 ## Backups
 
@@ -500,7 +502,7 @@ For Hermes or OpenClaw later:
   both setups before adding the Pangolin resources.
 - Onboarding turns on Homarr's analytics and its hosted Assistant by default.
   Switch analytics off. The Assistant is on here; what you ask it goes to
-  Homarr's hosted service until it's pointed at Ollama (above). Onboarding
+  Homarr's hosted service until it's pointed at another provider (above). Onboarding
   also adds four sample apps (Homarr Docs, GitHub, Help Translate, Support).
 - Inside the Homarr container, Redis and Next.js listen on all addresses
   without authentication. That's only safe because nothing shares the

@@ -1,9 +1,9 @@
 # modules/roles/sqlite-backup.nix
 #
 # Nightly, application-consistent backups of SQLite databases (SQLite's own
-# online backup, not a copy of a file that's being written), together with the
-# small files that belong to them, as one age-encrypted archive on a mounted
-# share. Each run is read back after writing and reported to a push monitor;
+# online backup, not a copy of a file that's being written) and PostgreSQL
+# databases (pg_dump's custom format), together with the small files that
+# belong to them, as one age-encrypted archive on a mounted share. Each run is read back after writing and reported to a push monitor;
 # a failed run reports "down". `sqlite-backup restore <archive>` puts an
 # archive back. See modules/roles/sqlite-backup/sqlite-backup.sh.
 { config, lib, pkgs, ... }:
@@ -11,13 +11,19 @@ let
   cfg = config.roles.sqliteBackup;
   backupLib = import ./sqlite-backup/lib.nix { inherit pkgs lib; };
 
-  spec = backupLib.mkSpec {
+  usesPostgres = cfg.postgresDatabases != { };
+
+  spec = backupLib.mkSpec ({
     inherit (cfg) name destination databases files recipients keepDays keepMin mustMatch units metadata;
     workDir = "/var/lib/sqlite-backup";
     identityFile = cfg.identityFile;
     mountTypes = cfg.mountTypes;
     pushUrlFile = cfg.pushUrlFile;
-  };
+  } // lib.optionalAttrs usesPostgres {
+    inherit (cfg) postgresDatabases postgresUser;
+    # The server's own client tools, so pg_dump is never older than the server.
+    postgresBin = "${cfg.postgresPackage}/bin";
+  });
 
   tool = pkgs.writeShellScriptBin "sqlite-backup" ''
     exec env SQLITE_BACKUP_SPEC=${spec} SYSTEMCTL_BIN=${config.systemd.package}/bin/systemctl \
@@ -50,6 +56,32 @@ in
       default = { };
       example = { homarr = "/var/lib/homarr/db/db.sqlite"; };
       description = "Name -> live SQLite database path.";
+    };
+
+    postgresDatabases = lib.mkOption {
+      type = lib.types.attrsOf lib.types.str;
+      default = { };
+      example = { paperclip = "paperclip"; };
+      description = ''
+        Name -> PostgreSQL database on the local server, dumped with
+        `pg_dump --format=custom` as postgresUser over the Unix socket. A
+        restore stops `units`, keeps a dump of the current contents, and
+        restores each database in one transaction; the server itself keeps
+        running, so it must not be one of the units.
+      '';
+    };
+
+    postgresUser = lib.mkOption {
+      type = lib.types.str;
+      default = "postgres";
+      description = "The server's superuser the dumps and restores run as (peer authentication).";
+    };
+
+    postgresPackage = lib.mkOption {
+      type = lib.types.package;
+      default = config.services.postgresql.package;
+      defaultText = lib.literalExpression "config.services.postgresql.package";
+      description = "Where pg_dump and pg_restore come from; the server's own package by default.";
     };
 
     files = lib.mkOption {
@@ -126,13 +158,25 @@ in
         assertion = lib.all (n: cfg.files ? ${n}) cfg.mustMatch;
         message = "roles.sqliteBackup.mustMatch may only name entries of roles.sqliteBackup.files.";
       }
+      {
+        assertion = !usesPostgres || config.services.postgresql.enable;
+        message = "roles.sqliteBackup.postgresDatabases needs the local server (services.postgresql).";
+      }
+      {
+        assertion = !usesPostgres || !(lib.elem "postgresql.service" cfg.units);
+        message = "roles.sqliteBackup.units must not include postgresql.service: restores need the server running.";
+      }
+      {
+        assertion = lib.intersectLists (lib.attrNames cfg.databases) (lib.attrNames cfg.postgresDatabases) == [ ];
+        message = "roles.sqliteBackup: a name can't be both a SQLite and a PostgreSQL database.";
+      }
     ];
 
     environment.systemPackages = [ tool ];
 
     systemd.services.sqlite-backup = {
       description = "Consistent SQLite backup to ${cfg.destination}";
-      after = [ "network-online.target" "remote-fs.target" ];
+      after = [ "network-online.target" "remote-fs.target" ] ++ lib.optional usesPostgres "postgresql.service";
       wants = [ "network-online.target" ];
       onFailure = [ "sqlite-backup-failed.service" ];
       serviceConfig = {

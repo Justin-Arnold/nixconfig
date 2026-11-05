@@ -1,12 +1,17 @@
-{ config, pkgs, ... }: {
+# The NVIDIA card passed through to this VM (the RTX 3090), headless: the
+# proprietary driver, its kernel modules, and nvidia-persistenced so the card
+# stays initialised between programs.
+{ config, pkgs, ... }:
+{
   hardware.graphics.enable = true;
+  # Selects the driver; it doesn't start an X server.
   services.xserver.videoDrivers = [ "nvidia" ];
-
   boot.blacklistedKernelModules = [ "nouveau" "nvidiafb" ];
 
   hardware.nvidia = {
     modesetting.enable = true;
-    powerManagement.enable = true;  # Critical for headless
+    # Needed headless, or the card can stay in a high power state.
+    powerManagement.enable = true;
     package = config.boot.kernelPackages.nvidiaPackages.stable;
     open = false;
     nvidiaPersistenced = true;
@@ -19,28 +24,9 @@
     "nvidia.NVreg_PreserveVideoMemoryAllocations=1"
     "nvidia.NVreg_TemporaryFilePath=/var/tmp"
   ];
-
   boot.kernelModules = [ "nvidia" "nvidia_modeset" "nvidia_uvm" "nvidia_drm" ];
 
-  environment.systemPackages = with pkgs; [
-    pciutils
-    nvtopPackages.full
-    cudaPackages.cudatoolkit
-    # cudaPackages.cuda_samples  # For testing
-  ];
-
-  services.ollama = {
-    enable = true;
-    package = pkgs.ollama-cuda;
-    host = "0.0.0.0";
-    port = 11434;
-    environmentVariables = {
-      OLLAMA_NUM_GPU = "1";
-      CUDA_HOME = "${pkgs.cudaPackages.cudatoolkit}";
-      OLLAMA_KEEP_ALIVE = "3m";
-    };
-  };
+  environment.systemPackages = [ pkgs.pciutils pkgs.nvtopPackages.full ];
 
   users.users.justin.extraGroups = [ "video" "render" ];
-  networking.firewall.allowedTCPPorts = [ 11434 ];
 }

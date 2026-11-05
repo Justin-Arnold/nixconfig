@@ -23,11 +23,6 @@
               popout_workspace="aichat-popout"
               popout_command="alacritty --class aichat-popup -e aichat"
               ;;
-            oterm)
-              popout_class="oterm-popup"
-              popout_workspace="oterm-popout"
-              popout_command="alacritty --class oterm-popup -e oterm"
-              ;;
             codex)
               popout_class="codex-popup"
               popout_workspace="codex-popout"
@@ -77,9 +72,6 @@
             aichat-popup)
               hyprctl dispatch togglespecialworkspace aichat-popout >/dev/null
               ;;
-            oterm-popup)
-              hyprctl dispatch togglespecialworkspace oterm-popout >/dev/null
-              ;;
             codex-popup)
               hyprctl dispatch togglespecialworkspace codex-popout >/dev/null
               ;;
@@ -93,7 +85,7 @@
         }
 
         start_all() {
-          for name in aichat oterm codex terminal; do
+          for name in aichat codex terminal; do
             resolve_popout "$name"
             start_popout
           done

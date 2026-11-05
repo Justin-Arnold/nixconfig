@@ -112,11 +112,11 @@
       "pingUrl": null
     },
     {
-      "name": "Ollama",
-      "description": "Local model serving on the RTX 3090 VM (API)",
-      "icon": "ollama",
-      "href": "http://10.0.0.63:11434",
-      "pingUrl": "http://10.0.0.63:11434/api/version"
+      "name": "Inference",
+      "description": "The lab's local model on the RTX 3090 (llama-server, health only)",
+      "icon": "https://cdn.jsdelivr.net/npm/@mdi/svg@7.4.47/svg/chip.svg",
+      "href": "https://inference.servicestack.xyz/health",
+      "pingUrl": "https://inference.servicestack.xyz/health"
     },
     {
       "name": "Hermes",
@@ -127,17 +127,17 @@
     },
     {
       "name": "OpenClaw",
-      "description": "Agent infrastructure",
+      "description": "The concierge, chat to the agents (openclaw)",
       "icon": "https://cdn.jsdelivr.net/npm/@mdi/svg@7.4.47/svg/robot-outline.svg",
-      "href": "TODO: OpenClaw URL",
-      "pingUrl": null
+      "href": "https://openclaw.servicestack.xyz",
+      "pingUrl": "https://openclaw.servicestack.xyz/readyz"
     },
     {
       "name": "Paperclip",
-      "description": "Agent infrastructure",
+      "description": "Agent tasks, approvals and budgets (agents)",
       "icon": "https://cdn.jsdelivr.net/npm/@mdi/svg@7.4.47/svg/robot-outline.svg",
-      "href": "TODO: Paperclip URL",
-      "pingUrl": null
+      "href": "https://paperclip.servicestack.xyz",
+      "pingUrl": "https://paperclip.servicestack.xyz/api/health"
     },
     {
       "name": "Navidrome",

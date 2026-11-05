@@ -1,2 +1,5 @@
 .state/
 __pycache__/
+# Results of scripts/inference/model-test.py and the tool schemas it reads.
+model-test-*.json
+hermes-tools.json

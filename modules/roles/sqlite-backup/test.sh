@@ -1,7 +1,8 @@
 # Behavioural tests for sqlite-backup. Runs anywhere bash, sqlite3, age, zstd
 # and GNU tar exist (the flake check runs it on macOS and Linux). curl,
-# findmnt and systemctl are fakes that record their calls. Owner switching is
-# off because the tests don't run as root.
+# findmnt, systemctl, pg_dump and pg_restore are fakes that record their
+# calls; the PostgreSQL "server" is a directory with one file per database.
+# Owner switching is off because the tests don't run as root.
 #
 # usage: test.sh <sqlite-backup binary>
 set -euo pipefail
@@ -24,7 +25,7 @@ check() {
   fi
 }
 
-mkdir -p "$T/bin" "$T/calls" "$T/live/app" "$T/live/hub/certs" "$T/dest" "$T/work" "$T/out"
+mkdir -p "$T/bin" "$T/calls" "$T/live/app" "$T/live/hub/certs" "$T/dest" "$T/work" "$T/out" "$T/pg"
 age-keygen -o "$T/host.key" 2>/dev/null
 age-keygen -o "$T/operator.key" 2>/dev/null
 
@@ -40,6 +41,40 @@ FAKE
 cat >"$T/bin/systemctl" <<'FAKE'
 #!/usr/bin/env bash
 echo "$*" >>"$CALLS/systemctl"
+echo "systemctl $*" >>"$CALLS/order"
+FAKE
+# A dump is "PGDMP" followed by the database's contents.
+cat >"$T/bin/pg_dump" <<'FAKE'
+#!/usr/bin/env bash
+echo "$*" >>"$CALLS/pg_dump"
+for a in "$@"; do
+  case "$a" in
+    --file=*) file="${a#--file=}" ;;
+    --dbname=*) db="${a#--dbname=}" ;;
+  esac
+done
+[[ -z "${FAKE_PG_DUMP_FAIL:-}" ]] || exit 1
+if [[ -n "${FAKE_PG_DUMP_GARBAGE:-}" ]]; then
+  echo "not a dump" >"$file"
+else
+  { echo PGDMP; cat "$FAKE_PG/$db"; } >"$file"
+fi
+FAKE
+cat >"$T/bin/pg_restore" <<'FAKE'
+#!/usr/bin/env bash
+echo "$*" >>"$CALLS/pg_restore"
+if [[ "$1" == --list ]]; then
+  [[ "$(head -n 1 "$2")" == PGDMP ]]
+  exit
+fi
+echo "pg_restore $*" >>"$CALLS/order"
+for a in "$@"; do
+  case "$a" in --dbname=*) db="${a#--dbname=}" ;; esac
+done
+input="$(cat)"
+[[ "$(head -n 1 <<<"$input")" == PGDMP ]] || exit 1
+[[ -z "${FAKE_PG_RESTORE_FAIL:-}" ]] || exit 1
+tail -n +2 <<<"$input" >"$FAKE_PG/$db"
 FAKE
 chmod +x "$T/bin/"*
 
@@ -50,15 +85,18 @@ sqlite3 "$APP" "PRAGMA journal_mode=WAL; CREATE TABLE boards(id INTEGER PRIMARY 
 sqlite3 "$HUB" "PRAGMA journal_mode=WAL; CREATE TABLE systems(id INTEGER PRIMARY KEY, name TEXT); INSERT INTO systems(name) VALUES ('dashboard');" >/dev/null
 echo "pinned-key-fingerprint" >"$PIN"
 echo "certificate" >"$T/live/hub/certs/ca.crt"
+echo "issues: 3" >"$T/pg/paperclip"
 echo "https://intake.example/api/push/TOKEN?status=up&msg=OK&ping=" >"$T/push-url"
 
 write_spec() { # spec-path app-db-path
   jq -n --arg dest "$T/dest" --arg work "$T/work" --arg id "$T/host.key" \
     --arg op "$(age-keygen -y "$T/operator.key")" --arg app "$2" --arg hub "$HUB" \
     --arg pin "$PIN" --arg certs "$T/live/hub/certs" --arg push "$T/push-url" \
+    --arg me "$(id -un)" --arg bin "$T/bin" \
     '{name: "dash", destination: $dest, workDir: $work, identityFile: $id,
       mountTypes: ["nfs", "nfs4"], pushUrlFile: $push,
       databases: {homarr: $app, beszel: $hub},
+      postgresDatabases: {paperclip: "paperclip"}, postgresUser: $me, postgresBin: $bin,
       files: {"key-pin": $pin, certs: $certs, missing: "/nonexistent/file"},
       mustMatch: ["key-pin"], recipients: [$op], keepDays: 30, keepMin: 3,
       units: ["docker-homarr.service", "beszel-hub.service"],
@@ -66,7 +104,7 @@ write_spec() { # spec-path app-db-path
 }
 write_spec "$T/spec.json" "$APP"
 
-export CALLS="$T/calls" SQLITE_BACKUP_SPEC="$T/spec.json" SQLITE_BACKUP_OWNER_SWITCH=0
+export CALLS="$T/calls" FAKE_PG="$T/pg" SQLITE_BACKUP_SPEC="$T/spec.json" SQLITE_BACKUP_OWNER_SWITCH=0
 export CURL_BIN="$T/bin/curl" FINDMNT_BIN="$T/bin/findmnt" SYSTEMCTL_BIN="$T/bin/systemctl"
 
 run() {
@@ -83,6 +121,12 @@ output_has() { grep -qF -- "$1" "$T/out.log"; }
 archive_count() { find "$T/dest" -name 'dash-*.tar.zst.age' | wc -l | tr -d ' '; }
 newest() { find "$T/dest" -name 'dash-*.tar.zst.age' | sort | tail -n 1; }
 rows() { sqlite3 "$1" "SELECT count(*) FROM $2;"; }
+before_in_order() { # first-pattern second-pattern
+  local a b
+  a="$(grep -nF -- "$1" "$CALLS/order" | head -n 1 | cut -d: -f1)"
+  b="$(grep -nF -- "$2" "$CALLS/order" | head -n 1 | cut -d: -f1)"
+  [[ -n "$a" && -n "$b" && "$a" -lt "$b" ]]
+}
 unpack() { # archive identity
   rm -rf "$T/out" && mkdir -p "$T/out"
   age -d -i "$2" "$1" | zstd -dcq | tar -xf - -C "$T/out"
@@ -124,6 +168,10 @@ check "metadata records the integrity result" [ "$(jq -r .databases.homarr.integ
 check "extra files are included" cmp -s "$T/out/files/key-pin" "$PIN"
 check "directories are included" [ -f "$T/out/files/certs/ca.crt" ]
 check "missing files are skipped" [ ! -e "$T/out/files/missing" ]
+check "the PostgreSQL dump is in it" [ "$(tail -n +2 "$T/out/db/paperclip.pgdump")" = "issues: 3" ]
+check "  ...taken in custom format" called_with pg_dump "--format=custom"
+check "  ...and read back with pg_restore --list" called_with pg_restore "--list"
+check "metadata records the dump's check" [ "$(jq -r .postgresDatabases.paperclip.check "$T/out/metadata.json")" = ok ]
 unpack "$ARCHIVE" "$T/host.key"
 check "the host key decrypts it too" [ -f "$T/out/metadata.json" ]
 check "nothing is left in the work directory" [ -z "$(ls -A "$T/work")" ]
@@ -150,14 +198,36 @@ check "exits non-zero" rc_not_zero
 check "  ...writes no archive" [ "$(archive_count)" = "$before" ]
 check "  ...never reports up" not_called_with curl "status=up"
 
+echo "== a failed pg_dump"
+before="$(archive_count)"
+sleep 1
+FAKE_PG_DUMP_FAIL=1 FAKE_MOUNTED=1 run run
+check "exits non-zero" rc_not_zero
+check "  ...says why" output_has "pg_dump failed for paperclip"
+check "  ...writes no archive" [ "$(archive_count)" = "$before" ]
+check "  ...never reports up" not_called_with curl "status=up"
+
+echo "== a dump that doesn't read back"
+sleep 1
+FAKE_PG_DUMP_GARBAGE=1 FAKE_MOUNTED=1 run run
+check "exits non-zero" rc_not_zero
+check "  ...says why" output_has "doesn't read back"
+check "  ...writes no archive" [ "$(archive_count)" = "$before" ]
+
 echo "== push down"
 run push down "backup failed"
 check "reports down" called_with curl "status=down"
 
 echo "== restore"
 sqlite3 "$APP" "DELETE FROM boards;"
+echo "issues: 0" >"$T/pg/paperclip"
 run restore "$ARCHIVE"
 check "exits 0" rc_is 0
+check "brings the PostgreSQL contents back" [ "$(cat "$T/pg/paperclip")" = "issues: 3" ]
+check "  ...in one transaction that stops at the first error" called_with pg_restore "--clean --if-exists --single-transaction --exit-on-error --dbname=paperclip"
+check "  ...after the services are stopped" before_in_order "systemctl stop" "pg_restore --clean"
+check "  ...and before they start again" before_in_order "pg_restore --clean" "systemctl start"
+check "keeps a dump of what was replaced" [ "$(tail -n +2 "$(find "$T/work/pre-restore" -name 'paperclip.pre-restore-*.pgdump' | head -n 1)")" = "issues: 0" ]
 check "brings the rows back" [ "$(rows "$APP" boards)" -ge 2 ]
 check "keeps the replaced database aside" [ -n "$(find "$T/live/app" -name 'db.sqlite.pre-restore-*')" ]
 check "leaves no stale -wal next to the restored database" [ ! -e "$APP-wal" ]
@@ -174,8 +244,17 @@ check "refuses" rc_not_zero
 check "  ...and says why" output_has "made with a different key"
 check "  ...without stopping anything" not_called systemctl
 check "  ...or touching the live database" [ "$(rows "$APP" boards)" = 0 ]
+check "  ...or the PostgreSQL one" not_called_with pg_restore "--clean"
 run restore "$ARCHIVE" --force
 check "--force restores anyway" [ "$(rows "$APP" boards)" -ge 2 ]
+
+echo "== a failed pg_restore"
+echo "issues: 0" >"$T/pg/paperclip"
+FAKE_PG_RESTORE_FAIL=1 run restore "$ARCHIVE" --force
+check "exits non-zero" rc_not_zero
+check "  ...says the services are still stopped" output_has "are still stopped"
+check "  ...leaves the database as it was" [ "$(cat "$T/pg/paperclip")" = "issues: 0" ]
+check "  ...and doesn't start the services again" not_called_with systemctl "start"
 
 echo "== restore refuses another host's archive"
 jq '.name = "other"' "$T/spec.json" >"$T/spec-other.json"

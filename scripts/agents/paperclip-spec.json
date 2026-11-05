@@ -1,0 +1,85 @@
+{
+  "company": {
+    "issuePrefix": "LAB",
+    "requireBoardApprovalForNewAgents": true
+  },
+  "labels": [
+    {
+      "name": "change",
+      "color": "#d97706"
+    },
+    {
+      "name": "sensitive",
+      "color": "#dc2626"
+    }
+  ],
+  "agents": [
+    {
+      "name": "Coordinator",
+      "role": "ceo",
+      "reportsTo": null,
+      "adapterType": "hermes_gateway",
+      "adapterConfig": {
+        "apiBaseUrl": "http://127.0.0.1:8642",
+        "sessionKeyStrategy": "issue"
+      },
+      "apiKeySecret": "hermes_gateway.apikey.06d99c80-431f-47d2-8873-4f520103fdaf",
+      "heartbeat": {
+        "enabled": false,
+        "wakeOnDemand": true
+      },
+      "canCreateAgents": false
+    },
+    {
+      "name": "Engineer",
+      "role": "engineer",
+      "reportsTo": "Coordinator",
+      "adapterType": "hermes_gateway",
+      "adapterConfig": {
+        "apiBaseUrl": "http://127.0.0.1:8643",
+        "sessionKeyStrategy": "issue"
+      },
+      "apiKeySecret": "hermes_gateway.apikey.2f05d47b-70d2-4078-8d16-5bfedc62359d",
+      "heartbeat": {
+        "enabled": false,
+        "wakeOnDemand": true
+      },
+      "canCreateAgents": false
+    },
+    {
+      "name": "Researcher",
+      "role": "researcher",
+      "reportsTo": "Coordinator",
+      "adapterType": "hermes_gateway",
+      "adapterConfig": {
+        "apiBaseUrl": "http://127.0.0.1:8644",
+        "sessionKeyStrategy": "issue"
+      },
+      "apiKeySecret": "hermes_gateway.apikey.fb9ddfa3-cb23-47ca-8fdd-ec37870699b4",
+      "heartbeat": {
+        "enabled": false,
+        "wakeOnDemand": true
+      },
+      "canCreateAgents": false
+    },
+    {
+      "name": "Concierge",
+      "role": "general",
+      "reportsTo": "Coordinator",
+      "adapterType": "openclaw_gateway",
+      "adapterConfig": {
+        "url": "wss://openclaw.servicestack.xyz/",
+        "role": "operator",
+        "scopes": [
+          "operator.write"
+        ],
+        "sessionKeyStrategy": "issue"
+      },
+      "heartbeat": {
+        "enabled": false,
+        "wakeOnDemand": true
+      },
+      "canCreateAgents": false
+    }
+  ]
+}

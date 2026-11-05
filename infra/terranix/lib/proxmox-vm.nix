@@ -23,6 +23,13 @@
   ignoreBootstrapKeyChanges ? true,
   ha ? { enable = false; },
   lifecycleIgnoreChanges ? [ ],
+  # QEMU machine type; null keeps the provider's default (i440fx). PCIe
+  # passthrough needs "q35".
+  machine ? null,
+  # PCI devices passed through to the VM, as the provider's hostpci blocks:
+  # { device = "hostpci0"; mapping = "<resource mapping>"; pcie = true; ... }.
+  # A VM with one is tied to the node that has the device, so no HA.
+  hostPci ? [ ],
 }:
 let
   hasManagedDisk = diskSizeGb != null;
@@ -48,6 +55,10 @@ let
       vlan_id = if vlanId != null then vlanId else 0;
     };
 in
+assert lib.assertMsg (!(haEnabled && hostPci != [ ]))
+  "${name}: a VM with a passed-through PCI device can't be an HA resource; it can only run on the node that has the device.";
+assert lib.assertMsg (hostPci == [ ] || machine == "q35")
+  "${name}: PCIe passthrough needs machine = \"q35\".";
 {
   terraform.required_version = ">= 1.6.0";
 
@@ -130,6 +141,8 @@ in
             }
           ];
         }
+        // lib.optionalAttrs (machine != null) { inherit machine; }
+        // lib.optionalAttrs (hostPci != [ ]) { hostpci = hostPci; }
         // (if vmId == null then { } else { vm_id = vmId; }));
     }
     // lib.optionalAttrs haEnabled {

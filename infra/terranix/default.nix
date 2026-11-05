@@ -17,6 +17,10 @@ in
   pr-previews = proxmox ./hosts/pr-previews.nix;
   uptime-kuma = proxmox ./hosts/uptime-kuma.nix;
   dashboard = proxmox ./hosts/dashboard.nix // { hostAgeKey = true; };
+  agents = proxmox ./hosts/agents.nix // { hostAgeKey = true; };
+  workbench = proxmox ./hosts/workbench.nix // { hostAgeKey = true; };
+  openclaw = proxmox ./hosts/openclaw.nix // { hostAgeKey = true; };
+  inference = proxmox ./hosts/inference.nix // { hostAgeKey = true; };
 
   lab118-services = {
     platform = "contabo";

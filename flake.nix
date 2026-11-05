@@ -28,15 +28,22 @@
       url = "github:lnl7/nix-darwin";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-    secrets = {
-      url = "git+ssh://git@github.com/Justin-Arnold/private-config.git";
-      flake = true;
-    };
     p99 = {
       url = "github:Justin-Arnold/p99";
     };
     codex-desktop-linux.url = "github:ilysenko/codex-desktop-linux";
     codex-cli-nix.url = "github:sadjow/codex-cli-nix/main";
+    # The agents VM's Hermes instances (roles.hermesAgents), pinned to a
+    # release. Its own nixpkgs builds it; home-manager is only for its checks.
+    hermes-agent = {
+      url = "github:NousResearch/hermes-agent/v0.22.5";
+      inputs.home-manager.follows = "home-manager";
+    };
+    nix-openclaw = {
+      url = "github:openclaw/nix-openclaw/v2026.10.7";
+      inputs.nixpkgs.follows = "nixpkgs";
+      inputs.home-manager.follows = "home-manager";
+    };
   };
 
   outputs = inputs@{ 
@@ -46,7 +53,6 @@
     home-manager,
     zen-browser,
     nix-homebrew,
-    secrets,
     sops-nix,
     disko,
     terranix,
@@ -152,7 +158,6 @@
         ansible-controller   = mkNixos ./hosts/ansible-controller/configuration.nix;
         slim7i               = mkNixos ./hosts/slim7i/configuration.nix;
         desktop              = mkNixos ./hosts/desktop/configuration.nix;
-        ollama               = mkNixos ./hosts/ollama/configuration.nix;
         checkmk              = mkNixos ./hosts/checkmk/configuration.nix;
         gitea                = mkNixos ./hosts/gitea/configuration.nix;
         # nocodb               = mkNixos ./hosts/nocodb/configuration.nix;
@@ -167,6 +172,10 @@
         uptime-kuma          = mkNixos ./hosts/uptime-kuma/configuration.nix;
         lab118-services      = mkNixos ./hosts/lab118-services/configuration.nix;
         dashboard            = mkNixos ./hosts/dashboard/configuration.nix;
+        agents               = mkNixos ./hosts/agents/configuration.nix;
+        workbench            = mkNixos ./hosts/workbench/configuration.nix;
+        openclaw             = mkNixos ./hosts/openclaw/configuration.nix;
+        inference            = mkNixos ./hosts/inference/configuration.nix;
       };
       darwinConfigurations = {
         macmini              = mkDarwin ./hosts/macmini/configuration.nix;
@@ -186,9 +195,27 @@
           dashboardExample = self.nixosConfigurations.dashboard.extendModules {
             modules = [ ./hosts/dashboard/eval-test.nix ];
           };
+          # And for agents.
+          agentsExample = self.nixosConfigurations.agents.extendModules {
+            modules = [ ./hosts/agents/eval-test.nix ];
+          };
+          # And for workbench, with an example GitHub account and agent key.
+          workbenchExample = self.nixosConfigurations.workbench.extendModules {
+            modules = [ ./hosts/workbench/eval-test.nix ];
+          };
+          # And for openclaw, with the Paperclip tools and both chat channels on.
+          openclawExample = self.nixosConfigurations.openclaw.extendModules {
+            modules = [ ./hosts/openclaw/eval-test.nix ];
+          };
+          # And for inference.
+          inferenceExample = self.nixosConfigurations.inference.extendModules {
+            modules = [ ./hosts/inference/eval-test.nix ];
+          };
         in {
           doppler-secrets = import ./modules/roles/doppler-secrets/check.nix { inherit pkgs lib; };
           sqlite-backup = import ./modules/roles/sqlite-backup/check.nix { inherit pkgs lib; };
+          agent-watch = import ./hosts/agents/agent-watch/check.nix { inherit pkgs; };
+          jev-mcp = import ./modules/roles/hermes-agents/jev-mcp/check.nix { inherit pkgs; };
           provisioning = import ./scripts/provisioning/tests/check.nix {
             inherit pkgs;
             manifest = mkInfraManifest system;
@@ -197,6 +224,30 @@
             (builtins.unsafeDiscardStringContext lab118Example.config.system.build.toplevel.drvPath);
           dashboard-eval = pkgs.writeText "dashboard-eval"
             (builtins.unsafeDiscardStringContext dashboardExample.config.system.build.toplevel.drvPath);
+          agents-eval = pkgs.writeText "agents-eval"
+            (builtins.unsafeDiscardStringContext agentsExample.config.system.build.toplevel.drvPath);
+          workbench-eval = pkgs.writeText "workbench-eval"
+            (builtins.unsafeDiscardStringContext workbenchExample.config.system.build.toplevel.drvPath);
+          openclaw-eval = pkgs.writeText "openclaw-eval"
+            (builtins.unsafeDiscardStringContext openclawExample.config.system.build.toplevel.drvPath);
+          # Once with each model in models.nix as the active one.
+          inference-eval = pkgs.writeText "inference-eval" (builtins.toJSON (lib.mapAttrs
+            (name: _: builtins.unsafeDiscardStringContext (inferenceExample.extendModules {
+              modules = [ { roles.inference.active = lib.mkForce name; } ];
+            }).config.system.build.toplevel.drvPath)
+            self.nixosConfigurations.inference.config.roles.inference.models));
+          # The Hermes agents in Paperclip's spec are the ones on the agents host, at their ports.
+          paperclip-spec =
+            let
+              spec = lib.importJSON ./scripts/agents/paperclip-spec.json;
+              onHost = lib.mapAttrs (_: agent: "http://127.0.0.1:${toString agent.port}")
+                self.nixosConfigurations.agents.config.roles.hermesAgents.instances;
+              inSpec = lib.listToAttrs (map (agent: lib.nameValuePair (lib.toLower agent.name) agent.adapterConfig.apiBaseUrl)
+                (lib.filter (agent: agent.adapterType == "hermes_gateway") spec.agents));
+            in
+            assert lib.assertMsg (onHost == inSpec)
+              "scripts/agents/paperclip-spec.json doesn't match hosts/agents/agents.nix: ${builtins.toJSON { inherit onHost inSpec; }}";
+            pkgs.writeText "paperclip-spec" (builtins.toJSON inSpec);
           # Each case breaks the dashboard's exposure policy; evaluation must refuse all of them.
           dashboard-exposure-guards =
             let
@@ -226,6 +277,219 @@
             assert lib.assertMsg (lib.all lib.id (lib.attrValues results))
               "dashboard exposure guards did not refuse: ${toString (lib.attrNames (lib.filterAttrs (_: ok: !ok) results))}";
             pkgs.writeText "dashboard-exposure-guards" (builtins.toJSON results);
+          # Each case breaks the agents host's exposure policy; evaluation must refuse all of them.
+          agents-exposure-guards =
+            let
+              refused = module: !(builtins.tryEval
+                (agentsExample.extendModules { modules = [ module ]; }).config.system.build.toplevel.drvPath).success;
+              vhost = "paperclip.servicestack.xyz";
+              results = lib.mapAttrs (_: refused) {
+                extra-public-tcp-port = { networking.firewall.allowedTCPPorts = [ 3100 ]; };
+                extra-public-udp-port = { networking.firewall.allowedUDPPorts = [ 9999 ]; };
+                interface-opening = { networking.firewall.interfaces.podman0.allowedTCPPorts = [ 3100 ]; };
+                trusted-interface = { networking.firewall.trustedInterfaces = [ "podman0" ]; };
+                docker-enabled = { virtualisation.docker.enable = true; };
+                paperclip-published = { virtualisation.oci-containers.containers.paperclip.ports = [ "3100:3100" ]; };
+                paperclip-on-all-interfaces = { virtualisation.oci-containers.containers.paperclip.environment.HOST = lib.mkForce "0.0.0.0"; };
+                paperclip-bridged = { virtualisation.oci-containers.containers.paperclip.extraOptions = lib.mkForce [ ]; };
+                socket-in-paperclip = { virtualisation.oci-containers.containers.paperclip.volumes = [ "/run/podman/podman.sock:/run/podman/podman.sock" ]; };
+                local-trusted = { virtualisation.oci-containers.containers.paperclip.environment.PAPERCLIP_DEPLOYMENT_MODE = lib.mkForce "local_trusted"; };
+                public-exposure = { virtualisation.oci-containers.containers.paperclip.environment.PAPERCLIP_DEPLOYMENT_EXPOSURE = lib.mkForce "public"; };
+                telemetry-on = { virtualisation.oci-containers.containers.paperclip.environment.PAPERCLIP_TELEMETRY_DISABLED = lib.mkForce "0"; };
+                secret-in-environment = { roles.paperclip.environment.BETTER_AUTH_SECRET = "0000"; };
+                plain-http-public-url = { roles.paperclip.publicUrl = lib.mkForce "http://paperclip.servicestack.xyz"; };
+                postgres-on-network = { services.postgresql.enableTCPIP = lib.mkForce true; };
+                guard-missing = { services.nginx.virtualHosts.${vhost}.extraConfig = lib.mkForce ""; };
+                location-shadows-guard = { services.nginx.virtualHosts.${vhost}.locations."^~ /mcp".proxyPass = "http://127.0.0.1:3100"; };
+                sops-file-missing = { sops.validateSopsFiles = lib.mkOverride 40 true; };
+                backup-target-missing = { agents.backup.nfsDevice = lib.mkOverride 40 null; };
+                beszel-agent-listening = { services.beszel.agent.openFirewall = true; };
+                hermes-api-on-all-interfaces = { roles.hermesAgents.instances.coordinator.environment.API_SERVER_HOST = lib.mkForce "0.0.0.0"; };
+                hermes-duplicate-port = { roles.hermesAgents.instances.engineer.port = lib.mkForce 8642; };
+                hermes-machine-tools-here = { roles.hermesAgents.instances.coordinator.toolsets = [ "terminal" ]; };
+                hermes-backend-override = { roles.hermesAgents.instances.engineer.settings.terminal.backend = "docker"; };
+                hermes-credentials-to-terminal = { roles.hermesAgents.instances.engineer.settings.terminal.credential_files = [ "auth.json" ]; };
+                hermes-browser = { roles.hermesAgents.instances.researcher.toolsets = [ "browser" ]; };
+                hermes-approvals-off = { roles.hermesAgents.instances.engineer.settings.approvals.mode = "off"; };
+                hermes-deny-list-dropped = { roles.hermesAgents.instances.engineer.settings.approvals.deny = [ ]; };
+                hermes-yolo = { roles.hermesAgents.instances.engineer.extraArgs = [ "--yolo" ]; };
+                hermes-messaging = { roles.hermesAgents.instances.coordinator.secrets.TELEGRAM_BOT_TOKEN = "hermes/coordinator/telegram"; };
+                hermes-extra-mcp = { roles.hermesAgents.instances.coordinator.mcpServers.shell.command = "/bin/sh"; };
+                hermes-mcp-inline-key = { roles.hermesAgents.instances.coordinator.mcpServers.paperclip = { command = "x"; env.PAPERCLIP_API_KEY = "plaintext"; }; };
+                hermes-project-skills = { roles.hermesAgents.instances.coordinator.settings.skills.project_discovery = true; };
+                egress-off = { roles.agentEgress.enable = lib.mkForce false; };
+                egress-misses-agent = { roles.agentEgress.users = lib.mkForce [ "hermes-coordinator" "hermes-engineer" ]; };
+                egress-allows-range = { roles.agentEgress.allow.lan = { address = "10.0.0.0/24"; tcpPorts = [ 22 ]; }; };
+                egress-allows-whole-host = { roles.agentEgress.allow.nas.address = "10.0.0.20"; };
+                egress-allows-unknown-user = { roles.agentEgress.allow.inference = lib.mkForce { address = "10.0.0.63"; tcpPorts = [ 443 ]; users = [ "justin" ]; }; };
+                provider-plain-http = { roles.hermesAgents.providers.lab-gpu.baseUrl = lib.mkForce "http://10.0.0.63:8080/v1"; };
+                provider-reserved-name = { roles.hermesAgents.providers.local = { baseUrl = "https://inference.servicestack.xyz/v1"; keyEnv = "LOCAL_KEY"; keySecret = "inference/agents-key"; models.local.contextLength = 65536; }; };
+                provider-short-context = { roles.hermesAgents.providers.lab-gpu.models.local.contextLength = lib.mkForce 32768; };
+                provider-inline-key = { roles.hermesAgents.instances.coordinator.settings.providers.lab-gpu.api_key = "a-literal-key"; };
+                provider-key-command = { roles.hermesAgents.instances.coordinator.settings.providers.lab-gpu.key_cmd = "cat /run/secrets/x"; };
+                provider-added-plain-http = { roles.hermesAgents.instances.coordinator.settings.providers.other = { base_url = "http://10.0.0.63:8080/v1"; key_env = "LAB_INFERENCE_KEY"; }; };
+                side-task-inline-key = { roles.hermesAgents.instances.engineer.settings.auxiliary.title_generation.api_key = "a-literal-key"; };
+                side-task-own-endpoint = { roles.hermesAgents.instances.engineer.settings.auxiliary.background_review.base_url = "http://10.0.0.63:8080/v1"; };
+                fallback-inline-key = { roles.hermesAgents.instances.researcher.settings.fallback_providers = [ { provider = "lab-gpu"; model = "local"; api_key = "a-literal-key"; } ]; };
+                provider-key-not-from-sops = { roles.hermesAgents.instances.coordinator.secrets.LAB_INFERENCE_KEY = lib.mkForce "hermes/coordinator/paperclip-key"; };
+                provider-unlisted-model = { roles.hermesAgents.instances.researcher.model = lib.mkForce { provider = "lab-gpu"; name = "qwen3.6-35b-a3b"; }; };
+                compression-local = { roles.hermesAgents.instances.coordinator.auxiliary.compression = { provider = "lab-gpu"; name = "local"; }; };
+                compression-follows-local-model = { roles.hermesAgents.instances.researcher.auxiliary = lib.mkForce { }; };
+                claude-key-on-researcher = { roles.hermesAgents.instances.researcher.secrets.ANTHROPIC_API_KEY = "anthropic/api-key"; };
+                claude-oauth-token = { roles.hermesAgents.instances.coordinator.secrets.CLAUDE_CODE_OAUTH_TOKEN = "anthropic/api-key"; };
+                claude-token-in-environment = { roles.hermesAgents.instances.engineer.environment.ANTHROPIC_TOKEN = "x"; };
+                claude-other-endpoint = { roles.hermesAgents.instances.coordinator.environment.ANTHROPIC_BASE_URL = "https://proxy.example.com"; };
+                claude-through-settings = { roles.hermesAgents.instances.researcher.settings.fallback_providers = [ { provider = "anthropic"; model = "claude-opus-5-5"; } ]; };
+                claude-model-not-listed = { roles.hermesAgents.instances.coordinator.fallbacks = lib.mkForce [ { provider = "anthropic"; name = "claude-fable-5-1"; } ]; };
+                claude-without-key = { roles.hermesAgents.anthropic.keySecret = lib.mkForce null; };
+                jev-key-names-anthropic = { roles.hermesAgents.instances.coordinator.mcpServers.jev.env.JEV_API_KEY = lib.mkForce "\${ANTHROPIC_API_KEY}"; };
+                jev-inline-key = { roles.hermesAgents.instances.coordinator.mcpServers.jev.env.JEV_API_KEY = lib.mkForce "a-literal-key"; };
+                paperclip-takes-other-key = { roles.hermesAgents.instances.coordinator.mcpServers.paperclip.env.X = "\${LAB_INFERENCE_KEY}"; };
+                jev-args-take-key = { roles.hermesAgents.instances.engineer.mcpServers.jev.args = [ "\${env:PAPERCLIP_AGENT_KEY}" ]; };
+                jev-runs-shell = { roles.hermesAgents.instances.engineer.mcpServers.jev.command = lib.mkForce "/bin/sh"; };
+                jev-remote = { roles.hermesAgents.instances.researcher.mcpServers.jev.url = "https://jev.example.com/mcp"; };
+                mcp-sampling-on = { roles.hermesAgents.instances.coordinator.mcpServers.paperclip.sampling.enabled = lib.mkForce true; };
+                jev-plain-http = { roles.hermesAgents.jev.baseUrl = lib.mkForce "http://10.0.0.63:8080/v1"; };
+                jev-key-not-from-sops = { roles.hermesAgents.instances.researcher.secrets.JEV_API_KEY = lib.mkForce "hermes/researcher/paperclip-key"; };
+                jev-key-without-tool = { roles.hermesAgents.instances.researcher = { jev.enable = lib.mkForce false; secrets.JEV_API_KEY = "jev/api-key"; }; };
+              };
+            in
+            assert lib.assertMsg (lib.all lib.id (lib.attrValues results))
+              "agents exposure guards did not refuse: ${toString (lib.attrNames (lib.filterAttrs (_: ok: !ok) results))}";
+            pkgs.writeText "agents-exposure-guards" (builtins.toJSON results);
+          # Each case breaks workbench's exposure policy; evaluation must refuse all of them.
+          workbench-exposure-guards =
+            let
+              refused = module: !(builtins.tryEval
+                (workbenchExample.extendModules { modules = [ module ]; }).config.system.build.toplevel.drvPath).success;
+              results = lib.mapAttrs (_: refused) {
+                extra-public-tcp-port = { networking.firewall.allowedTCPPorts = [ 8080 ]; };
+                extra-public-udp-port = { networking.firewall.allowedUDPPorts = [ 9999 ]; };
+                interface-opening = { networking.firewall.interfaces.podman0.allowedTCPPorts = [ 8080 ]; };
+                trusted-interface = { networking.firewall.trustedInterfaces = [ "podman0" ]; };
+                docker-enabled = { virtualisation.docker.enable = true; };
+                docker-socket = { virtualisation.podman.dockerSocket.enable = true; };
+                agent-in-wheel = { users.users.agent-engineer.extraGroups = [ "wheel" ]; };
+                agent-sudo-rule = { security.sudo.extraRules = [ { users = [ "agent-engineer" ]; commands = [ "ALL" ]; } ]; };
+                agent-nix-trusted = { nix.settings.trusted-users = [ "agent-engineer" ]; };
+                everyone-nix-trusted = { nix.settings.trusted-users = [ "*" ]; };
+                nix-sandbox-off = { nix.settings.sandbox = lib.mkForce false; };
+                egress-off = { roles.agentEgress.enable = lib.mkForce false; };
+                egress-misses-agent = { users.users.agent-reviewer = { isNormalUser = true; uid = 3304; }; };
+                egress-misses-builds = { roles.agentEgress.groups = lib.mkForce [ ]; };
+                key-from-anywhere = { users.users.agent-engineer.openssh.authorizedKeys.keys = [ "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAILoose loose" ]; };
+                key-with-forwarding = { users.users.agent-engineer.openssh.authorizedKeys.keys = [ ''restrict,port-forwarding,from="10.0.0.152" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAILoose loose'' ]; };
+                sops-file-missing = { sops.validateSopsFiles = lib.mkOverride 40 true; };
+                beszel-agent-listening = { services.beszel.agent.openFirewall = true; };
+              };
+            in
+            assert lib.assertMsg (lib.all lib.id (lib.attrValues results))
+              "workbench exposure guards did not refuse: ${toString (lib.attrNames (lib.filterAttrs (_: ok: !ok) results))}";
+            pkgs.writeText "workbench-exposure-guards" (builtins.toJSON results);
+          # Each case breaks openclaw's exposure policy; evaluation must refuse all of them.
+          openclaw-exposure-guards =
+            let
+              refused = module: !(builtins.tryEval
+                (openclawExample.extendModules { modules = [ module ]; }).config.system.build.toplevel.drvPath).success;
+              oc = settings: { roles.openclaw.settings = settings; };
+              vhost = "openclaw.servicestack.xyz";
+              results = lib.mapAttrs (_: refused) {
+                extra-public-tcp-port = { networking.firewall.allowedTCPPorts = [ 18789 ]; };
+                extra-public-udp-port = { networking.firewall.allowedUDPPorts = [ 5353 ]; };
+                interface-opening = { networking.firewall.interfaces.ens18.allowedTCPPorts = [ 18789 ]; };
+                trusted-interface = { networking.firewall.trustedInterfaces = [ "ens18" ]; };
+                docker-enabled = { virtualisation.docker.enable = true; };
+                podman-enabled = { virtualisation.podman.enable = true; };
+                gateway-on-lan = oc { gateway.bind = lib.mkForce "lan"; };
+                gateway-auth-off = oc { gateway.auth.mode = lib.mkForce "none"; };
+                gateway-token-literal = oc { gateway.auth.token = lib.mkForce "a-literal-token-that-lands-in-the-store"; };
+                gateway-tailscale-auth = oc { gateway.auth.allowTailscale = lib.mkForce true; };
+                proxy-trusts-lan = oc { gateway.trustedProxies = lib.mkForce [ "10.0.0.0/24" ]; };
+                terminal-on = oc { gateway.terminal.enabled = lib.mkForce true; };
+                dangerously-flag = oc { gateway.controlUi.dangerouslyAllowHostHeaderOriginFallback = true; };
+                tools-full-profile = oc { tools.profile = lib.mkForce "full"; };
+                tools-extra-allow = oc { tools.alsoAllow = lib.mkForce [ "bundle-mcp" "web_fetch" ]; };
+                tools-shell-undenied = oc { tools.deny = lib.mkForce [ "gateway" "browser" ]; };
+                exec-full = oc { tools.exec.mode = lib.mkForce "full"; };
+                elevated-on = oc { tools.elevated.enabled = lib.mkForce true; };
+                browser-on = oc { browser.enabled = lib.mkForce true; };
+                web-fetch-on = oc { tools.web.fetch.enabled = lib.mkForce true; };
+                skill-installs = oc { security.installPolicy.enabled = lib.mkForce false; };
+                bundled-skills = oc { skills.allowBundled = lib.mkForce [ "github" ]; };
+                skill-dirs = oc { skills.load.extraDirs = [ "/var/lib/openclaw/skills" ]; };
+                hooks-on = oc { hooks.enabled = lib.mkForce true; };
+                second-mcp-server = oc { mcp.servers.shell.command = "/bin/sh"; };
+                discord-open-dms = oc { channels.discord = { dmPolicy = lib.mkForce "open"; allowFrom = lib.mkForce [ "*" ]; }; };
+                discord-groups = oc { channels.discord.groupPolicy = lib.mkForce "allowlist"; };
+                telegram-pairing = oc { channels.telegram.dmPolicy = lib.mkForce "pairing"; };
+                egress-off = { roles.agentEgress.enable = lib.mkForce false; };
+                extra-vhost = { services.nginx.virtualHosts."other.servicestack.xyz".locations."/".proxyPass = "http://127.0.0.1:18789"; };
+                extra-location = { services.nginx.virtualHosts.${vhost}.locations."/api".proxyPass = "http://127.0.0.1:18789"; };
+                location-open-to-all = { services.nginx.virtualHosts.${vhost}.locations."/".extraConfig = lib.mkForce "proxy_set_header X-Forwarded-For $remote_addr;"; };
+                forwarded-chain = { services.nginx.virtualHosts.${vhost}.locations."/".extraConfig = lib.mkForce "deny all;\nproxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;"; };
+                backup-unset = { openclaw.backup.nfsDevice = lib.mkForce null; };
+                sops-file-missing = { sops.validateSopsFiles = lib.mkOverride 40 true; };
+                beszel-agent-listening = { services.beszel.agent.openFirewall = true; };
+              };
+            in
+            assert lib.assertMsg (lib.all lib.id (lib.attrValues results))
+              "openclaw exposure guards did not refuse: ${toString (lib.attrNames (lib.filterAttrs (_: ok: !ok) results))}";
+            pkgs.writeText "openclaw-exposure-guards" (builtins.toJSON results);
+          # Each case breaks the inference host's exposure policy; evaluation must refuse all of them.
+          inference-exposure-guards =
+            let
+              refused = module: !(builtins.tryEval
+                (inferenceExample.extendModules { modules = [ module ]; }).config.system.build.toplevel.drvPath).success;
+              vhost = "inference.servicestack.xyz";
+              loc = path: extraConfig: { services.nginx.virtualHosts.${vhost}.locations.${path}.extraConfig = lib.mkForce extraConfig; };
+              model = files: { roles.inference = { models.unpinned = { inherit files; }; active = lib.mkForce "unpinned"; }; };
+              gptOss = lib.head self.nixosConfigurations.inference.config.roles.inference.models.gpt-oss-20b.files;
+            in
+            let results = lib.mapAttrs (_: refused) {
+                extra-public-tcp-port = { networking.firewall.allowedTCPPorts = [ 8080 ]; };
+                http-port = { networking.firewall.allowedTCPPorts = [ 80 ]; };
+                extra-public-udp-port = { networking.firewall.allowedUDPPorts = [ 5353 ]; };
+                interface-opening = { networking.firewall.interfaces.ens18.allowedTCPPorts = [ 8080 ]; };
+                trusted-interface = { networking.firewall.trustedInterfaces = [ "ens18" ]; };
+                docker-enabled = { virtualisation.docker.enable = true; };
+                ollama-enabled = { services.ollama.enable = true; };
+                swap-added = { swapDevices = [ { device = "/swapfile"; size = 1024; } ]; };
+                zram-added = { zramSwap.enable = true; };
+                coredumps-stored = { systemd.coredump.settings.Coredump.Storage = lib.mkForce "external"; };
+                short-context = { roles.inference.contextPerSlot = lib.mkForce 32768; };
+                one-slot = { roles.inference.parallel = lib.mkForce 1; };
+                verbose-logging = { roles.inference.extraFlags = [ "--verbose" ]; };
+                prompt-logging = { roles.inference.extraFlags = [ "--verbose-prompt" ]; };
+                slots-endpoint = { roles.inference.extraFlags = [ "--slots" ]; };
+                props-endpoint = { roles.inference.extraFlags = [ "--props" ]; };
+                slot-files = { roles.inference.extraFlags = [ "--slot-save-path" "/var/lib/inference/slots" ]; };
+                web-ui = { roles.inference.extraFlags = [ "--ui" ]; };
+                server-on-lan = { roles.inference.extraFlags = [ "--host" "0.0.0.0" ]; };
+                unified-kv = { roles.inference.extraFlags = [ "--kv-unified" ]; };
+                model-from-main = model [ (gptOss // { url = "https://huggingface.co/ggml-org/gpt-oss-20b-GGUF/resolve/main/gpt-oss-20b-mxfp4.gguf"; }) ];
+                model-without-hash = model [ (gptOss // { sha256 = ""; }) ];
+                model-off-huggingface = model [ (gptOss // { url = "https://example.com/gpt-oss-20b-mxfp4.gguf"; }) ];
+                active-model-missing = { roles.inference.active = lib.mkForce "nonexistent"; };
+                inactive-model-logs-prompts = { roles.inference.models.spare = { files = [ gptOss ]; extraFlags = [ "--verbose-prompt" ]; }; };
+                extra-vhost = { services.nginx.virtualHosts."other.servicestack.xyz".locations."/".proxyPass = "http://127.0.0.1:8080"; };
+                extra-location = { services.nginx.virtualHosts.${vhost}.locations."/completion".proxyPass = "http://127.0.0.1:8080"; };
+                catch-all-proxied = { services.nginx.virtualHosts.${vhost}.locations."/".proxyPass = "http://127.0.0.1:8080"; };
+                catch-all-serves-files = { services.nginx.virtualHosts.${vhost}.locations."/".root = "/var/lib/inference"; };
+                props-location = { services.nginx.virtualHosts.${vhost}.locations."= /props".proxyPass = "http://127.0.0.1:8080"; };
+                location-open-to-all = loc "= /v1/models" ''proxy_set_header Authorization "";'';
+                newt-allowed = loc "= /health" ''allow 10.0.0.0/24; deny all; proxy_set_header Authorization "";'';
+                key-passed-on = loc "= /health" "deny 10.0.0.72; allow 10.0.0.0/24; deny all;";
+                no-key-check = loc "= /v1/chat/completions" ''deny 10.0.0.72; allow 10.0.0.0/24; deny all; proxy_set_header Authorization "";'';
+                bodies-to-disk = { services.nginx.virtualHosts.${vhost}.extraConfig = lib.mkForce "client_max_body_size 8m;"; };
+                http-also = { services.nginx.virtualHosts.${vhost}.addSSL = true; };
+                key-in-store = { services.nginx.appendHttpConfig = ''map $http_authorization $x { "Bearer 0123456789abcdef" agents; }''; };
+                sops-file-missing = { sops.validateSopsFiles = lib.mkOverride 40 true; };
+                beszel-agent-listening = { services.beszel.agent.openFirewall = true; };
+              };
+            in
+            assert lib.assertMsg (lib.all lib.id (lib.attrValues results))
+              "inference exposure guards did not refuse: ${toString (lib.attrNames (lib.filterAttrs (_: ok: !ok) results))}";
+            pkgs.writeText "inference-exposure-guards" (builtins.toJSON results);
           # Each case breaks the exposure policy; evaluation must refuse all of them.
           lab118-services-exposure-guards =
             let

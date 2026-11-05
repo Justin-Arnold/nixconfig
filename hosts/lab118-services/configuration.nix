@@ -162,10 +162,13 @@ in
       # AdGuard Home on the router, asked at the router's tunnel address: asked at
       # 10.0.0.1 it answers UDP from 10.118.0.2, and those replies are dropped.
       labDns = "10.118.0.2";
-      # Lab DNS points these at the dashboard VM (split horizon); public DNS
-      # would send them to Pangolin, whose SSO the Beszel agent and Kuma's
-      # checks can't pass.
-      labDomains = [ "host.internal" "dashboard.servicestack.xyz" "beszel.servicestack.xyz" ];
+      # Lab DNS points these at the dashboard, agents and inference VMs (split
+      # horizon); public DNS would send them to Pangolin, whose SSO the Beszel
+      # agent and Kuma's checks can't pass, or for inference nowhere at all.
+      labDomains = [
+        "host.internal" "dashboard.servicestack.xyz" "beszel.servicestack.xyz" "paperclip.servicestack.xyz"
+        "inference.servicestack.xyz"
+      ];
     };
 
     # Reports this host to the Beszel hub on the dashboard VM, over the tunnel
