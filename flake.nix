@@ -71,7 +71,8 @@
         modules = [ module ];
       };
 
-    # Per-host platform, rendered Terraform JSON and deploy target, read by
+    # Per-host platform, rendered Terraform JSON, deploy target and whether the
+    # host installs with its own age key, read by
     # scripts/provisioning/provision-host.sh.
     mkInfraManifest = system:
       (mkPkgs system).writeText "nixconfig-infra-hosts.json" (builtins.toJSON (lib.mapAttrs
@@ -79,6 +80,7 @@
           inherit (host) platform;
           terraformConfig = "${mkTerranixConfig system host.module}";
           deployTarget = host.deployTarget or null;
+          hostAgeKey = host.hostAgeKey or false;
         })
         terranixHosts));
 
@@ -102,6 +104,7 @@
             export NIX_INFRA_ACTION=${action}
             export NIXCONFIG_INFRA_HOSTS=${mkInfraManifest system}
             export NIXCONFIG_PLAN_GUARD=${./scripts/provisioning/plan-guard.jq}
+            export NIXCONFIG_PROXMOX_PLAN_GUARD=${./scripts/provisioning/proxmox-plan-guard.jq}
             exec bash ${./scripts/provisioning/provision-host.sh} "$@"
           '';
         };
@@ -163,6 +166,7 @@
         notifications        = mkNixos ./hosts/notifications/configuration.nix;
         uptime-kuma          = mkNixos ./hosts/uptime-kuma/configuration.nix;
         lab118-services      = mkNixos ./hosts/lab118-services/configuration.nix;
+        dashboard            = mkNixos ./hosts/dashboard/configuration.nix;
       };
       darwinConfigurations = {
         macmini              = mkDarwin ./hosts/macmini/configuration.nix;
@@ -178,14 +182,50 @@
           lab118Example = self.nixosConfigurations.lab118-services.extendModules {
             modules = [ ./hosts/lab118-services/eval-test.nix ];
           };
+          # The same for dashboard: no real SOPS file needed.
+          dashboardExample = self.nixosConfigurations.dashboard.extendModules {
+            modules = [ ./hosts/dashboard/eval-test.nix ];
+          };
         in {
           doppler-secrets = import ./modules/roles/doppler-secrets/check.nix { inherit pkgs lib; };
+          sqlite-backup = import ./modules/roles/sqlite-backup/check.nix { inherit pkgs lib; };
           provisioning = import ./scripts/provisioning/tests/check.nix {
             inherit pkgs;
             manifest = mkInfraManifest system;
           };
           lab118-services-eval = pkgs.writeText "lab118-services-eval"
             (builtins.unsafeDiscardStringContext lab118Example.config.system.build.toplevel.drvPath);
+          dashboard-eval = pkgs.writeText "dashboard-eval"
+            (builtins.unsafeDiscardStringContext dashboardExample.config.system.build.toplevel.drvPath);
+          # Each case breaks the dashboard's exposure policy; evaluation must refuse all of them.
+          dashboard-exposure-guards =
+            let
+              refused = module: !(builtins.tryEval
+                (dashboardExample.extendModules { modules = [ module ]; }).config.system.build.toplevel.drvPath).success;
+              lanVhost = "dashboard.servicestack.xyz";
+              results = lib.mapAttrs (_: refused) {
+                homarr-on-all-interfaces = { roles.homarr.hostBind = lib.mkForce "0.0.0.0"; };
+                extra-public-tcp-port = { networking.firewall.allowedTCPPorts = [ 7575 ]; };
+                extra-public-udp-port = { networking.firewall.allowedUDPPorts = [ 9999 ]; };
+                interface-opening = { networking.firewall.interfaces.docker0.allowedTCPPorts = [ 8090 ]; };
+                trusted-interface = { networking.firewall.trustedInterfaces = [ "docker0" ]; };
+                hub-listens-publicly = { services.beszel.hub.host = lib.mkForce "0.0.0.0"; };
+                mcp-unguarded-in-lan = { services.nginx.virtualHosts.${lanVhost}.extraConfig = lib.mkForce ""; };
+                pangolin-reaches-hub-admin = { services.nginx.virtualHosts."beszel.servicestack.xyz".locations."^~ /_/".extraConfig = lib.mkForce "allow 10.0.0.0/24;\ndeny all;\n"; };
+                pangolin-reaches-agent-endpoint = { services.nginx.virtualHosts."beszel.servicestack.xyz".locations."= /api/beszel/agent-connect".extraConfig = lib.mkForce "allow 10.0.0.0/24;\ndeny all;\n"; };
+                location-shadows-guard = { services.nginx.virtualHosts.${lanVhost}.locations."^~ /api/".proxyPass = "http://127.0.0.1:7575"; };
+                docker-socket-in-homarr = { virtualisation.oci-containers.containers.homarr.volumes = [ "/var/run/docker.sock:/var/run/docker.sock" ]; };
+                docker-api-enabled = { roles.homarr.environment.ENABLE_DOCKER = "true"; };
+                key-in-environment = { roles.homarr.environment.SECRET_ENCRYPTION_KEY = "0000000000000000000000000000000000000000000000000000000000000000"; };
+                hawser-agent-enabled = { roles.docker.dockhandManaged.enable = lib.mkForce true; };
+                sops-file-missing = { sops.validateSopsFiles = lib.mkOverride 40 true; };
+                backup-target-missing = { dashboard.backup.nfsDevice = lib.mkOverride 40 null; };
+                beszel-agent-listening = { services.beszel.agent.openFirewall = true; };
+              };
+            in
+            assert lib.assertMsg (lib.all lib.id (lib.attrValues results))
+              "dashboard exposure guards did not refuse: ${toString (lib.attrNames (lib.filterAttrs (_: ok: !ok) results))}";
+            pkgs.writeText "dashboard-exposure-guards" (builtins.toJSON results);
           # Each case breaks the exposure policy; evaluation must refuse all of them.
           lab118-services-exposure-guards =
             let
@@ -197,6 +237,7 @@
                 extra-public-tcp-port = { networking.firewall.allowedTCPPorts = [ 5000 ]; };
                 extra-public-udp-port = { networking.firewall.allowedUDPPorts = [ 9999 ]; };
                 hawser-agent-enabled = { roles.docker.dockhandManaged.enable = lib.mkForce true; };
+                beszel-agent-listening = { services.beszel.agent.openFirewall = true; };
                 incomplete-facts = { lab118.facts = lib.mkOverride 40 ((import ./hosts/lab118-services/facts.nix) // { diskDevice = null; }); };
               };
             in

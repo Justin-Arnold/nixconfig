@@ -1,0 +1,164 @@
+{
+  "homeBoard": "Home",
+  "boards": [
+    {
+      "name": "Home",
+      "columns": 12
+    },
+    {
+      "name": "infrastructure",
+      "columns": 12
+    },
+    {
+      "name": "network",
+      "columns": 12
+    },
+    {
+      "name": "services",
+      "columns": 12
+    },
+    {
+      "name": "ai-infrastructure",
+      "columns": 12
+    },
+    {
+      "name": "media-gaming",
+      "columns": 12
+    }
+  ],
+  "apps": [
+    {
+      "name": "Uptime Kuma",
+      "description": "Availability, response times and certificate expiry (lab118-services)",
+      "icon": "uptime-kuma",
+      "href": "https://kuma.servicestack.xyz",
+      "pingUrl": null
+    },
+    {
+      "name": "Beszel",
+      "description": "Host, GPU and service metrics with history and alerts",
+      "icon": "beszel",
+      "href": "https://beszel.servicestack.xyz",
+      "pingUrl": null
+    },
+    {
+      "name": "Alerta",
+      "description": "Alert console for the notification pipeline",
+      "icon": "https://cdn.jsdelivr.net/npm/@mdi/svg@7.4.47/svg/bell-alert-outline.svg",
+      "href": "https://alerta.servicestack.xyz",
+      "pingUrl": null
+    },
+    {
+      "name": "Node-RED",
+      "description": "Alert intake flows",
+      "icon": "node-red",
+      "href": "https://nodered.servicestack.xyz",
+      "pingUrl": null
+    },
+    {
+      "name": "ntfy",
+      "description": "Push notifications to phones",
+      "icon": "ntfy",
+      "href": "https://ntfy.lab118.xyz",
+      "pingUrl": "https://ntfy.lab118.xyz/v1/health"
+    },
+    {
+      "name": "AdGuard Home",
+      "description": "DNS and filtering on OPNsense",
+      "icon": "adguard-home",
+      "href": "http://10.0.0.1:3000",
+      "pingUrl": "http://10.0.0.1:3000"
+    },
+    {
+      "name": "OPNsense",
+      "description": "Router and firewall",
+      "icon": "opnsense",
+      "href": "http://10.0.0.1",
+      "pingUrl": null
+    },
+    {
+      "name": "Proxmox VE",
+      "description": "Five-node cluster",
+      "icon": "proxmox",
+      "href": "TODO: Proxmox web UI URL (the endpoint is in SOPS proxmox/PROXMOX_VE_ENDPOINT)",
+      "pingUrl": null
+    },
+    {
+      "name": "Omada Controller",
+      "description": "Switches and access points (10.0.0.71)",
+      "icon": "omada",
+      "href": "TODO: Omada controller URL and port",
+      "pingUrl": null
+    },
+    {
+      "name": "Dockhand",
+      "description": "Container management",
+      "icon": "docker",
+      "href": "TODO: Dockhand URL",
+      "pingUrl": null
+    },
+    {
+      "name": "Pangolin",
+      "description": "Remote access and SSO",
+      "icon": "pangolin",
+      "href": "TODO: Pangolin dashboard URL",
+      "pingUrl": null
+    },
+    {
+      "name": "Home Assistant",
+      "description": "Home automation",
+      "icon": "home-assistant",
+      "href": "TODO: Home Assistant URL",
+      "pingUrl": null
+    },
+    {
+      "name": "Ollama",
+      "description": "Local model serving on the RTX 3090 VM (API)",
+      "icon": "ollama",
+      "href": "http://10.0.0.63:11434",
+      "pingUrl": "http://10.0.0.63:11434/api/version"
+    },
+    {
+      "name": "Hermes",
+      "description": "Agent infrastructure",
+      "icon": "https://cdn.jsdelivr.net/npm/@mdi/svg@7.4.47/svg/robot-outline.svg",
+      "href": "TODO: Hermes URL",
+      "pingUrl": null
+    },
+    {
+      "name": "OpenClaw",
+      "description": "Agent infrastructure",
+      "icon": "https://cdn.jsdelivr.net/npm/@mdi/svg@7.4.47/svg/robot-outline.svg",
+      "href": "TODO: OpenClaw URL",
+      "pingUrl": null
+    },
+    {
+      "name": "Paperclip",
+      "description": "Agent infrastructure",
+      "icon": "https://cdn.jsdelivr.net/npm/@mdi/svg@7.4.47/svg/robot-outline.svg",
+      "href": "TODO: Paperclip URL",
+      "pingUrl": null
+    },
+    {
+      "name": "Navidrome",
+      "description": "Music streaming",
+      "icon": "navidrome",
+      "href": "TODO: Navidrome URL",
+      "pingUrl": null
+    },
+    {
+      "name": "slskd",
+      "description": "Soulseek client",
+      "icon": "slskd",
+      "href": "TODO: slskd URL",
+      "pingUrl": null
+    },
+    {
+      "name": "AMP",
+      "description": "Game server management",
+      "icon": "https://cdn.jsdelivr.net/npm/@mdi/svg@7.4.47/svg/gamepad-variant-outline.svg",
+      "href": "TODO: AMP URL",
+      "pingUrl": null
+    }
+  ]
+}

@@ -49,6 +49,7 @@ printf 'ntfy /v1/health:    %s\n' "$(curl -s http://127.0.0.1:8080/v1/health)"
 printf 'kuma UI:            %s\n' "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3001/)"
 printf 'node-red /intake/:  %s (via nginx :1880; 404 = no flows yet)\n' "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:1880/intake/)"
 printf 'node-red editor on :1880: %s (expect 403)\n' "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:1880/)"
+printf 'kuma status on :3002: %s (expect 403 from here; only the lab LAN may read it)\n' "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3002/api/status-page/lab)"
 
 section "tls certificates"
 for host in ntfy.lab118.xyz intake.lab118.xyz; do

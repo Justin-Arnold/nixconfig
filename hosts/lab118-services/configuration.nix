@@ -34,6 +34,7 @@ in
       ../../modules/roles/doppler-secrets.nix
       ../../modules/roles/notifications-stack.nix
       ../../modules/roles/uptime-kuma.nix
+      ../../modules/roles/beszel-agent.nix
 
       sops-nix.nixosModules.sops
     ];
@@ -149,7 +150,8 @@ in
     # Router <-> cloud tunnel (OPNsense instance "lab118-cloud" dials out to
     # us). Tunnel 10.118.0.0/30 does not overlap the LAN (10.0.0.0/24), the
     # road-warrior VPN (10.10.10.0/24) or Docker (172.16.0.0/12). Only the LAN
-    # is routed; only *.host.internal is resolved through the tunnel.
+    # is routed; only *.host.internal and the dashboard VM's two names are
+    # resolved through the tunnel.
     lab118.wireguard = {
       enable = true;
       # Public key of the OPNsense "lab118-cloud" instance.
@@ -160,6 +162,20 @@ in
       # AdGuard Home on the router, asked at the router's tunnel address: asked at
       # 10.0.0.1 it answers UDP from 10.118.0.2, and those replies are dropped.
       labDns = "10.118.0.2";
+      # Lab DNS points these at the dashboard VM (split horizon); public DNS
+      # would send them to Pangolin, whose SSO the Beszel agent and Kuma's
+      # checks can't pass.
+      labDomains = [ "host.internal" "dashboard.servicestack.xyz" "beszel.servicestack.xyz" ];
+    };
+
+    # Reports this host to the Beszel hub on the dashboard VM, over the tunnel
+    # (needs the WG_LAB118 rule for 10.118.0.1 -> dashboard TCP 443). It stays
+    # off until the hub key exists. The token is in this host's SOPS file
+    # rather than Doppler, so turning the agent on can't break the Doppler
+    # refresh for the rest of the stack.
+    roles.beszelAgent = {
+      enable = true;
+      tokenSecret = "beszel/agent-token";
     };
 
     # Cloud-side Pangolin connector; dashboards no longer depend on the lab's Newt.

@@ -9,6 +9,7 @@
       ../../modules/profiles/server.nix
       ../../modules/platforms/nixos
       ../../modules/roles/docker.nix
+      ../../modules/roles/beszel-agent.nix
 
       sops-nix.nixosModules.sops
     ];
@@ -27,6 +28,12 @@
   };
 
   networking.useDHCP = lib.mkDefault true;
+
+  # Reports to the Beszel hub on dashboard (off until the hub key exists).
+  roles.beszelAgent = {
+    enable = true;
+    tokenSecret = "beszel/agent-token";
+  };
 
   sops.age.keyFile = "/home/justin/.config/sops/age/keys.txt";
   sops.defaultSopsFile = ../../secrets/secrets.yaml;

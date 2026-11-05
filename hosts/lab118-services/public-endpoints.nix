@@ -74,6 +74,28 @@ in
       locations."/intake/".proxyPass = "http://127.0.0.1:${toString config.roles.notificationsStack.nodeRed.hostPort}";
       locations."/".return = "403";
     };
+
+    # Uptime Kuma's status-page API for Homarr on the dashboard VM in the lab,
+    # over WireGuard only (the firewall opens this port on wg-lab alone). Only
+    # GET requests under /api/status-page/ from the lab LAN get through; the
+    # Kuma UI and its socket API stay behind Pangolin.
+    virtualHosts.kuma-status-tunnel = {
+      listen = [
+        {
+          addr = "0.0.0.0";
+          port = 3002;
+        }
+      ];
+      locations."/api/status-page/" = {
+        proxyPass = "http://127.0.0.1:${toString config.roles.uptimeKuma.hostPort}";
+        extraConfig = ''
+          allow 10.0.0.0/24;
+          deny all;
+          limit_except GET { deny all; }
+        '';
+      };
+      locations."/".return = "403";
+    };
   };
 
   networking.firewall.allowedTCPPorts = [ 80 443 ];

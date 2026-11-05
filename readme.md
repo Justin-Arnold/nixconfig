@@ -29,7 +29,7 @@ Destroy the managed VM:
 nix run .#destroy -- <host>
 ```
 
-Currently managed hosts: `dockhand`, `notifications`, `uptime-kuma`, `pr-previews` (Proxmox) and `lab118-services` (Contabo).
+Currently managed hosts: `dockhand`, `notifications`, `uptime-kuma`, `pr-previews`, `dashboard` (Proxmox) and `lab118-services` (Contabo).
 
 ### Cloud host lab118-services
 
@@ -39,11 +39,20 @@ bought in the Contabo panel and imported with `nix run .#adopt`, `switch` and
 `install` never run Terraform, and `destroy` is refused. See
 [docs/lab118-services/REFERENCE.md](docs/lab118-services/REFERENCE.md).
 
+### Monitoring dashboard
+
+`dashboard` is a Proxmox VM running Homarr and the Beszel hub, set up for
+Proxmox HA (shared storage, a common CPU model, an HA resource). It installs
+with its own age key instead of the operator key, so `install` and the first
+`provision` need `HOST_AGE_KEY_FILE`. Provisioning refuses any plan that would
+delete or replace a VM, and finds a VM on whichever node HA moved it to. See
+[docs/dashboard/REFERENCE.md](docs/dashboard/REFERENCE.md).
+
 The provisioning flow expects:
 
 - Proxmox credentials sourced from the provisioning-runner Home Manager role
 - a bootstrap SSH key at `~/.ssh/id_ed25519`
-- an age key at `~/.config/sops/age/keys.txt` if you want that copied during install
+- an age key at `~/.config/sops/age/keys.txt` if you want that copied during install (hosts with `hostAgeKey = true` get `HOST_AGE_KEY_FILE` instead and never this one)
 - a shared SSH-reachable bootstrap template in Proxmox for the target VM to clone
 - a working DHCP service on the target network; provisioning will discover the lease automatically and use that IP for `nixos-anywhere`
 

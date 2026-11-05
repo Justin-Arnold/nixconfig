@@ -41,6 +41,10 @@ TF_CONFIG_JSON="${STATE_DIR}/config.tf.json"
 TF_VARS_JSON="${STATE_DIR}/terraform.tfvars.json"
 TF_BACKEND_CONFIG="${STATE_DIR}/backend.hcl"
 EXTRA_FILES_DIR="${STATE_DIR}/extra-files"
+HARDWARE_CONFIG="${REPO_ROOT}/hosts/${HOST_NAME}/hardware-configuration.nix"
+HOST_SECRETS_FILE="${REPO_ROOT}/secrets/hosts/${HOST_NAME}.yaml"
+PLAN_FILE="${STATE_DIR}/plan.tfplan"
+PLAN_JSON="${STATE_DIR}/plan.json"
 AGE_KEY_PATH="${SOPS_AGE_KEY_PATH:-$HOME/.config/sops/age/keys.txt}"
 SSH_PRIVATE_KEY_PATH="${SSH_PRIVATE_KEY_PATH:-$HOME/.ssh/id_ed25519}"
 SSH_PUBLIC_KEY_PATH="${SSH_PUBLIC_KEY_PATH:-${SSH_PRIVATE_KEY_PATH}.pub}"
@@ -148,6 +152,64 @@ run_nixos_switch() {
 }
 
 ############################################################
+## Host-scoped age keys
+############################################################
+# Hosts with their own age key (every Contabo host, and Proxmox hosts with
+# `hostAgeKey = true` in infra/terranix/default.nix) never receive the
+# operator key. The key is checked before anything else runs and is staged in
+# a temporary directory that the caller removes.
+
+require_host_age_key() {
+  local host_key="${HOST_AGE_KEY_FILE:-}"
+  local host_recipient
+  local sops_home
+
+  if [[ -z "$host_key" || ! -f "$host_key" ]]; then
+    echo "Set HOST_AGE_KEY_FILE to the host-scoped age key for ${HOST_NAME} (see docs/${HOST_NAME}/REFERENCE.md)." >&2
+    exit 1
+  fi
+  if [[ -f "$AGE_KEY_PATH" ]] && cmp -s "$host_key" "$AGE_KEY_PATH"; then
+    echo "Refusing: HOST_AGE_KEY_FILE is the operator age key. ${HOST_NAME} gets a dedicated key." >&2
+    exit 1
+  fi
+  if ! host_recipient="$(age-keygen -y "$host_key" 2>/dev/null)"; then
+    echo "Refusing: HOST_AGE_KEY_FILE is not an age identity." >&2
+    exit 1
+  fi
+  if ! grep -qF -- "$host_recipient" "${REPO_ROOT}/.sops.yaml"; then
+    echo "Refusing: ${host_recipient} (from HOST_AGE_KEY_FILE) is not a recipient in .sops.yaml." >&2
+    exit 1
+  fi
+  if [[ ! -f "$HOST_SECRETS_FILE" ]]; then
+    echo "Refusing: secrets/hosts/${HOST_NAME}.yaml does not exist yet." >&2
+    exit 1
+  fi
+  # Decrypt with the host key alone, the way the host will at boot. HOME
+  # points at an empty directory so sops can't fall back to other identities.
+  # Decrypted values go straight into jq; only the verdict is used.
+  sops_home="$(mktemp -d)"
+  if ! env -u SOPS_AGE_KEY -u SOPS_AGE_KEY_CMD -u SOPS_AGE_SSH_PRIVATE_KEY_FILE \
+      HOME="$sops_home" XDG_CONFIG_HOME="$sops_home" SOPS_AGE_KEY_FILE="$host_key" \
+      sops -d --output-type json "$HOST_SECRETS_FILE" 2>/dev/null \
+      | jq -e '[.. | strings | select(. == "" or . == "pending")] | length == 0' >/dev/null; then
+    rm -rf "$sops_home"
+    echo "Refusing: secrets/hosts/${HOST_NAME}.yaml cannot be decrypted with HOST_AGE_KEY_FILE or still has 'pending' placeholders." >&2
+    exit 1
+  fi
+  rm -rf "$sops_home"
+}
+
+# Prints a new directory for nixos-anywhere --extra-files that holds only the
+# host key, at the path sops-nix reads. The caller removes it.
+stage_host_age_key() {
+  local dir
+  dir="$(mktemp -d)"
+  install -d -m 0755 "${dir}/var/lib/sops-nix"
+  install -m 0600 "$HOST_AGE_KEY_FILE" "${dir}/var/lib/sops-nix/key.txt"
+  printf '%s\n' "$dir"
+}
+
+############################################################
 ## Contabo (cloud) hosts
 ############################################################
 # The instance is bought in the Contabo panel and imported with `adopt`.
@@ -156,10 +218,7 @@ run_nixos_switch() {
 # the infrastructure.
 
 CONTABO_RESOURCE="contabo_instance.${HOST_NAME}"
-PLAN_FILE="${STATE_DIR}/plan.tfplan"
-PLAN_JSON="${STATE_DIR}/plan.json"
 PLAN_GUARD="${NIXCONFIG_PLAN_GUARD:-${REPO_ROOT}/scripts/provisioning/plan-guard.jq}"
-HARDWARE_CONFIG="${REPO_ROOT}/hosts/${HOST_NAME}/hardware-configuration.nix"
 
 contabo_load_api_credentials() {
   local pair var key value
@@ -250,8 +309,6 @@ confirm_by_typing() {
 
 contabo_install() {
   local target
-  local host_key="${HOST_AGE_KEY_FILE:-}"
-  local host_recipient
   local os_release
   local os_id
   local os_variant
@@ -259,32 +316,7 @@ contabo_install() {
 
   target="$(contabo_target)"
 
-  if [[ -z "$host_key" || ! -f "$host_key" ]]; then
-    echo "Set HOST_AGE_KEY_FILE to the host-scoped age key for ${HOST_NAME} (see docs/lab118-services/REFERENCE.md)." >&2
-    exit 1
-  fi
-  if [[ -f "$AGE_KEY_PATH" ]] && cmp -s "$host_key" "$AGE_KEY_PATH"; then
-    echo "Refusing: HOST_AGE_KEY_FILE is the operator age key. Cloud hosts get a dedicated key." >&2
-    exit 1
-  fi
-  host_recipient="$(age-keygen -y "$host_key")"
-  if ! grep -qF -- "$host_recipient" "${REPO_ROOT}/.sops.yaml"; then
-    echo "Refusing: ${host_recipient} (from HOST_AGE_KEY_FILE) is not a recipient in .sops.yaml." >&2
-    exit 1
-  fi
-  if [[ ! -f "${REPO_ROOT}/secrets/hosts/${HOST_NAME}.yaml" ]]; then
-    echo "Refusing: secrets/hosts/${HOST_NAME}.yaml does not exist yet." >&2
-    exit 1
-  fi
-  if [[ -z "${SOPS_AGE_KEY_FILE:-}" && -f "$AGE_KEY_PATH" ]]; then
-    export SOPS_AGE_KEY_FILE="$AGE_KEY_PATH"
-  fi
-  # Decrypted values go straight into jq; only the verdict is used.
-  if ! sops -d --output-type json "${REPO_ROOT}/secrets/hosts/${HOST_NAME}.yaml" 2>/dev/null \
-      | jq -e '[.. | strings | select(. == "" or . == "pending")] | length == 0' >/dev/null; then
-    echo "Refusing: secrets/hosts/${HOST_NAME}.yaml cannot be decrypted or still has 'pending' placeholders." >&2
-    exit 1
-  fi
+  require_host_age_key
   if [[ ! -f "$SSH_PRIVATE_KEY_PATH" ]]; then
     echo "missing bootstrap private key: $SSH_PRIVATE_KEY_PATH (set SSH_PRIVATE_KEY_PATH)" >&2
     exit 1
@@ -311,11 +343,9 @@ contabo_install() {
 
   confirm_by_typing "This ERASES the disk of ${target} (currently: ${os_id}) and installs NixOS host ${HOST_NAME}." "$HOST_NAME"
 
-  extra_files="$(mktemp -d)"
+  extra_files="$(stage_host_age_key)"
   # shellcheck disable=SC2064 # expand now
   trap "rm -rf '${extra_files}'" EXIT
-  install -d -m 0755 "${extra_files}/var/lib/sops-nix"
-  install -m 0600 "$host_key" "${extra_files}/var/lib/sops-nix/key.txt"
 
   nixos-anywhere \
     --flake "${REPO_ROOT}#${HOST_NAME}" \
@@ -402,9 +432,34 @@ esac
 ## Proxmox hosts
 ############################################################
 
+PROXMOX_PLAN_GUARD="${NIXCONFIG_PROXMOX_PLAN_GUARD:-${REPO_ROOT}/scripts/provisioning/proxmox-plan-guard.jq}"
+
 mkdir -p "$STATE_DIR"
 
 install -m 0644 "$TERRANIX_CONFIG" "$TF_CONFIG_JSON"
+
+USES_HOST_AGE_KEY=false
+if [[ "$(host_field hostAgeKey)" == "true" ]]; then
+  USES_HOST_AGE_KEY=true
+fi
+
+# install always runs nixos-anywhere; provision does until the host has a
+# hardware configuration. Check what that needs before Terraform touches
+# anything. Without the bootstrap key a new VM gets a placeholder that nobody
+# can log in with, and the key is never updated on an existing VM.
+RUNS_NIXOS_ANYWHERE=false
+if [[ "$ACTION" == "install" || ( "$ACTION" == "provision" && ! -f "$HARDWARE_CONFIG" ) ]]; then
+  RUNS_NIXOS_ANYWHERE=true
+fi
+
+if [[ "$RUNS_NIXOS_ANYWHERE" == true && ! -f "$SSH_PRIVATE_KEY_PATH" ]]; then
+  echo "missing bootstrap private key: $SSH_PRIVATE_KEY_PATH (set SSH_PRIVATE_KEY_PATH)" >&2
+  exit 1
+fi
+
+if [[ "$USES_HOST_AGE_KEY" == true && "$RUNS_NIXOS_ANYWHERE" == true ]]; then
+  require_host_age_key
+fi
 
 load_terraform_backend_credentials
 write_terraform_backend_config
@@ -413,7 +468,7 @@ backup_local_state_before_adopt
 rm -rf "$EXTRA_FILES_DIR"
 mkdir -p "$EXTRA_FILES_DIR"
 
-if [[ -n "${AGE_KEY_PATH}" && -f "${AGE_KEY_PATH}" ]]; then
+if [[ "$USES_HOST_AGE_KEY" != true && -n "${AGE_KEY_PATH}" && -f "${AGE_KEY_PATH}" ]]; then
   mkdir -p "$EXTRA_FILES_DIR/home/justin/.config/sops/age"
   install -m 0400 "$AGE_KEY_PATH" "$EXTRA_FILES_DIR/home/justin/.config/sops/age/keys.txt"
 fi
@@ -624,6 +679,7 @@ run_nixos_anywhere() {
   local target_user="$2"
   local target_ip="$3"
   local hardware_config="$4"
+  local extra_files="$5"
 
   if [[ ! -f "$SSH_PRIVATE_KEY_PATH" ]]; then
     echo "missing bootstrap private key: $SSH_PRIVATE_KEY_PATH" >&2
@@ -635,7 +691,50 @@ run_nixos_anywhere() {
     --target-host "${target_user}@${target_ip}" \
     -i "${SSH_PRIVATE_KEY_PATH}" \
     --generate-hardware-config nixos-generate-config "${hardware_config}" \
-    --extra-files "${EXTRA_FILES_DIR}"
+    --extra-files "${extra_files}"
+}
+
+# Writes PLAN_FILE, refuses (exit 1) if it would delete or replace anything,
+# and only then applies exactly that plan.
+proxmox_guarded_apply() {
+  local violations
+
+  terraform -chdir="$STATE_DIR" plan -input=false -out="$PLAN_FILE" -var-file="$TF_VARS_JSON" "$@"
+  terraform -chdir="$STATE_DIR" show -json "$PLAN_FILE" > "$PLAN_JSON"
+  violations="$(jq -r -f "$PROXMOX_PLAN_GUARD" "$PLAN_JSON")"
+  if [[ -n "$violations" ]]; then
+    rm -f "$PLAN_FILE"
+    {
+      echo
+      echo "REFUSED by plan guard. Nothing was applied:"
+      while IFS= read -r violation; do
+        echo "  - ${violation}"
+      done <<<"$violations"
+      echo "Look at nix run .#plan -- ${HOST_NAME} to see why Terraform wants to replace it."
+    } >&2
+    exit 1
+  fi
+  terraform -chdir="$STATE_DIR" apply -input=false "$PLAN_FILE"
+}
+
+# HA can move a VM after Terraform created it, so ask the cluster where the VM
+# runs now instead of trusting the node Terraform first placed it on.
+current_vm_node() {
+  local vm_id="$1"
+  local placed_on="$2"
+  local node=""
+
+  node="$(
+    proxmox_api_get "/cluster/resources?type=vm" \
+      | jq -r --arg id "$vm_id" '.data[]? | select((.vmid | tostring) == $id) | .node' \
+      | head -n 1
+  )" || node=""
+  if [[ -z "$node" ]]; then
+    node="$placed_on"
+  elif [[ "$node" != "$placed_on" ]]; then
+    echo "VM ${vm_id} runs on ${node}, not ${placed_on} (moved by HA or a migration)." >&2
+  fi
+  printf '%s\n' "$node"
 }
 
 terraform_apply_and_discover() {
@@ -646,11 +745,11 @@ terraform_apply_and_discover() {
   local discovered_ip_ref="$5"
   shift 5
 
-  terraform -chdir="$STATE_DIR" apply -input=false -auto-approve -var-file="$TF_VARS_JSON" "$@"
+  proxmox_guarded_apply "$@"
   terraform -chdir="$STATE_DIR" output -json > "$outputs_json"
 
-  printf -v "$node_name_ref" '%s' "$(jq -r '.node_name.value' "$outputs_json")"
   printf -v "$vm_id_ref" '%s' "$(jq -r '.vm_id.value' "$outputs_json")"
+  printf -v "$node_name_ref" '%s' "$(current_vm_node "${!vm_id_ref}" "$(jq -r '.node_name.value' "$outputs_json")")"
   printf -v "$target_user_ref" '%s' "$(jq -r '.target_user.value' "$outputs_json")"
   printf -v "$discovered_ip_ref" '%s' "$(discover_vm_ip "${!node_name_ref}" "${!vm_id_ref}")"
 
@@ -674,7 +773,6 @@ case "$ACTION" in
     exec terraform -chdir="$STATE_DIR" plan -input=false -var-file="$TF_VARS_JSON" "$@"
     ;;
   provision|install|switch)
-    HARDWARE_CONFIG="${REPO_ROOT}/hosts/${HOST_NAME}/hardware-configuration.nix"
     OUTPUTS_JSON="${STATE_DIR}/outputs.json"
     # shellcheck disable=SC2034 # assigned through printf -v in terraform_apply_and_discover
     NODE_NAME=""
@@ -697,7 +795,13 @@ case "$ACTION" in
       exit 0
     fi
 
-    run_nixos_anywhere "$HOST_NAME" "$TARGET_USER" "$DISCOVERED_IP" "$HARDWARE_CONFIG"
+    extra_files="$EXTRA_FILES_DIR"
+    if [[ "$USES_HOST_AGE_KEY" == true ]]; then
+      extra_files="$(stage_host_age_key)"
+      # shellcheck disable=SC2064 # expand now
+      trap "rm -rf '${extra_files}'" EXIT
+    fi
+    run_nixos_anywhere "$HOST_NAME" "$TARGET_USER" "$DISCOVERED_IP" "$HARDWARE_CONFIG" "$extra_files"
 
     if [[ -f "$HARDWARE_CONFIG" ]]; then
       echo "Saved hardware configuration to $HARDWARE_CONFIG"

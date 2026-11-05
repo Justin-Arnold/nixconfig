@@ -8,10 +8,18 @@ lab118_services_recipients: &lab118_services_recipients
   - age1az8pkgypmhyaptlqpj7dxxftrt2phwm57xvy2n89ra9jxpckgveqnaykwk # lab118-services host
   - age1ljfvx33psxcat4wwjpq6u26f5fv9jzntg8z266mhykpxh78upalqxfflz3 # operator
 
+# Same arrangement for the dashboard VM.
+dashboard_recipients: &dashboard_recipients
+  - age16x0c6zvx6n6k7fax0pd75j6mmmrcn7gvln0yffrqq92sp0mckc4qaf9nul # dashboard host
+  - age1ljfvx33psxcat4wwjpq6u26f5fv9jzntg8z266mhykpxh78upalqxfflz3 # operator
+
 creation_rules:
   - path_regex: ^secrets/hosts/lab118-services\.ya?ml$
     key_groups:
       - age: *lab118_services_recipients
+  - path_regex: ^secrets/hosts/dashboard\.ya?ml$
+    key_groups:
+      - age: *dashboard_recipients
   - path_regex: ^secrets/.*\.ya?ml$
     key_groups:
       - age: *age_recipients

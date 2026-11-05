@@ -175,6 +175,7 @@ Both zones are at Porkbun. Direct names go in `lab118.xyz`
 | TCP 1880 | tunnel, Docker | nginx, forwards only `/intake/` to Node-RED |
 | TCP 5000 | tunnel, Docker | Alerta API |
 | TCP 8080 | tunnel, Docker | ntfy |
+| TCP 3002 | tunnel | nginx, Kuma's status-page API only (GET under `/api/status-page/`, lab LAN only), for Homarr on the dashboard VM |
 | 53 on `172.17.0.1` | Docker | resolver stub for containers |
 | 1881, 3001, 5001, 8000, 9088 | localhost | Node-RED, Kuma, Alerta UI, Apprise, forwarder |
 
@@ -213,8 +214,11 @@ Set in `lab118.wireguard` in `configuration.nix`, implemented in `wireguard.nix`
   allowed `10.118.0.2/32` and `10.0.0.0/24`
 - only `10.0.0.0/24` is routed into the tunnel; the default route and normal
   DNS stay on the VPS's own uplink
-- `*.host.internal` names, and only those, are resolved by the lab's AdGuard
-  Home at `10.118.0.2`
+- `*.host.internal` names and the dashboard VM's two names
+  (`dashboard.servicestack.xyz`, `beszel.servicestack.xyz`) are resolved by
+  the lab's AdGuard Home at `10.118.0.2`; everything else uses public DNS.
+  Publicly those two names go to Pangolin, whose SSO the Beszel agent and
+  Kuma's checks can't pass.
 
 #### Router side
 
@@ -225,7 +229,7 @@ OPNsense 24.7, configured by hand in the UI:
 | WireGuard instance | `lab118-cloud`, listen 51821, tunnel `10.118.0.2/30` |
 | Peer | `lab118-services`, endpoint `89.117.73.89:51820`, allowed `10.118.0.1/32`, keepalive 25 |
 | Interface | `WG_LAB118`, assigned and enabled, no IP config |
-| Rules on `WG_LAB118` | ICMP echo to `WG_LAB118 address`; ICMP echo to `10.0.0.1`; TCP/UDP 53 to `WG_LAB118 address`. Everything else from the cloud is dropped. |
+| Rules on `WG_LAB118` | ICMP echo to `WG_LAB118 address`; ICMP echo to `10.0.0.1`; TCP/UDP 53 to `WG_LAB118 address`; TCP 443 to the dashboard VM (Kuma's checks and this host's Beszel agent). Everything else from the cloud is dropped. |
 | WAN rule | ICMP echo from `89.117.73.89` only, so Kuma can ping the WAN address |
 
 The phone and MacBook VPN is a separate WireGuard instance on `10.10.10.0/24`.
@@ -281,13 +285,21 @@ Service monitors are named `SVC / <name>`. All of them alert individually.
 Nothing is suppressed when the tunnel drops, so a tunnel outage also brings
 down every service check behind it.
 
+The dashboard VM's monitors (its health URL, the Beszel hub, and the push
+monitors for its backups and the hub's heartbeat) are listed in
+`docs/dashboard/REFERENCE.md`. Homarr reads Kuma through a status page over
+the tunnel (port 3002), so whatever you want on the dashboard has to be on
+that status page.
+
 ## Secrets
 
 There are two layers on purpose.
 
 SOPS (`secrets/hosts/lab118-services.yaml`) holds what the machine needs
 before anything else works: the Doppler service token, the WireGuard key and
-the root console password hash. Only two keys can decrypt it: the host's own
+the root console password hash. It also holds the Beszel agent's token
+(`beszel/agent-token`), there rather than in Doppler so turning the agent on
+can't break the Doppler refresh. Only two keys can decrypt it: the host's own
 age key (`/var/lib/sops-nix/key.txt`, with a copy in 1Password) and your
 operator key. The broad operator key that decrypts `secrets/secrets.yaml` is
 never put on this host.

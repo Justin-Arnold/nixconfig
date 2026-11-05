@@ -108,8 +108,10 @@ in
     # `wg show` for diagnostics; networkd manages the interface itself.
     environment.systemPackages = [ pkgs.wireguard-tools ];
 
-    # Lab producers reach machine intake only: Alerta API (API key auth),
-    # Node-RED /intake/ endpoints (nginx allowlist) and ntfy (ntfy auth).
-    networking.firewall.interfaces.wg-lab.allowedTCPPorts = [ 1880 5000 8080 ];
+    # The lab reaches machine intake and one read-only API: Alerta API (API
+    # key auth), Node-RED /intake/ endpoints (nginx allowlist), ntfy (ntfy
+    # auth), and Kuma's status-page API for the dashboard (nginx allowlist,
+    # GET only).
+    networking.firewall.interfaces.wg-lab.allowedTCPPorts = [ 1880 3002 5000 8080 ];
   };
 }

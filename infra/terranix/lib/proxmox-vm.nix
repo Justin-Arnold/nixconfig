@@ -11,6 +11,11 @@
   memoryMb ? 2048,
   diskSizeGb ? 20,
   datastore ? "local-lvm",
+  # Where the cloud-init drive lives. The provider defaults it to local-lvm,
+  # which ties the VM to its first node: HA can't recover it elsewhere and
+  # migration has to copy it. HA VMs should put it on the same shared storage
+  # as the disk.
+  cloudInitDatastore ? null,
   bridge ? "vmbr0",
   vlanId ? null,
   tags ? [ "homelab" ],
@@ -51,7 +56,8 @@ in
   terraform.required_providers = {
     proxmox = {
       source = "bpg/proxmox";
-      version = ">= 0.60.0";
+      # proxmox_haresource (below) is the short resource name added in 0.100.0.
+      version = ">= 0.100.0";
     };
   };
 
@@ -108,6 +114,8 @@ in
               username = targetUser;
               keys = [ "\${var.bootstrap_public_key}" ];
             };
+          } // lib.optionalAttrs (cloudInitDatastore != null) {
+            datastore_id = cloudInitDatastore;
           };
         }
         // lib.optionalAttrs (effectiveVmLifecycleIgnoreChanges != [ ]) {
