@@ -29,7 +29,15 @@ Destroy the managed VM:
 nix run .#destroy -- <host>
 ```
 
-Currently managed hosts: `dockhand`, `notifications`, `uptime-kuma`, `pr-previews`.
+Currently managed hosts: `dockhand`, `notifications`, `uptime-kuma`, `pr-previews` (Proxmox) and `lab118-services` (Contabo).
+
+### Cloud host lab118-services
+
+`lab118-services` is a Contabo VPS that runs the notification stack and Uptime
+Kuma outside the lab. Its flow is different from the Proxmox one: the server is
+bought in the Contabo panel and imported with `nix run .#adopt`, `switch` and
+`install` never run Terraform, and `destroy` is refused. See
+[docs/lab118-services/REFERENCE.md](docs/lab118-services/REFERENCE.md).
 
 The provisioning flow expects:
 

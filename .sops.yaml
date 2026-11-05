@@ -1,7 +1,17 @@
 age_recipients: &age_recipients
   - age1ljfvx33psxcat4wwjpq6u26f5fv9jzntg8z266mhykpxh78upalqxfflz3
 
+# Host-scoped file for lab118-services: its own key plus the operator key (for
+# editing and recovery). Must stay above the generic rule; sops uses the first
+# matching rule.
+lab118_services_recipients: &lab118_services_recipients
+  - age1az8pkgypmhyaptlqpj7dxxftrt2phwm57xvy2n89ra9jxpckgveqnaykwk # lab118-services host
+  - age1ljfvx33psxcat4wwjpq6u26f5fv9jzntg8z266mhykpxh78upalqxfflz3 # operator
+
 creation_rules:
+  - path_regex: ^secrets/hosts/lab118-services\.ya?ml$
+    key_groups:
+      - age: *lab118_services_recipients
   - path_regex: ^secrets/.*\.ya?ml$
     key_groups:
       - age: *age_recipients

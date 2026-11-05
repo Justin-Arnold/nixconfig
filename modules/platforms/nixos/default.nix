@@ -4,6 +4,17 @@
   system.stateVersion = config.systemProfile.stateVersion;
 
   ############################################################
+  ## DNS
+  ############################################################
+  # Lab hosts resolve through the lab router. Hosts outside the lab
+  # (lab118-services) override this with public resolvers.
+  networking.nameservers = lib.mkDefault [
+    "10.0.0.1"
+  ];
+
+  services.resolved.enable = true;
+
+  ############################################################
   ## User Configuration
   ############################################################
   users.users."${config.systemProfile.username}" = {
@@ -16,8 +27,10 @@
 
   modules = {
     apps = {
+      # 1Password desktop app (and its SSH agent) only where there is a GUI.
+      # Every host keeps the `op` CLI from modules/common.
       onepassword = {
-        enable = true;
+        enable = config.systemProfile.hasGui;
         polkit.enable = true;
       };
       zoxide = {
@@ -60,6 +73,10 @@
     })
   ];
   home-manager.users.${config.systemProfile.username} = { ... }: {
-    imports = [ ../../../home/roles/base.nix ../../../home/roles/nixos.nix ];
+    # home/roles/nixos.nix is the desktop role (Codex desktop, krusader,
+    # Alacritty popups, hyprshell, GTK/Qt theming, 1Password SSH agent), so
+    # only GUI hosts get it. Servers keep the terminal environment in base.nix.
+    imports = [ ../../../home/roles/base.nix ]
+      ++ lib.optional config.systemProfile.hasGui ../../../home/roles/nixos.nix;
   };
 }

@@ -71,16 +71,24 @@
         modules = [ module ];
       };
 
+    # Per-host platform, rendered Terraform JSON and deploy target, read by
+    # scripts/provisioning/provision-host.sh.
+    mkInfraManifest = system:
+      (mkPkgs system).writeText "nixconfig-infra-hosts.json" (builtins.toJSON (lib.mapAttrs
+        (_: host: {
+          inherit (host) platform;
+          terraformConfig = "${mkTerranixConfig system host.module}";
+          deployTarget = host.deployTarget or null;
+        })
+        terranixHosts));
+
     mkProvisionApp = system: action:
       let
         pkgs = mkPkgs system;
-        terranixConfigDockhand = mkTerranixConfig system terranixHosts.dockhand;
-        terranixConfigNotifications = mkTerranixConfig system terranixHosts.notifications;
-        terranixConfigPrPreviews = mkTerranixConfig system terranixHosts.pr-previews;
-        terranixConfigUptimeKuma = mkTerranixConfig system terranixHosts.uptime-kuma;
         provisionApp = pkgs.writeShellApplication {
           name = "nixconfig-${action}";
           runtimeInputs = [
+            pkgs.age
             pkgs.curl
             pkgs.git
             pkgs.jq
@@ -92,10 +100,8 @@
           ];
           text = ''
             export NIX_INFRA_ACTION=${action}
-            export TERRANIX_CONFIG_DOCKHAND=${terranixConfigDockhand}
-            export TERRANIX_CONFIG_NOTIFICATIONS=${terranixConfigNotifications}
-            export TERRANIX_CONFIG_PR_PREVIEWS=${terranixConfigPrPreviews}
-            export TERRANIX_CONFIG_UPTIME_KUMA=${terranixConfigUptimeKuma}
+            export NIXCONFIG_INFRA_HOSTS=${mkInfraManifest system}
+            export NIXCONFIG_PLAN_GUARD=${./scripts/provisioning/plan-guard.jq}
             exec bash ${./scripts/provisioning/provision-host.sh} "$@"
           '';
         };
@@ -156,17 +162,48 @@
         vikunja              = mkNixos ./hosts/vikunja/configuration.nix;
         notifications        = mkNixos ./hosts/notifications/configuration.nix;
         uptime-kuma          = mkNixos ./hosts/uptime-kuma/configuration.nix;
+        lab118-services      = mkNixos ./hosts/lab118-services/configuration.nix;
       };
       darwinConfigurations = {
         macmini              = mkDarwin ./hosts/macmini/configuration.nix;
         macbook16            = mkDarwin ./hosts/macbook16/configuration.nix;
       };
-      terranixConfigurations = lib.genAttrs supportedSystems (system: {
-        dockhand = mkTerranixConfig system terranixHosts.dockhand;
-        notifications = mkTerranixConfig system terranixHosts.notifications;
-        pr-previews = mkTerranixConfig system terranixHosts.pr-previews;
-        uptime-kuma = mkTerranixConfig system terranixHosts.uptime-kuma;
-      });
+      terranixConfigurations = lib.genAttrs supportedSystems (system:
+        lib.mapAttrs (_: host: mkTerranixConfig system host.module) terranixHosts);
+      checks = lib.genAttrs supportedSystems (system:
+        let
+          pkgs = mkPkgs system;
+          # Evaluates the full host (all assertions) with example facts and no
+          # SOPS file, so it runs anywhere.
+          lab118Example = self.nixosConfigurations.lab118-services.extendModules {
+            modules = [ ./hosts/lab118-services/eval-test.nix ];
+          };
+        in {
+          doppler-secrets = import ./modules/roles/doppler-secrets/check.nix { inherit pkgs lib; };
+          provisioning = import ./scripts/provisioning/tests/check.nix {
+            inherit pkgs;
+            manifest = mkInfraManifest system;
+          };
+          lab118-services-eval = pkgs.writeText "lab118-services-eval"
+            (builtins.unsafeDiscardStringContext lab118Example.config.system.build.toplevel.drvPath);
+          # Each case breaks the exposure policy; evaluation must refuse all of them.
+          lab118-services-exposure-guards =
+            let
+              refused = module: !(builtins.tryEval
+                (lab118Example.extendModules { modules = [ module ]; }).config.system.build.toplevel.drvPath).success;
+              results = lib.mapAttrs (_: refused) {
+                container-port-on-all-interfaces = { virtualisation.oci-containers.containers.uptime-kuma.ports = lib.mkForce [ "3001:3001" ]; };
+                node-red-published-publicly = { roles.notificationsStack.nodeRed.hostBind = "0.0.0.0"; };
+                extra-public-tcp-port = { networking.firewall.allowedTCPPorts = [ 5000 ]; };
+                extra-public-udp-port = { networking.firewall.allowedUDPPorts = [ 9999 ]; };
+                hawser-agent-enabled = { roles.docker.dockhandManaged.enable = lib.mkForce true; };
+                incomplete-facts = { lab118.facts = lib.mkOverride 40 ((import ./hosts/lab118-services/facts.nix) // { diskDevice = null; }); };
+              };
+            in
+            assert lib.assertMsg (lib.all lib.id (lib.attrValues results))
+              "exposure guards did not refuse: ${toString (lib.attrNames (lib.filterAttrs (_: ok: !ok) results))}";
+            pkgs.writeText "lab118-services-exposure-guards" (builtins.toJSON results);
+        });
       apps = lib.genAttrs supportedSystems (system: {
         plan = mkProvisionApp system "plan";
         provision = mkProvisionApp system "provision";

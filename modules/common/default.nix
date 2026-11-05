@@ -9,11 +9,6 @@
   ############################################################
   time.timeZone = config.systemProfile.timeZone;
   networking.hostName = config.systemProfile.hostname;
-  networking.nameservers = [
-    "10.0.0.1"
-  ];
-
-  services.resolved.enable = true;
 
   ############################################################
   ## Nix and Flakes
