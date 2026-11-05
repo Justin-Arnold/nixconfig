@@ -14,7 +14,7 @@
 # to withPaperclipKey. Until then the agent runs without Paperclip tools.
 { config, lib, pkgs, ... }:
 let
-  withPaperclipKey = [ "coordinator" "engineer" "researcher" "reviewer" "infra" ];
+  withPaperclipKey = [ "coordinator" "engineer" "researcher" "reviewer" "infra" "monitor" ];
 
   paperclipKey = name:
     lib.optionalAttrs (lib.elem name withPaperclipKey) { PAPERCLIP_AGENT_KEY = "hermes/${name}/paperclip-key"; };
@@ -60,7 +60,7 @@ let
   agents = config.roles.hermesAgents.instances;
 
   # Read-only lab tools (Proxmox, Beszel, Kuma, Alerta) for the coordinator,
-  # infra and the researcher, and read-only GitHub for the coordinator and
+  # infra, the researcher and the monitor, and read-only GitHub for the coordinator and
   # the researcher (docs/agents/REFERENCE.md, "Lab state"). A source is on
   # once it's in observeReady, with its credential in
   # secrets/hosts/agents.yaml; Proxmox needs its nodes and CA here too.
@@ -213,6 +213,20 @@ in
         observe.enable = observing;
         github.enable = withGithubToken;
       };
+
+      # Watches the lab: triages the alerts monitor-intake hands it and
+      # writes the daily health review (Paperclip routines). It only reads,
+      # on the local model with Codex behind it, and has no terminal.
+      monitor = {
+        uid = 3206;
+        port = 8647;
+        model = local;
+        fallbacks = [ (codex "gpt-6.1-terra") (codex "gpt-5.6-terra") ];
+        auxiliary.compression = codex "gpt-6.1-terra";
+        soul = builtins.readFile ./souls/monitor.md;
+        secrets = paperclipKey "monitor";
+        observe.enable = observing;
+      };
     };
   };
 
@@ -256,6 +270,11 @@ in
   assertions = [ {
     assertion = lib.all (c: lib.elem c agents.reviewer.settings.approvals.deny) [ "git push*" "gh pr create*" "gh pr edit*" ];
     message = "agents: the reviewer must not be able to push or change pull requests (its extraDenyCommands).";
+  } {
+    # Its routines start on their own, so it may only read.
+    assertion = agents.monitor.terminal.ssh == null && !(lib.elem "terminal" agents.monitor.toolsets)
+      && !(lib.elem "file" agents.monitor.toolsets);
+    message = "agents: the monitor must have no terminal or file tools.";
   } {
     assertion = lib.all (a: a.address != lab118 || (lib.subtractLists [ 3002 5000 ] a.tcpPorts == [ ] && (a.udpPorts or [ ]) == [ ]))
       (lib.attrValues config.roles.agentEgress.allow);

@@ -27,6 +27,13 @@ or typesafe/credits):
                    for that agent since (major); the agent is on its fallback
   JevCreditsOut    the same for Jev (major); agents carry on without it
 
+and, from monitor-intake's INTAKE_STATUS file (resource
+agents/monitor-intake):
+
+  IntakeStale      monitor-intake hasn't handed new alerts to the monitor
+                   for INTAKE_STALE_MINUTES, with the reason it last gave
+                   (warning)
+
 Every pass sends each alert that still holds. Alerta counts a repeat as a
 duplicate and the forwarder only notifies on a change, so a text never
 carries anything that moves on its own, like a duration. Alerts it raised
@@ -35,7 +42,8 @@ its open ones, so it keeps no state. After a good pass it reports to Kuma's
 push URL, so Kuma notices when it stops.
 
 Environment: PAPERCLIP_URL, ALERTA_URL, STUCK_AFTER_MINUTES (60), COSTS_DIR,
-CLAUDE_MONTHLY_CREDITS (100), CLAUDE_WARN_PERCENT (80), and
+CLAUDE_MONTHLY_CREDITS (100), CLAUDE_WARN_PERCENT (80), INTAKE_STATUS,
+INTAKE_STALE_MINUTES (15), and
 CREDENTIALS_DIRECTORY holding paperclip-key, alerta-key and kuma-push-url.
 """
 import datetime
@@ -196,6 +204,35 @@ def credits(costs_dir, monthly_dollars, warn_percent, now):
     return alerts
 
 
+def intake(status_file, stale_after, now):
+    """IntakeStale, when monitor-intake hasn't had a good pass for
+    stale_after. Before its first pass, it counts from when the intake
+    started, or when its folder was made."""
+    path = pathlib.Path(status_file)
+    try:
+        status = json.loads(path.read_text())
+    except FileNotFoundError:
+        status = {}
+    except (OSError, ValueError):
+        status = {"last_error": "its status file can't be read"}
+    since = when(status.get("last_ok")) or when(status.get("started"))
+    if since is None:
+        try:
+            since = datetime.datetime.fromtimestamp(path.parent.stat().st_mtime, datetime.timezone.utc)
+        except OSError:
+            pass
+    if since is not None and now - since <= stale_after:
+        return []
+    last_ok = status.get("last_ok")
+    error = status.get("last_error")
+    if error and last_ok and (status.get("last_error_at") or "") < last_ok:
+        error = None
+    text = ("monitor-intake hasn't handed new alerts to the monitor since "
+            + (f"{when(last_ok):%Y-%m-%d %H:%M} UTC" if last_ok else "it was set up")
+            + (f": {short(error)}" if error else "."))
+    return [alert("agents/monitor-intake", "IntakeStale", "warning", "Alert intake stalled", text, service="Agents")]
+
+
 def main():
     paperclip = os.environ.get("PAPERCLIP_URL", "http://127.0.0.1:3100").rstrip("/")
     alerta = os.environ["ALERTA_URL"].rstrip("/")
@@ -211,6 +248,9 @@ def main():
     if os.environ.get("COSTS_DIR"):
         alerts += credits(os.environ["COSTS_DIR"], int(os.environ.get("CLAUDE_MONTHLY_CREDITS", "100")),
                           int(os.environ.get("CLAUDE_WARN_PERCENT", "80")), now)
+    if os.environ.get("INTAKE_STATUS"):
+        alerts += intake(os.environ["INTAKE_STATUS"],
+                         datetime.timedelta(minutes=int(os.environ.get("INTAKE_STALE_MINUTES", "15"))), now)
     wanted = {(a["resource"], a["event"]) for a in alerts}
 
     query = urllib.parse.urlencode([("environment", ENVIRONMENT), ("origin", ORIGIN),

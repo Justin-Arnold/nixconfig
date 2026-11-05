@@ -4,7 +4,9 @@
 The fake keeps the rules the script depends on in Paperclip 2026.1023.0:
 board keys from the CLI sign-in, adapterConfig merged over what's stored with
 secrets redacted on the way out, runtimeConfig replaced whole, labels that
-can't be changed, and hires that wait for approval when the company says so.
+can't be changed, hires that wait for approval when the company says so, and
+routines whose variables are rebuilt from the {{placeholders}} in their title
+and description.
 It checks a dry run changes nothing, --apply makes exactly the expected
 changes, and a second run finds nothing to do.
 
@@ -39,7 +41,29 @@ PATHS = {
     "/api/agents/{id}": ["get", "patch", "delete"],
     "/api/agents/{id}/permissions": ["patch"],
     "/api/agents/{id}/approve": ["post"],
+    "/api/companies/{companyId}/routines": ["get", "post"],
+    "/api/routines/{id}": ["get", "patch"],
+    "/api/routines/{id}/triggers": ["post"],
+    "/api/routine-triggers/{id}": ["patch", "delete"],
 }
+
+# Built into Paperclip's routine templates, so never variables.
+BUILTIN = {"date", "timestamp", "workspaceBranch"}
+VARIABLE = {"label": None, "type": "text", "defaultValue": None, "required": True, "options": []}
+
+
+def rebuild(title, description, declared):
+    """packages/shared/src/routine-variables.ts: one variable per placeholder, declared ones kept."""
+    names = []
+    for name in re.findall(r"\{\{\s*([A-Za-z][A-Za-z0-9_]*)\s*\}\}", f"{title}\n{description or ''}"):
+        if name not in BUILTIN and name not in names:
+            names.append(name)
+    by_name = {v["name"]: v for v in declared or []}
+    return [{**VARIABLE, **by_name.get(name, {}), "name": name} for name in names]
+
+
+def routine_row(r):
+    return {k: v for k, v in r.items()}
 
 
 # server/src/redaction.ts: a key is secret when its name ends in one of these.
@@ -103,7 +127,30 @@ def initial_state():
             {"id": "a6", "name": "Scratch", "role": "general", "reportsTo": None, "status": "idle",
              "adapterType": "process", "adapterConfig": {}, "runtimeConfig": {}, "permissions": {}},
         ],
+        "routines": [
+            {"id": "r1", "title": "Lab health review {{date}}", "description": "Old instructions.", "assigneeAgentId": "a1",
+             "priority": "low", "status": "active", "concurrencyPolicy": "coalesce_if_active",
+             "catchUpPolicy": "skip_missed", "variables": []},
+            {"id": "r2", "title": "Scratch routine", "description": None, "assigneeAgentId": "a3", "priority": "medium",
+             "status": "paused", "concurrencyPolicy": "coalesce_if_active", "catchUpPolicy": "skip_missed",
+             "variables": []},
+            {"id": "r3", "title": "Gone", "description": None, "assigneeAgentId": "a3", "priority": "medium",
+             "status": "archived", "concurrencyPolicy": "coalesce_if_active", "catchUpPolicy": "skip_missed",
+             "variables": []},
+        ],
+        "triggers": [
+            {"id": "t1", "routineId": "r1", "kind": "schedule", "label": "every morning", "enabled": True,
+             "cronExpression": "0 6 * * *", "timezone": "UTC"},
+            {"id": "t2", "routineId": "r1", "kind": "webhook", "label": "old hook", "enabled": True,
+             "cronExpression": None, "timezone": None},
+        ],
     }
+
+
+DESCRIPTIONS = {
+    "routines/health.md": "Check the lab on {{date}}.\n",
+    "routines/review.md": "Review pull request {{number}} in {{repo}}.\n",
+}
 
 
 SPEC = {
@@ -128,6 +175,18 @@ SPEC = {
          "heartbeat": {"enabled": False, "wakeOnDemand": True}, "canCreateAgents": False},
         {"name": "Watcher", "role": "general", "reportsTo": "Coordinator", "adapterType": "hermes_gateway",
          "apiKeySecret": "no-such-secret", "adapterConfig": {"apiBaseUrl": "http://127.0.0.1:8646"}},
+    ],
+    "routines": [
+        {"title": "Lab health review {{date}}", "assignee": "Researcher", "descriptionFile": "routines/health.md",
+         "priority": "medium", "concurrencyPolicy": "skip_if_active", "catchUpPolicy": "skip_missed",
+         "triggers": [{"label": "every morning", "kind": "schedule", "cronExpression": "0 7 * * *",
+                       "timezone": "America/New_York"}]},
+        # Its assignee is hired in the same run.
+        {"title": "Review {{repo}}#{{number}}", "assignee": "Reviewer", "descriptionFile": "routines/review.md",
+         "priority": "medium", "concurrencyPolicy": "always_enqueue", "catchUpPolicy": "skip_missed",
+         "variables": [{"name": "repo", "label": "Repository", "type": "select", "options": ["nixconfig", "agent-scratch"]},
+                       {"name": "number", "label": "Pull request", "type": "number"}],
+         "triggers": []},
     ],
 }
 
@@ -212,6 +271,44 @@ class Fake:
                     if k != "adapterConfig":
                         agent[k] = v
             return 200, self.redact(agent)
+
+        routines = self.state["routines"]
+        triggers = self.state["triggers"]
+        if path == f"/api/companies/{CID}/routines":
+            if method == "POST":
+                assert set(body) <= {"title", "description", "assigneeAgentId", "status", "variables", "priority",
+                                     "concurrencyPolicy", "catchUpPolicy"}, body
+                routine = {"id": f"r{len(routines) + 1}", "priority": "medium", "concurrencyPolicy": "coalesce_if_active",
+                           "catchUpPolicy": "skip_missed", **body}
+                # Without an assignee Paperclip saves an active routine as paused.
+                if not routine.get("assigneeAgentId"):
+                    routine["status"] = "paused"
+                routine["variables"] = rebuild(routine["title"], routine.get("description"), body.get("variables"))
+                routines.append(routine)
+                return 201, routine
+            return 200, [{**r, "triggers": [{k: t[k] for k in ("id", "kind", "label", "enabled", "cronExpression", "timezone")}
+                                            for t in triggers if t["routineId"] == r["id"]]} for r in routines]
+        m = re.fullmatch(r"/api/routines/(\w+)(/triggers)?", path)
+        if m:
+            routine = next(r for r in routines if r["id"] == m[1])
+            if m[2]:
+                assert method == "POST" and body["kind"] != "webhook", body
+                trigger = {"id": f"t{len(triggers) + 1}", "routineId": routine["id"], "cronExpression": None,
+                           "timezone": None, **body}
+                triggers.append(trigger)
+                return 201, {"trigger": trigger, "secretMaterial": None, "revision": {"id": "rev"}}
+            if method == "PATCH":
+                assert routine["status"] != "archived"
+                routine.update(body)
+                routine["variables"] = rebuild(routine["title"], routine.get("description"),
+                                               body.get("variables", routine["variables"]))
+            return 200, routine
+        m = re.fullmatch(r"/api/routine-triggers/(\w+)", path)
+        if m and method == "PATCH":
+            trigger = next(t for t in triggers if t["id"] == m[1])
+            assert set(body) <= {"enabled", "cronExpression", "timezone", "label"}, body
+            trigger.update(body)
+            return 200, trigger
         return 404, {"error": f"no route {method} {path}"}
 
 
@@ -268,6 +365,9 @@ server = serve(fake)
 url = f"http://127.0.0.1:{server.server_address[1]}"
 spec_path = pathlib.Path(tempfile.mkdtemp()) / "spec.json"
 spec_path.write_text(json.dumps(SPEC))
+for name, text in DESCRIPTIONS.items():
+    (spec_path.parent / name).parent.mkdir(exist_ok=True)
+    (spec_path.parent / name).write_text(text)
 
 out = run(url, str(spec_path))
 check("dry run writes nothing", fake.writes == [])
@@ -280,7 +380,15 @@ check("dry run plans the hire", "+ agent Reviewer (qa, http://127.0.0.1:8645, ke
 check("an agent without its secret isn't hired", "! agent Watcher is missing and can't be hired" in out)
 check("the concierge's adapter drift is only reported", "! agent Concierge: url is wss://old.example" in out)
 check("an agent's secret is checked by name", "= agent Researcher (key from secret researcher-api-key)" in out)
-check("dry run counts its changes", "4 change(s) pending" in out)
+check("dry run plans the routine drift", "~ routine Lab health review {{date}}: description, assignee Coordinator -> "
+      "Researcher, priority low -> medium, concurrencyPolicy coalesce_if_active -> skip_if_active, trigger every "
+      "morning cronExpression 0 6 * * * -> 0 7 * * *, trigger every morning timezone UTC -> America/New_York" in out)
+check("dry run plans the new routine", "+ routine Review {{repo}}#{{number}} (for Reviewer, no triggers)" in out)
+check("dry run reports a webhook trigger it found",
+      "! routine Lab health review {{date}}: webhook trigger old hook exists in Paperclip" in out)
+check("dry run reports routines only in Paperclip, but not archived ones",
+      "? routine Scratch routine exists only in Paperclip" in out and "Gone" not in out)
+check("dry run counts its changes", "6 change(s) pending" in out)
 
 out = run(url, str(spec_path), "--apply")
 state = fake.state
@@ -301,10 +409,39 @@ check("apply leaves the concierge's adapter settings alone",
       con["adapterConfig"] == {"url": "wss://old.example", "headers": {"x-openclaw-token": "real-token"}})
 check("apply never writes a secret value", "real-token" not in json.dumps(fake.writes) and "REDACTED" not in json.dumps(fake.writes))
 check("apply revokes its sign-in key", not fake.keys)
+health = next(r for r in state["routines"] if r["id"] == "r1")
+review = next((r for r in state["routines"] if r["title"] == "Review {{repo}}#{{number}}"), {})
+check("apply fixes the health routine", health["description"] == "Check the lab on {{date}}."
+      and health["assigneeAgentId"] == "a3" and health["priority"] == "medium"
+      and health["concurrencyPolicy"] == "skip_if_active")
+check("apply fixes its schedule and leaves the webhook alone",
+      [(t["id"], t["cronExpression"], t["timezone"]) for t in state["triggers"]]
+      == [("t1", "0 7 * * *", "America/New_York"), ("t2", None, None)])
+check("apply creates the review routine for the reviewer it just hired",
+      review.get("assigneeAgentId") == rev["id"] and review.get("status") == "active"
+      and review.get("concurrencyPolicy") == "always_enqueue"
+      and [(v["name"], v["type"], v["options"]) for v in review.get("variables", [])]
+      == [("repo", "select", ["nixconfig", "agent-scratch"]), ("number", "number", [])])
+check("apply leaves a paused routine paused and untouched",
+      not any("/api/routines/r2" in path for _, path, _ in fake.writes)
+      and next(r for r in state["routines"] if r["id"] == "r2")["status"] == "paused")
 
 writes = len(fake.writes)
 out = run(url, str(spec_path), "--apply")
 check("a second run changes nothing", len(fake.writes) == writes and "0 change(s) made" in out)
+
+bad = json.loads(json.dumps(SPEC))
+bad["routines"][0]["triggers"].append({"label": "hook", "kind": "webhook"})
+bad_path = spec_path.with_name("bad.json")
+bad_path.write_text(json.dumps(bad))
+writes = len(fake.writes)
+env = {k: v for k, v in os.environ.items() if k != "PAPERCLIP_BOARD_KEY"}
+proc = subprocess.run([sys.executable, "-I", SCRIPT, "--url", url, "--spec", str(bad_path), "--apply"],
+                      capture_output=True, text=True, env=env, timeout=60)
+print(proc.stdout + proc.stderr)
+check("a webhook trigger in the spec is refused before signing in", proc.returncode != 0
+      and "only api and schedule are allowed" in proc.stderr and "Approve" not in proc.stdout
+      and len(fake.writes) == writes)
 
 server.shutdown()
 if failures:

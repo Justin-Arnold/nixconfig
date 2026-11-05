@@ -42,6 +42,7 @@ in
       ./backup.nix
       ./agent-watch.nix
       ./agent-costs.nix
+      ./monitor-intake.nix
       ../../modules/common
       ../../modules/profiles/server.nix
       ../../modules/platforms/nixos

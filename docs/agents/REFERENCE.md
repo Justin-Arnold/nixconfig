@@ -18,12 +18,13 @@ separate execution host.
 | VM | Proxmox, 4 vCPU (`x86-64-v2-AES`), 12 GB, 80 GB on `nas-shared`, MAC `02:01:18:00:00:06`, HA resource |
 | Paperclip | `https://paperclip.servicestack.xyz` (2026.1023.0, official image pinned by digest, under Podman) |
 | Database | PostgreSQL 17 from nixpkgs, socket and localhost only |
-| Agents | Hermes v0.22.5: `coordinator`, `engineer`, `researcher`, `reviewer`, `infra`, one process each, API servers on `127.0.0.1:8642` to `8646` |
-| Models | Codex for the coordinator, engineer and infra, with Claude Opus 5.5 as their last fallback; Claude Opus 5.5 for the reviewer, with Sonnet 5.5 and Codex behind it; the lab's GPU (`local` on inference) for the researcher, with Codex behind it, and for every agent's session titles and memory review |
-| Tools from outside | Jev, TypeSafe's decision model, as every agent's `decide` tool; read-only Proxmox, Beszel, Kuma and Alerta for the coordinator, infra and the researcher; read-only GitHub for the coordinator and the researcher |
+| Agents | Hermes v0.22.5: `coordinator`, `engineer`, `researcher`, `reviewer`, `infra`, `monitor`, one process each, API servers on `127.0.0.1:8642` to `8647` |
+| Models | Codex for the coordinator, engineer and infra, with Claude Opus 5.5 as their last fallback; Claude Opus 5.5 for the reviewer, with Sonnet 5.5 and Codex behind it; the lab's GPU (`local` on inference) for the researcher and the monitor, with Codex behind them, and for every agent's session titles and memory review |
+| Tools from outside | Jev, TypeSafe's decision model, as every agent's `decide` tool; read-only Proxmox, Beszel, Kuma and Alerta for the coordinator, infra, the researcher and the monitor; read-only GitHub for the coordinator and the researcher |
 | Login | `ssh agents` as `justin`, key only (the Mac Mini key). Root has no SSH. |
 | Console | Proxmox console, root password from SOPS (`root/console-password-hash`) |
 | Secrets | `secrets/hosts/agents.yaml`, host-scoped age key at `/var/lib/sops-nix/key.txt` |
+| Routines | A lab health review every morning and alert triage, for the monitor; a flake.lock pull request every Monday, for infra; a pull request review when you ask, for the reviewer |
 | Backups | Nightly at 03:15, NFS share on the NAS, age-encrypted, Kuma push monitor |
 
 ## Where things live in the repo
@@ -36,6 +37,7 @@ separate execution host.
 | `hosts/agents/backup.nix` | The NFS mount and what gets backed up. |
 | `hosts/agents/agent-watch.nix`, `hosts/agents/agent-watch/` | The timer that turns Paperclip's state into Alerta alerts, and its test against fakes. |
 | `hosts/agents/agent-costs.nix`, `hosts/agents/agent-costs/` | Each agent's Claude and Jev spend, reported to Paperclip and summed for agent-watch's credit alerts, and its test. |
+| `hosts/agents/monitor-intake.nix`, `hosts/agents/monitor-intake/` | The timer that hands new Alerta alerts to the monitor, and its test against fakes. |
 | `hosts/agents/eval-test.nix` | Example values for the flake checks, not used by the real host. |
 | `infra/terranix/hosts/agents.nix` | The VM, its storage, CPU type and HA resource. |
 | `hosts/agents/agents.nix` | The Hermes agents, their models, which ones have a Paperclip key, and what they may reach in the LAN. |
@@ -49,7 +51,8 @@ separate execution host.
 | `modules/roles/agent-egress.nix` | The outbound filter that keeps the agents off the LAN. |
 | `modules/roles/sqlite-backup.nix` | Backups, including the PostgreSQL dumps. |
 | `scripts/agents/post-install-check.sh` | Read-only health report. |
-| `scripts/agents/paperclip-apply.py`, `paperclip-spec.json` | Paperclip's company setting, labels and agents as a spec, applied through its API. |
+| `scripts/agents/paperclip-apply.py`, `paperclip-spec.json` | Paperclip's company setting, labels, agents and routines as a spec, applied through its API. |
+| `scripts/agents/routines/` | What each routine asks its agent to do. |
 | `scripts/agents/paperclip-cancel.py` | Cancels Paperclip issues by identifier, such as a smoke test's leftovers. |
 | `scripts/agents/tests/` | Fake Paperclips that `paperclip-apply.py` and `paperclip-cancel.py` are tested against in the `provisioning` check. |
 | `scripts/agents/smoke-e2e.py` | The end-to-end smoke test: real issues for the agents, checked against GitHub, workbench and Alerta. |
@@ -69,7 +72,7 @@ WAN or Pangolin is down.
 |---|---|---|
 | `/api/health` | LAN, VPN, the tunnel (Kuma) | Paperclip's health check |
 | `/mcp`, `/mcp/*`, `/.well-known/*` | nobody | 404 |
-| `/api/routine-triggers/public/*` | nobody yet | 404 |
+| `/api/routine-triggers/public/*` | nobody | 404 |
 | everything else | LAN (Pangolin included), VPN | Paperclip, `127.0.0.1:3100` |
 | unknown names, bare IP | nobody | no certificate, no content |
 
@@ -77,8 +80,8 @@ WAN or Pangolin is down.
 assistants acting as a signed-in person. It's off in Paperclip, and nginx
 keeps it unreachable regardless. Routine webhooks are where outside systems
 fire routines. A trigger can be created with no authentication, so they stay
-closed until a server block is made for a specific sender, such as the alert
-pipeline over the tunnel.
+closed: routines here start from their schedules, from the board, or from
+monitor-intake on this host (see Routines).
 
 lab118-services resolves the name through lab DNS over the tunnel
 (`labDomains` in `hosts/lab118-services/configuration.nix`), not through
@@ -254,10 +257,14 @@ as an organization secret. The session key strategy defaults to `issue`, so
 one task's memory doesn't bleed into another's, and timed heartbeats start
 off. The first hire becomes the CEO and later ones report to it, so the
 coordinator goes first. Paperclip stops a run that's still going after the
-adapter's `timeoutSec`, 600 seconds unless the spec says otherwise, and
-marks the issue blocked. The reviewer and infra get 2400, because nixconfig's
-checks alone take longer than ten minutes on workbench. A command the agent
-started in the background keeps running there after its run is stopped.
+adapter's `timeoutSec`, and marks the issue blocked. The spec gives every
+agent its own: 600 seconds, Paperclip's default, for the coordinator, the
+engineer and the researcher; 900 for the monitor; 2400 for the reviewer and
+infra, because nixconfig's checks alone take longer than ten minutes on
+workbench. A command the agent started in the background keeps running there
+after its run is stopped. The monitor also runs one thing at a time and at
+most 30 times a day (`maxConcurrentRuns` and `maxDailyRuns` in its
+heartbeat), since its work starts on its own.
 
 Hermes logs to `logs/gateway.log` and `logs/errors.log` under the agent's
 `.hermes`, not to the journal. When the API server can't start, the gateway
@@ -276,8 +283,8 @@ engineer and infra run on Codex, fall back a Codex generation, and then to
 Claude Opus 5.5 (`claude-opus-5-5`). The reviewer runs on Claude Opus 5.5 with
 high reasoning effort, so code is reviewed by a different model family from
 the one that wrote it, and falls back to Sonnet 5.5 and then Codex. The
-researcher runs on `local`, the model inference serves to the lab
-(`docs/inference/REFERENCE.md`), with Codex's middle tier behind it. Every
+researcher and the monitor run on `local`, the model inference serves to
+the lab (`docs/inference/REFERENCE.md`), with Codex's middle tier behind it. Every
 agent's session titles and post-turn memory review run on `local` too
 (`sideTasks` in `agents.nix`), and context compression stays on Codex, since
 a poor summary loses an agent's context for good.
@@ -290,7 +297,7 @@ set to a slot's 64K, since llama-server reports the model's own, much larger
 one.
 
 When inference is down or busy, Hermes retries and then falls back: the
-researcher to Codex, and side tasks to the agent's main model: Codex for most,
+researcher and the monitor to Codex, and side tasks to the agent's main model: Codex for most,
 which quietly uses the plan's limits, and Claude for the reviewer, which
 spends from the Anthropic key. inference's nginx
 gives the `agents` key two requests at a time and answers a third with a 429,
@@ -311,7 +318,7 @@ the same credits. When the credits run out, Hermes takes Anthropic's refusal
 as a billing failure and moves to the next fallback at once: the reviewer to
 Sonnet, which uses the same credits, then Codex; the others keep running on
 Codex. agent-watch alerts both before and when that happens ("Spend"). The key reaches only the agents whose model, fallbacks or side
-tasks name Claude, as `ANTHROPIC_API_KEY`, so the researcher doesn't have it,
+tasks name Claude, as `ANTHROPIC_API_KEY`, so the researcher and the monitor don't have it,
 and only the models in `roles.hermesAgents.anthropic.models` are allowed.
 Hermes would also take a Claude login or OAuth token, ahead of the key, and
 Anthropic's terms don't allow those in a third-party harness. So none can be
@@ -362,7 +369,7 @@ it later for private text.
 
 ### Lab state: Observe tools
 
-The coordinator, infra and the researcher can read the lab's state through
+The coordinator, infra, the researcher and the monitor can read the lab's state through
 the lab MCP server (`modules/roles/hermes-agents/lab-mcp/server.py`, the
 standard library and the MCP SDK), and the coordinator and the researcher can
 read GitHub. Nothing here can change anything: each credential can only read,
@@ -451,6 +458,57 @@ citing the issue. Every agent pushes as the same machine account, and GitHub
 doesn't let a pull request's author approve or request changes on it, so the
 comment is the record and Paperclip holds the verdict. Merging stays yours.
 
+### Routines
+
+Some work starts on its own, as Paperclip routines: each makes an issue for
+its agent from a template, on a schedule or when something runs it.
+`paperclip-spec.json` lists them, `paperclip-apply.py` keeps Paperclip in
+line with it, and what each asks its agent is in `scripts/agents/routines/`.
+
+| Routine | Agent | Starts | What it does |
+|---|---|---|---|
+| Lab health review | monitor | every day at 07:00 New York time | Reads every lab source and says what's down, degraded or heading the wrong way, leading with whether anything needs you |
+| Triage lab alerts | monitor | monitor-intake, when alerts open in Alerta | Reads each new alert and what it's about, and gives the likely cause and the next step |
+| Update flake.lock | infra | Mondays at 06:00 New York time | Runs `nix flake update` in a worktree, evaluates every host, and opens a pull request with only `flake.lock`, listing what moved |
+| Review a pull request | reviewer | when you run it in Paperclip, with a repository and a number | Reviews that pull request the way it reviews a review stage, and comments on it |
+
+The scheduled ones skip a tick while the last one's run is still going, and
+after downtime fire one late run at most. Paperclip's cron reads the day of
+the week as 0 to 6, Sunday first, and when a day of the month and a day of
+the week are both set, both have to match. `{{date}}` in a title is the UTC
+date. The review's repository is a choice between nixconfig and
+agent-scratch, the two the machine account can reach, and its number is a
+number, so nothing typed into a run reaches a prompt as free text.
+
+A routine paused in Paperclip stays paused: `paperclip-apply.py` reports it
+and leaves it alone. It never deletes or archives a routine, and never makes
+a webhook trigger. Nothing a routine starts can change the lab: the monitor
+only reads, infra stops at a pull request you land with `land-pr.sh`, and the
+reviewer only comments. A routine can't carry a review stage, so the
+flake.lock pull request has no reviewer but you.
+
+monitor-intake (`monitor-intake.nix`) is what starts a triage. Every 2
+minutes it reads Alerta's open alerts with the lab tools' read-only key,
+skips agent-watch's own, so the agents' trouble can't loop back to them, and
+anything below `warning`, and runs the triage routine with the ids of the
+alerts it hasn't handed over yet. Only ids go to Paperclip; the monitor reads
+each alert itself. While the monitor is still on a triage, new alerts wait
+and go in the next one, so a burst becomes one issue, and there are at most
+24 a UTC day (`agents.monitorIntake.dailyLimit`). An alert that closes and
+opens again is new again; an acknowledged one isn't open, so it isn't
+triaged. The intake runs as its own user, with the monitor's Paperclip key,
+which can run only the monitor's routines, and reaches only Paperclip and
+Alerta. `/var/lib/monitor-intake/status.json` says when it last worked and
+why it last didn't, and agent-watch raises IntakeStale after 15 minutes
+without a good pass.
+
+```sh
+ssh agents 'cat /var/lib/monitor-intake/status.json; journalctl -u monitor-intake -n 5 -o cat --no-pager'
+```
+
+Nothing comes in from lab118 for this. Node-RED there has no flows, and
+Paperclip's public trigger path stays closed ("How it's reached").
+
 ## How agents and tasks are meant to be set up
 
 There's one company for the lab. Its CEO is the coordinator agent, and the
@@ -531,6 +589,8 @@ names some:
 | `local` | the same, through the lab's local model: the researcher's main model is `lab-gpu`, Hermes logs no fallback while it works, and inference's nginx logs at least one successful request from the `agents` key |
 | `decide` | the researcher asks Jev one fixed question and comments the call id it got back, which is in the Jev server's call log as a successful call |
 | `observe` | the researcher reads each lab source it has once and comments the call ids, each a successful call of that source in the lab server's log; with GitHub on, it quotes nixconfig pull request #1's title, which matches GitHub's |
+| `health` | the board runs the monitor's health review; the monitor comments and sets the issue done, and its lab log shows a successful call to every source it has during the run |
+| `intake` | a minor test alert, `smoke/<nonce>`, goes into Alerta and monitor-intake runs; the monitor's triage of it ends done with a comment naming `smoke/<nonce>`, which it can only learn by reading the alert, and an `alerta_alert` call in its log. The alert is cleared afterwards, and the phone gets both. |
 | `change` | the engineer pushes an `agent/engineer/*` branch to agent-scratch with exactly the file it was asked for, opens a pull request as the machine account, and comments its URL. The pull request is then closed and its branch deleted, unless `--keep-pr`. |
 | `review` | the same, on an issue with a review stage for the reviewer: Paperclip hands it over when the engineer sets it done, the reviewer approves it so the stage completes, and its findings are on the pull request as a comment review citing the issue |
 | `costs` | agent-costs reports the reviewer's Claude spend from the review stage: its `month.json` shows some this month, and Paperclip shows the same amount against the Reviewer |
@@ -543,7 +603,9 @@ Most stages wait on real model runs, so a full run takes 20 to 45 minutes;
 `--keep-pr`. The issues stay in Paperclip,
 titled `Smoke test <nonce>: ...`. It needs `gh` signed in as Justin and
 `ssh agents`, `ssh workbench` and `ssh inference` with sudo. The Alerta key never leaves the
-agents VM: the alert lookups run there.
+agents VM: the alert lookups and the test alert run there. The flake.lock and
+pull request review routines aren't in it, since they make real pull
+requests or spend Opus; run them from Paperclip to try them.
 
 A `gate` that fails with the canary intact and nothing in the log means the
 model declined on its own, so the deny list wasn't exercised.
@@ -579,6 +641,7 @@ alerts in Alerta on lab118-services, environment `Homelab`, origin
 | `ClaudeSpend` | `anthropic/credits` | this month's estimated Claude spend across the agents has passed 80% of the month's credit, or all of it (major) | warning |
 | `ClaudeCreditsOut` | `anthropic/credits` | Claude refused an agent for credits and hasn't worked for it since; the agent is on its fallback | major |
 | `JevCreditsOut` | `typesafe/credits` | the same for Jev; agents carry on without it | major |
+| `IntakeStale` | `agents/monitor-intake` | monitor-intake hasn't had a good pass for 15 minutes, with the reason it last gave: Paperclip or Alerta unreachable, the triage routine missing, the monitor at its daily cap | warning |
 
 An alert is cleared, which sends a resolved notification, on the first pass
 where it no longer holds. agent-watch finds its open alerts by asking Alerta,
@@ -617,13 +680,13 @@ operator key, nothing else. On macOS, edit it with
 | `agent-watch/kuma-push-url` | the `JOB / agent-watch` push monitor's URL |
 | `root/console-password-hash` | `mkpasswd -m yescrypt` |
 | `hermes/<name>/api-server-key` | `openssl rand -hex 32`, one per agent. Also goes into Paperclip as that agent's adapter `apiKey`. |
-| `hermes/<name>/paperclip-key` | the agent's Paperclip key, only for agents listed in `withPaperclipKey` |
+| `hermes/<name>/paperclip-key` | the agent's Paperclip key, only for agents listed in `withPaperclipKey`. monitor-intake uses the monitor's too. |
 | `inference/agents-key` | the agents' key for inference, the same value as `inference/keys/agents` in `secrets/hosts/inference.yaml` |
 | `anthropic/api-key` | an Anthropic API key from the Console's Default workspace, capped only by the organization's limit and credits. Never an OAuth token. |
 | `jev/api-key` | a TypeSafe API key, from console.typesafe.ai |
 | `observe/proxmox-token` | the agents' Proxmox API token, `agents@pve!observe=<secret>`, audit-only |
 | `observe/beszel-password` | the password of Beszel's readonly user for the agents |
-| `observe/alerta-key` | an Alerta key with `read:alerts` only |
+| `observe/alerta-key` | an Alerta key with `read:alerts` only, also monitor-intake's |
 | `observe/github-token` | a fine-grained GitHub token from Justin's account: all repositories, read-only Metadata, Contents, Issues, Pull requests and Commit statuses |
 | `hermes/<name>/ssh-key` | for the engineer, reviewer and infra: `ssh-keygen -t ed25519 -N ''`, the private half; the public half goes in `workbench.agents.<name>.publicKey` in `hosts/workbench/agents.nix`. Needed once `workbenchHostKey` is set. |
 
@@ -709,7 +772,7 @@ host key and the same master key in SOPS, the stored secrets stay readable.
   `state.db` until its first run.
 - Nothing caches Hermes' build, so the first switch after a Hermes update
   builds it on this VM.
-- Five agents at their 2 GB `MemoryMax` plus Paperclip's 4 GB add up to more
+- Six agents at their 2 GB `MemoryMax` plus Paperclip's 4 GB add up to more
   than the VM's 12 GB. Those are caps, and an idle agent uses far less, but
   several long runs at once could press on memory.
 - GitHub's MCP server is pinned in the repo, not in nixpkgs, so its updates
@@ -717,6 +780,10 @@ host key and the same master key in SOPS, the stored secrets stay readable.
   `go.mod` is edited to build with nixpkgs' Go until that catches up.
 - Kuma's status page and Alerta go over plain HTTP on the LAN as far as the
   router, then over the tunnel, like agent-watch's alerts.
+- An alert waits up to 2 minutes for monitor-intake, and longer while the
+  monitor is on an earlier triage. The monitor and the researcher share the
+  `agents` key's two requests at a time on inference with every agent's side
+  tasks.
 - The reviewer can only comment on GitHub: every agent pushes as one machine
   account, and GitHub doesn't let a pull request's author approve it.
   Paperclip's review stage is the gate.

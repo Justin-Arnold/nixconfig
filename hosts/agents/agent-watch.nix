@@ -63,6 +63,11 @@ in
           COSTS_DIR = "/var/lib/agent-costs";
           CLAUDE_MONTHLY_CREDITS = toString config.agents.costs.claudeMonthlyCredits;
           CLAUDE_WARN_PERCENT = toString config.agents.costs.claudeWarnPercent;
+        } // lib.optionalAttrs config.agents.monitorIntake.active {
+          # Whether new alerts still reach the monitor (./monitor-intake.nix),
+          # which runs every 2 minutes.
+          INTAKE_STATUS = config.agents.monitorIntake.statusFile;
+          INTAKE_STALE_MINUTES = "15";
         } // {
           # For the HTTPS push to Kuma; Python doesn't find the bundle itself.
           SSL_CERT_FILE = config.security.pki.caBundle;

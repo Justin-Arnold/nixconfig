@@ -21,7 +21,8 @@
       "adapterType": "hermes_gateway",
       "adapterConfig": {
         "apiBaseUrl": "http://127.0.0.1:8642",
-        "sessionKeyStrategy": "issue"
+        "sessionKeyStrategy": "issue",
+        "timeoutSec": 600
       },
       "apiKeySecret": "hermes_gateway.apikey.06d99c80-431f-47d2-8873-4f520103fdaf",
       "heartbeat": {
@@ -37,7 +38,8 @@
       "adapterType": "hermes_gateway",
       "adapterConfig": {
         "apiBaseUrl": "http://127.0.0.1:8643",
-        "sessionKeyStrategy": "issue"
+        "sessionKeyStrategy": "issue",
+        "timeoutSec": 600
       },
       "apiKeySecret": "hermes_gateway.apikey.2f05d47b-70d2-4078-8d16-5bfedc62359d",
       "heartbeat": {
@@ -53,7 +55,8 @@
       "adapterType": "hermes_gateway",
       "adapterConfig": {
         "apiBaseUrl": "http://127.0.0.1:8644",
-        "sessionKeyStrategy": "issue"
+        "sessionKeyStrategy": "issue",
+        "timeoutSec": 600
       },
       "apiKeySecret": "hermes_gateway.apikey.fb9ddfa3-cb23-47ca-8fdd-ec37870699b4",
       "heartbeat": {
@@ -97,6 +100,26 @@
       "canCreateAgents": false
     },
     {
+      "name": "Monitor",
+      "role": "general",
+      "title": "Watches the lab",
+      "reportsTo": "Coordinator",
+      "adapterType": "hermes_gateway",
+      "adapterConfig": {
+        "apiBaseUrl": "http://127.0.0.1:8647",
+        "sessionKeyStrategy": "issue",
+        "timeoutSec": 900
+      },
+      "apiKeySecret": "monitor-api-key",
+      "heartbeat": {
+        "enabled": false,
+        "wakeOnDemand": true,
+        "maxConcurrentRuns": 1,
+        "maxDailyRuns": 30
+      },
+      "canCreateAgents": false
+    },
+    {
       "name": "Concierge",
       "role": "general",
       "reportsTo": "Coordinator",
@@ -114,6 +137,86 @@
         "wakeOnDemand": true
       },
       "canCreateAgents": false
+    }
+  ],
+  "routines": [
+    {
+      "title": "Lab health review {{date}}",
+      "assignee": "Monitor",
+      "descriptionFile": "routines/lab-health-review.md",
+      "priority": "medium",
+      "concurrencyPolicy": "skip_if_active",
+      "catchUpPolicy": "skip_missed",
+      "triggers": [
+        {
+          "label": "every morning",
+          "kind": "schedule",
+          "cronExpression": "0 7 * * *",
+          "timezone": "America/New_York"
+        }
+      ]
+    },
+    {
+      "title": "Triage {{count}} lab alert(s)",
+      "assignee": "Monitor",
+      "descriptionFile": "routines/triage-lab-alerts.md",
+      "priority": "high",
+      "concurrencyPolicy": "skip_if_active",
+      "catchUpPolicy": "skip_missed",
+      "variables": [
+        {
+          "name": "count",
+          "label": "How many alerts",
+          "type": "number"
+        },
+        {
+          "name": "alerts",
+          "label": "Alert ids",
+          "type": "text"
+        }
+      ],
+      "triggers": []
+    },
+    {
+      "title": "Update flake.lock {{date}}",
+      "assignee": "Infra",
+      "descriptionFile": "routines/update-flake-lock.md",
+      "priority": "low",
+      "concurrencyPolicy": "skip_if_active",
+      "catchUpPolicy": "skip_missed",
+      "triggers": [
+        {
+          "label": "Monday mornings",
+          "kind": "schedule",
+          "cronExpression": "0 6 * * 1",
+          "timezone": "America/New_York"
+        }
+      ]
+    },
+    {
+      "title": "Review {{repo}}#{{number}}",
+      "assignee": "Reviewer",
+      "descriptionFile": "routines/review-pull-request.md",
+      "priority": "medium",
+      "concurrencyPolicy": "always_enqueue",
+      "catchUpPolicy": "skip_missed",
+      "variables": [
+        {
+          "name": "repo",
+          "label": "Repository",
+          "type": "select",
+          "options": [
+            "nixconfig",
+            "agent-scratch"
+          ]
+        },
+        {
+          "name": "number",
+          "label": "Pull request number",
+          "type": "number"
+        }
+      ],
+      "triggers": []
     }
   ]
 }

@@ -17,8 +17,8 @@ section "failed units"
 systemctl --failed --no-legend --no-pager || true
 
 section "services"
-for unit in postgresql paperclip-db-password podman-paperclip hermes-coordinator hermes-engineer hermes-researcher hermes-reviewer hermes-infra beszel-agent nginx \
-  sqlite-backup.timer paperclip-health-watch.timer mnt-agents\\x2dbackups.automount; do
+for unit in postgresql paperclip-db-password podman-paperclip hermes-coordinator hermes-engineer hermes-researcher hermes-reviewer hermes-infra hermes-monitor beszel-agent nginx \
+  sqlite-backup.timer paperclip-health-watch.timer monitor-intake.timer mnt-agents\\x2dbackups.automount; do
   printf '%-36s %s\n' "$unit" "$(systemctl is-active "$unit" 2>/dev/null)"
 done
 printf 'docker installed: %s (expect no)\n' "$(command -v docker >/dev/null && echo yes || echo no)"
@@ -57,12 +57,19 @@ journalctl -u podman-paperclip -b --no-pager -o cat \
 # under its home, not the journal, and the gateway stays up when only its API
 # server fails to start.
 section "hermes agents"
-for agent in coordinator:8642 engineer:8643 researcher:8644 reviewer:8645 infra:8646; do
+for agent in coordinator:8642 engineer:8643 researcher:8644 reviewer:8645 infra:8646 monitor:8647; do
   n=${agent%%:*}
   port=${agent##*:}
   home=/var/lib/hermes-$n/.hermes
   health=$(code "http://127.0.0.1:$port/health")
-  # The API server binds a few seconds after the unit goes active.
+  # The API server binds a few seconds after the unit goes active, so an agent
+  # that started in the last minute gets up to 30 seconds to answer.
+  started=$(date -d "$(systemctl show -p ActiveEnterTimestamp --value "hermes-$n")" +%s 2>/dev/null || echo 0)
+  for _ in {1..15}; do
+    if [[ $health == 200 ]] || (( $(date +%s) - started > 60 )); then break; fi
+    sleep 2
+    health=$(code "http://127.0.0.1:$port/health")
+  done
   up=$(ps -o etime= -p "$(systemctl show -p MainPID --value "hermes-$n")" 2>/dev/null | tr -d ' ')
   printf '%-12s %-9s up %s, restarts %s, /health %s, Codex login: %s\n' "$n" "$(systemctl is-active "hermes-$n" 2>/dev/null)" \
     "${up:--}" "$(systemctl show -p NRestarts --value "hermes-$n")" "$health" \
@@ -107,7 +114,7 @@ sudo -u postgres psql -Atc "select 'server ' || current_setting('server_version'
 sudo -u postgres psql -Atc "select 'listen_addresses ' || current_setting('listen_addresses')"
 sudo -u postgres psql -Atc "select 'paperclip owns ' || count(*) || ' tables' from pg_tables where tableowner = 'paperclip'" paperclip
 
-section "listening sockets (expect 22, 80, 443 public, plus rpcbind and LLMNR that the firewall drops; 3100, 5432, 8642 to 8646 and one random port per agent on 127.0.0.1)"
+section "listening sockets (expect 22, 80, 443 public, plus rpcbind and LLMNR that the firewall drops; 3100, 5432, 8642 to 8647 and one random port per agent on 127.0.0.1)"
 ss -tlnp | awk 'NR == 1 || /LISTEN/'
 
 section "nginx from this host (guarded routes 404; 127.0.0.1 isn't on the allow-lists, so the rest is 403)"

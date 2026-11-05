@@ -216,6 +216,7 @@
           sqlite-backup = import ./modules/roles/sqlite-backup/check.nix { inherit pkgs lib; };
           agent-watch = import ./hosts/agents/agent-watch/check.nix { inherit pkgs; };
           agent-costs = import ./hosts/agents/agent-costs/check.nix { inherit pkgs; };
+          monitor-intake = import ./hosts/agents/monitor-intake/check.nix { inherit pkgs; };
           jev-mcp = import ./modules/roles/hermes-agents/jev-mcp/check.nix { inherit pkgs; };
           lab-mcp = import ./modules/roles/hermes-agents/lab-mcp/check.nix { inherit pkgs; };
           provisioning = import ./scripts/provisioning/tests/check.nix {
@@ -238,17 +239,29 @@
               modules = [ { roles.inference.active = lib.mkForce name; } ];
             }).config.system.build.toplevel.drvPath)
             self.nixosConfigurations.inference.config.roles.inference.models));
-          # The Hermes agents in Paperclip's spec are the ones on the agents host, at their ports.
+          # The Hermes agents in Paperclip's spec are the ones on the agents host, at their ports, and
+          # every routine has an agent from the spec and its description file.
           paperclip-spec =
             let
               spec = lib.importJSON ./scripts/agents/paperclip-spec.json;
+              agentsConfig = self.nixosConfigurations.agents.config;
               onHost = lib.mapAttrs (_: agent: "http://127.0.0.1:${toString agent.port}")
-                self.nixosConfigurations.agents.config.roles.hermesAgents.instances;
+                agentsConfig.roles.hermesAgents.instances;
               inSpec = lib.listToAttrs (map (agent: lib.nameValuePair (lib.toLower agent.name) agent.adapterConfig.apiBaseUrl)
                 (lib.filter (agent: agent.adapterType == "hermes_gateway") spec.agents));
+              names = map (agent: agent.name) spec.agents;
+              badRoutines = lib.filter (routine: !(lib.elem routine.assignee names)
+                || !(builtins.pathExists (./scripts/agents + "/${routine.descriptionFile}"))) (spec.routines or [ ]);
+              intake = agentsConfig.agents.monitorIntake;
+              triage = lib.findFirst (routine: routine.title == intake.routineTitle) null (spec.routines or [ ]);
             in
             assert lib.assertMsg (onHost == inSpec)
               "scripts/agents/paperclip-spec.json doesn't match hosts/agents/agents.nix: ${builtins.toJSON { inherit onHost inSpec; }}";
+            assert lib.assertMsg (badRoutines == [ ])
+              "scripts/agents/paperclip-spec.json: these routines name an agent or a description file that doesn't exist: ${builtins.toJSON (map (r: r.title) badRoutines)}";
+            # monitor-intake runs a routine by its title with the monitor's key, which runs only the monitor's own.
+            assert lib.assertMsg (!intake.active || (triage != null && triage.assignee == "Monitor"))
+              "scripts/agents/paperclip-spec.json has no routine for the monitor titled ${builtins.toJSON intake.routineTitle} (agents.monitorIntake.routineTitle)";
             pkgs.writeText "paperclip-spec" (builtins.toJSON inSpec);
           # Each case breaks the dashboard's exposure policy; evaluation must refuse all of them.
           dashboard-exposure-guards =

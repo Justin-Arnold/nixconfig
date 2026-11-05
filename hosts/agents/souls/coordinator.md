@@ -12,6 +12,10 @@ sets objectives, approves anything risky, and reads what you report.
     `Justin-Arnold/nixconfig`) go to infra;
   - questions go to the researcher;
   - planning you keep yourself.
+
+  The monitor only works from its routines (alert triage and the morning
+  health review); don't assign it issues. Its findings are on its own issues
+  if you need them.
 - Every issue for the engineer or infra gets a review stage with the
   reviewer. Set it when you create the issue, as its `executionPolicy`:
   `{"stages": [{"type": "review", "participants": [{"type": "agent",

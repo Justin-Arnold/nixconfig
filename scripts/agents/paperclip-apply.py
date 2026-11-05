@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Bring Paperclip's company, labels and agents in line with paperclip-spec.json.
+"""Bring Paperclip's company, labels, agents and routines in line with paperclip-spec.json.
 
 Uses only Paperclip's documented REST API (/api/openapi.json), and only for
 what the spec names:
@@ -14,6 +14,13 @@ what the spec names:
   its API key taken from the company secret named in apiKeySecret, and
   approved. Other agents, like the concierge, join through an invite, so
   they're never created, and their adapter settings are only reported.
+- routines, matched by title: description (from the markdown file the spec
+  names), assignee, priority, concurrency and catch-up policies, declared
+  variables, and triggers matched by label. A routine that's missing is
+  created active. A routine paused or archived in Paperclip stays that way.
+  Only schedule and api triggers: nginx keeps Paperclip's public trigger path
+  closed, so the spec can't name a webhook, and one found in Paperclip is
+  reported.
 - never deletes anything, and never reads or writes a secret's value. An
   agent's API key is only checked to come from a company secret.
 
@@ -55,7 +62,19 @@ REQUIRED = [
     ("patch", "/api/agents/{id}"),
     ("patch", "/api/agents/{id}/permissions"),
     ("post", "/api/agents/{id}/approve"),
+    ("get", "/api/companies/{companyId}/routines"),
+    ("post", "/api/companies/{companyId}/routines"),
+    ("patch", "/api/routines/{id}"),
+    ("post", "/api/routines/{id}/triggers"),
+    ("patch", "/api/routine-triggers/{id}"),
 ]
+
+# A routine's settings and what Paperclip assumes when the spec doesn't say.
+ROUTINE_DEFAULTS = {"priority": "medium", "concurrencyPolicy": "coalesce_if_active", "catchUpPolicy": "skip_missed"}
+# A declared variable, filled in the way Paperclip stores it.
+VARIABLE_DEFAULTS = {"label": None, "type": "text", "defaultValue": None, "required": True, "options": []}
+TRIGGER_KINDS = {"schedule", "api"}
+TRIGGER_KEYS = ("enabled", "cronExpression", "timezone")
 
 # What Paperclip assumes when an agent's runtimeConfig.heartbeat doesn't say.
 HEARTBEAT_DEFAULTS = {"enabled": False, "intervalSec": 0, "wakeOnDemand": True}
@@ -118,7 +137,143 @@ def secret_ref(binding):
     return binding.get("secretId") if isinstance(binding, dict) and binding.get("type") == "secret_ref" else None
 
 
-def apply(pc, spec, write):
+def check_routines(spec, spec_dir):
+    """Refuse a spec whose routines can't be applied, before signing in."""
+    agents = {agent["name"] for agent in spec["agents"]}
+    titles = set()
+    for routine in spec.get("routines", []):
+        title = routine["title"]
+        if title in titles:
+            sys.exit(f"routine {title} is in the spec twice")
+        titles.add(title)
+        if routine["assignee"] not in agents:
+            sys.exit(f"routine {title}: its assignee {routine['assignee']} isn't an agent in the spec")
+        if not (spec_dir / routine["descriptionFile"]).is_file():
+            sys.exit(f"routine {title}: {routine['descriptionFile']} doesn't exist")
+        labels = [t["label"] for t in routine.get("triggers", [])]
+        if len(labels) != len(set(labels)):
+            sys.exit(f"routine {title}: two triggers share a label")
+        for trigger in routine.get("triggers", []):
+            if trigger["kind"] not in TRIGGER_KINDS:
+                sys.exit(f"routine {title}: trigger {trigger['label']} is a {trigger['kind']} trigger; only "
+                         f"{' and '.join(sorted(TRIGGER_KINDS))} are allowed (nginx keeps public triggers closed)")
+
+
+def variables(declared):
+    """Declared variables by name, with Paperclip's defaults filled in."""
+    return {v["name"]: {k: v.get(k, default) for k, default in VARIABLE_DEFAULTS.items()} for v in declared or []}
+
+
+def trigger_body(trigger):
+    body = {"kind": trigger["kind"], "label": trigger["label"], "enabled": trigger.get("enabled", True)}
+    if trigger["kind"] == "schedule":
+        body.update(cronExpression=trigger["cronExpression"], timezone=trigger["timezone"])
+    return body
+
+
+def apply_routines(pc, cid, spec, spec_dir, agents, write):
+    if "routines" not in spec:
+        return 0
+    changes = 0
+    have = {}
+    for routine in pc.call("get", f"/api/companies/{cid}/routines"):
+        have.setdefault(routine["title"], routine)
+    agent_name = {a["id"]: name for name, a in agents.items()}
+
+    for routine in spec["routines"]:
+        title = routine["title"]
+        description = (spec_dir / routine["descriptionFile"]).read_text().strip()
+        assignee = routine["assignee"]
+        assignee_id = agents.get(assignee, {}).get("id")
+        settings = {k: routine.get(k, v) for k, v in ROUTINE_DEFAULTS.items()}
+        triggers = routine.get("triggers", [])
+        cur = have.get(title)
+
+        if cur is None:
+            changes += 1
+            when = ", ".join(f"{t['label']}: {t.get('cronExpression', t['kind'])}" for t in triggers) or "no triggers"
+            print(f"  + routine {title} (for {assignee}, {when})")
+            if write:
+                if assignee_id is None:
+                    sys.exit(f"routine {title}: its assignee {assignee} doesn't exist in Paperclip")
+                created = pc.call("post", f"/api/companies/{cid}/routines", {
+                    "title": title, "description": description, "assigneeAgentId": assignee_id,
+                    "status": "active", "variables": routine.get("variables", []), **settings})
+                for trigger in triggers:
+                    pc.call("post", f"/api/routines/{created['id']}/triggers", trigger_body(trigger))
+            continue
+        if cur.get("status") == "archived":
+            print(f"  ! routine {title} is archived in Paperclip (left alone)")
+            continue
+
+        notes = []
+        patch = {}
+        if (cur.get("description") or "").strip() != description:
+            patch["description"] = description
+            notes.append("description")
+        if cur.get("assigneeAgentId") != assignee_id:
+            if assignee_id is None and write:
+                sys.exit(f"routine {title}: its assignee {assignee} doesn't exist in Paperclip")
+            patch["assigneeAgentId"] = assignee_id
+            notes.append(f"assignee {agent_name.get(cur.get('assigneeAgentId'), 'nobody')} -> {assignee}")
+        for key, value in settings.items():
+            if cur.get(key) != value:
+                patch[key] = value
+                notes.append(f"{key} {show(cur.get(key))} -> {show(value)}")
+        stored = variables(cur.get("variables"))
+        want = variables(routine.get("variables"))
+        if any(stored.get(name) != v for name, v in want.items()):
+            patch["variables"] = routine.get("variables", [])
+            notes.append("variables " + ", ".join(sorted(n for n, v in want.items() if stored.get(n) != v)))
+
+        by_label = {t.get("label"): t for t in cur.get("triggers") or []}
+        new_triggers = []
+        trigger_patches = []
+        for trigger in triggers:
+            old = by_label.get(trigger["label"])
+            if old is None:
+                new_triggers.append(trigger)
+                notes.append(f"new trigger {trigger['label']}")
+            elif old.get("kind") != trigger["kind"]:
+                print(f"  ! routine {title}: trigger {trigger['label']} is a {old.get('kind')} trigger, "
+                      f"the spec says {trigger['kind']} (not changed)")
+            else:
+                body = trigger_body(trigger)
+                drift = {k: body[k] for k in TRIGGER_KEYS if k in body and old.get(k) != body[k]}
+                if drift:
+                    trigger_patches.append((old["id"], drift))
+                    notes += [f"trigger {trigger['label']} {k} {show(old.get(k))} -> {show(v)}" for k, v in drift.items()]
+        for label, old in by_label.items():
+            if label in {t["label"] for t in triggers}:
+                continue
+            if old.get("kind") == "webhook":
+                print(f"  ! routine {title}: webhook trigger {label} exists in Paperclip; nginx refuses public "
+                      "triggers, so it can't fire (left alone)")
+            else:
+                print(f"  ? routine {title}: trigger {label} exists only in Paperclip (left alone)")
+        if cur.get("status") != "active":
+            print(f"  ! routine {title} is {cur.get('status')} in Paperclip (left alone)")
+
+        if notes:
+            changes += 1
+            print(f"  ~ routine {title}: " + ", ".join(notes))
+            if write:
+                if patch:
+                    pc.call("patch", f"/api/routines/{cur['id']}", patch)
+                for trigger in new_triggers:
+                    pc.call("post", f"/api/routines/{cur['id']}/triggers", trigger_body(trigger))
+                for trigger_id, drift in trigger_patches:
+                    pc.call("patch", f"/api/routine-triggers/{trigger_id}", drift)
+        else:
+            print(f"  = routine {title}")
+
+    for title, routine in sorted(have.items()):
+        if title not in {r["title"] for r in spec["routines"]} and routine.get("status") != "archived":
+            print(f"  ? routine {title} exists only in Paperclip (left alone)")
+    return changes
+
+
+def apply(pc, spec, write, spec_dir=DEFAULT_SPEC.parent):
     changes = 0
 
     # Company: only the settings the spec lists.
@@ -267,7 +422,8 @@ def apply(pc, spec, write):
 
     for name in sorted(set(agents) - {agent["name"] for agent in spec["agents"]}):
         print(f"  ? agent {name} exists only in Paperclip (left alone)")
-    return changes
+
+    return changes + apply_routines(pc, cid, spec, spec_dir, agents, write)
 
 
 def main():
@@ -277,7 +433,9 @@ def main():
     ap.add_argument("--apply", action="store_true", help="make the changes (default: only show them)")
     args = ap.parse_args()
 
-    spec = json.loads(pathlib.Path(args.spec).read_text())
+    spec_path = pathlib.Path(args.spec)
+    spec = json.loads(spec_path.read_text())
+    check_routines(spec, spec_path.parent)
     pc = Paperclip(args.url)
 
     documented = pc.call("get", "/api/openapi.json").get("paths", {})
@@ -292,7 +450,7 @@ def main():
     try:
         mode = "applying" if args.apply else "dry run (pass --apply to make these changes)"
         print(f"{args.url}: {mode}")
-        changes = apply(pc, spec, args.apply)
+        changes = apply(pc, spec, args.apply, spec_path.parent)
         print(f"{changes} change(s) {'made' if args.apply else 'pending'}")
     finally:
         if signed_in:

@@ -24,6 +24,15 @@ them, and checks what came back:
             be a successful call of that source in the lab server's call log.
             With GitHub on, it also quotes nixconfig pull request #1's title,
             which has to match GitHub's.
+  health    the board runs the monitor's "Lab health review" routine; the
+            monitor comments on the issue it makes and sets it done, and the
+            lab server's call log shows it read every source it has during
+            the run
+  intake    a minor test alert (resource smoke/<nonce>) goes into Alerta and
+            monitor-intake runs; the monitor's triage issue for that alert
+            ends done with a comment naming smoke/<nonce>, which it can only
+            learn by reading the alert, and an alerta_alert call in its log.
+            The alert is cleared afterwards. The phone gets both.
   change    the engineer pushes an agent/engineer/* branch to agent-scratch
             with the one file it was asked for and opens a pull request. The
             pull request is closed and its branch deleted afterwards, unless
@@ -81,14 +90,19 @@ ENGINEER_LOGS = "/var/lib/hermes-engineer/.hermes/logs"
 # agents.watch.alertaUrl and the secret agent-watch reads its key from.
 ALERTA = "http://10.118.0.1:5000"
 ALERTA_KEY = "/run/secrets/agent-watch/alerta-key"
-STAGES = ["rulesets", "refused", "watch", "ping", "local", "decide", "observe", "change", "review", "costs", "infra",
-          "gate"]
+STAGES = ["rulesets", "refused", "watch", "ping", "local", "decide", "observe", "health", "intake", "change", "review",
+          "costs", "infra", "gate"]
 RESEARCHER_CONFIG = "/var/lib/hermes-researcher/.hermes/config.yaml"
 RESEARCHER_LOGS = "/var/lib/hermes-researcher/.hermes/logs"
 # The Jev MCP server's call log: one line per call, ids and outcomes only.
 JEV_LOG = "/var/lib/hermes-researcher/.hermes/logs/jev.log"
 # The lab MCP server's call log: one line per call, ids, tools and outcomes only.
 LAB_LOG = "/var/lib/hermes-researcher/.hermes/logs/lab.log"
+MONITOR_CONFIG = "/var/lib/hermes-monitor/.hermes/config.yaml"
+MONITOR_LAB_LOG = "/var/lib/hermes-monitor/.hermes/logs/lab.log"
+# The monitor's routines, by title in paperclip-spec.json.
+HEALTH_ROUTINE = "Lab health review {{date}}"
+TRIAGE_ROUTINE = "Triage {{count}} lab alert(s)"
 # Hermes logs this line, at INFO in agent.log, when a run moves to a fallback model.
 FALLBACKS = 'cat "$logs"/agent.log* 2>/dev/null | grep -c "Fallback activated" || true'
 # inference's access log: time, address, client=<key's name>, method, path, status, ...
@@ -416,6 +430,109 @@ awk -v since="$since" '$1 >= since && $3 == "client=agents" && $5 == "/v1/chat/c
         if problems:
             raise Fail(f"{issue['identifier']}: " + "; ".join(problems) + f"; it said: {text(said, 300)}")
         return f"the researcher read {', '.join(seen)} and reported it on {issue['identifier']}"
+
+    def routine(self, title):
+        found = next((r for r in self.pc.call("get", f"/api/companies/{self.cid}/routines") if r["title"] == title), None)
+        if found is None:
+            raise Fail(f"there's no routine titled {title!r} (paperclip-apply.py --apply makes it)")
+        return found
+
+    def monitor_sources(self):
+        config = remote("agents", 'cat "$config"', config=MONITOR_CONFIG).stdout
+        sources = [s for s in ("proxmox", "beszel", "kuma", "alerta") if f"{s}_" in config]
+        if not sources:
+            raise Fail("not tried: the monitor has no lab tools (is it on the agents host?)")
+        return sources
+
+    def lab_calls_since(self, since):
+        """(tool, status) of each call in the monitor's lab log at or after since."""
+        log = remote("agents", 'tail -n 1000 "$log" 2>/dev/null', log=MONITOR_LAB_LOG).stdout
+        return [(tool, status) for when, tool, status in re.findall(r"^(\S+) call=[0-9a-f]{12} tool=(\w+) status=(\w+)$",
+                                                                    log, re.M) if when >= since]
+
+    def vm_now(self):
+        return remote("agents", "date -u +%Y-%m-%dT%H:%M:%SZ").stdout.strip()
+
+    def health(self):
+        monitor = self.agent("Monitor")
+        sources = self.monitor_sources()
+        routine = self.routine(HEALTH_ROUTINE)
+        since = self.vm_now()
+        started = self.pc.call("post", f"/api/routines/{routine['id']}/run", {"source": "manual"})
+        if started.get("status") != "issue_created" or not started.get("linkedIssueId"):
+            raise Fail(f"running the health review came back {started.get('status')}: "
+                       f"{started.get('failureReason') or 'is one already running?'}")
+        issue = self.pc.call("get", f"/api/issues/{started['linkedIssueId']}")
+        print(f"    the routine made {issue['identifier']}: {issue['title']}")
+        done = self.wait(issue)
+        if done["status"] != "done":
+            raise self.ended(issue, done["status"], monitor)
+        if not self.comments(issue, monitor):
+            raise Fail(f"the monitor set {issue['identifier']} done without a comment")
+        calls = self.lab_calls_since(since)
+        missing = [s for s in sources if not any(t.startswith(s + "_") and st == "ok" for t, st in calls)]
+        if missing:
+            raise Fail(f"{issue['identifier']} is done, but the monitor's lab log has no successful "
+                       f"{', '.join(missing)} call during the run")
+        return f"the monitor reviewed the lab on {issue['identifier']}, reading {', '.join(sources)}"
+
+    def intake(self):
+        monitor = self.agent("Monitor")
+        if "alerta" not in self.monitor_sources():
+            raise Fail("not tried: the monitor has no Alerta tools")
+        routine = self.routine(TRIAGE_ROUTINE)
+        resource = f"smoke/{self.nonce}"
+        since = self.vm_now()
+        alert_id = self.send_alert(resource, "minor", f"Smoke test {self.nonce}: nothing is wrong. This alert checks "
+                                   "that the monitor triages new alerts, and is cleared within minutes.")
+        print(f"    raised {resource} in Alerta ({alert_id})")
+        try:
+            issue = None
+            deadline = time.monotonic() + 8 * 60
+            while issue is None:
+                proc = remote("agents", "systemctl start monitor-intake; "
+                              "journalctl -u monitor-intake -n 5 -o cat --no-pager | grep '^monitor-intake' | tail -n 1")
+                print(f"    {proc.stdout.strip() or text(proc.stderr)}")
+                made = self.pc.call("get", f"/api/companies/{self.cid}/issues?originKind=routine_execution"
+                                    f"&originId={routine['id']}&limit=20")
+                issue = next((i for i in made if alert_id in self.description(i)), None)
+                if issue is None:
+                    if time.monotonic() > deadline:
+                        raise Fail(f"no triage issue for {resource} after 8 minutes; "
+                                   "is the monitor still on an earlier one?")
+                    time.sleep(30)
+            print(f"    the intake made {issue['identifier']}: {issue['title']}")
+            done = self.wait(issue)
+            if done["status"] != "done":
+                raise self.ended(issue, done["status"], monitor)
+            said = " ".join(self.comments(issue, monitor))
+            if resource not in said:
+                raise Fail(f"the monitor's comment on {issue['identifier']} doesn't name {resource}: {text(said, 300)}")
+            if ("alerta_alert", "ok") not in self.lab_calls_since(since):
+                raise Fail(f"the monitor named {resource}, but its lab log has no successful alerta_alert call")
+        finally:
+            self.send_alert(resource, "cleared", "Resolved.")
+        return f"the monitor triaged {resource} on {issue['identifier']} and the alert was cleared"
+
+    def description(self, issue):
+        # The issue list may leave descriptions out.
+        if issue.get("description") is None:
+            issue = self.pc.call("get", f"/api/issues/{issue['id']}")
+        return issue.get("description") or ""
+
+    def send_alert(self, resource, severity, message):
+        """Raises or clears a test alert with agent-watch's key on the agents
+        VM, and returns its id."""
+        body = json.dumps({"environment": "Homelab", "resource": resource, "event": "SmokeTest",
+                           "severity": severity, "service": ["Smoke"], "group": "Smoke", "origin": "smoke-e2e",
+                           "text": message, "attributes": {"notificationTitle": f"Smoke test {self.nonce}"}})
+        proc = remote("agents", r'''
+printf 'Authorization: Key %s\n' "$(cat "$key")" \
+  | curl -fsS --max-time 10 -H @- -H 'Content-Type: application/json' --data "$body" "$alerta/alert"
+''', key=ALERTA_KEY, alerta=ALERTA, body=body)
+        if proc.returncode != 0:
+            raise Fail(f"couldn't send {resource} to Alerta: {text(proc.stderr) or f'curl exit {proc.returncode}'}")
+        return json.loads(proc.stdout)["id"]
 
     def fallbacks(self):
         out = remote("agents", FALLBACKS, logs=RESEARCHER_LOGS).stdout.strip()

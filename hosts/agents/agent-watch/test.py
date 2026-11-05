@@ -279,6 +279,50 @@ check("spend past the whole $100 makes ClaudeSpend major",
 check("Jev refusing the reviewer since it last worked raises JevCreditsOut",
       "refused reviewer for credits" in sent.get(("typesafe/credits", "JevCreditsOut"), {}).get("text", ""))
 
+# IntakeStale, from monitor-intake's status.json.
+intake_dir = pathlib.Path(tempfile.mkdtemp())
+status_file = intake_dir / "status.json"
+env.update({"INTAKE_STATUS": str(status_file), "INTAKE_STALE_MINUTES": "15"})
+STALE = ("agents/monitor-intake", "IntakeStale")
+
+
+def intake_status(**values):
+    status_file.write_text(json.dumps({"started": ago(600), "last_ok": None, "last_error": None,
+                                       "last_error_at": None, **values}))
+
+
+code, sent = watch()
+check("no status yet, from a folder made just now, raises nothing", code == 0 and STALE not in sent)
+old = (NOW - datetime.timedelta(minutes=30)).timestamp()
+os.utime(intake_dir, (old, old))
+code, sent = watch()
+check("no status from a folder made 30 minutes ago raises IntakeStale",
+      sent.get(STALE, {}).get("text") == "monitor-intake hasn't handed new alerts to the monitor since it was set up.")
+intake_status(last_ok=ago(5))
+code, sent = watch()
+check("a good pass 5 minutes ago clears it", sent.get(STALE, {}).get("severity") == "cleared")
+intake_status(last_ok=ago(30), last_error="the triage run came back failed: daily run limit reached",
+              last_error_at=ago(1), waiting=3)
+code, sent = watch()
+stale = sent.get(STALE, {})
+check("no good pass for 30 minutes raises IntakeStale with the reason",
+      stale.get("severity") == "warning" and stale.get("service") == ["Agents"]
+      and stale.get("text", "").startswith("monitor-intake hasn't handed new alerts to the monitor since ")
+      and stale.get("text", "").endswith(": the triage run came back failed: daily run limit reached"))
+intake_status(last_ok=ago(30), last_error="the triage run came back failed: daily run limit reached",
+              last_error_at=ago(0), waiting=4)
+code, sent = watch()
+check("its text doesn't change while the cause doesn't", sent.get(STALE, {}).get("text") == stale.get("text"))
+intake_status(last_ok=ago(30), last_error="cannot reach Alerta", last_error_at=ago(60))
+code, sent = watch()
+check("an error older than the last good pass isn't given as the reason",
+      sent.get(STALE, {}).get("text", "").endswith(" UTC."))
+status_file.write_text("{not json")
+os.utime(intake_dir, (old, old))
+code, sent = watch()
+check("a status it can't read raises IntakeStale saying so",
+      sent.get(STALE, {}).get("text", "").endswith(": its status file can't be read"))
+
 server.shutdown()
 if failures:
     sys.exit(f"{len(failures)} check(s) failed")
