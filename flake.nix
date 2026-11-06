@@ -545,6 +545,9 @@
             assert lib.assertMsg (lib.all lib.id (lib.attrValues results))
               "exposure guards did not refuse: ${toString (lib.attrNames (lib.filterAttrs (_: ok: !ok) results))}";
             pkgs.writeText "lab118-services-exposure-guards" (builtins.toJSON results);
+        } // lib.optionalAttrs (lib.hasSuffix "-linux" system) {
+          # What the agents run, which only ever runs on Linux.
+          agents-packages = import ./hosts/agents/packages-check.nix { inherit pkgs; };
         });
       apps = lib.genAttrs supportedSystems (system: {
         plan = mkProvisionApp system "plan";

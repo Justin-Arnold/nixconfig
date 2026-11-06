@@ -40,6 +40,7 @@ separate execution host.
 | `hosts/agents/monitor-intake.nix`, `hosts/agents/monitor-intake/` | The timer that hands new Alerta alerts to the monitor, and its test against fakes. |
 | `hosts/agents/board-bridge.nix`, `hosts/agents/board-bridge/` | The service that sends what waits on the board to Telegram and Discord and answers it from a tap, and its test against fakes. |
 | `hosts/agents/paperclip-events.nix`, `hosts/agents/paperclip-events/` | The relay that turns Paperclip's live events into nudges for agent-watch, board-bridge, monitor-intake and agent-costs, and its test against a fake Paperclip. |
+| `hosts/agents/packages-check.nix` | The `agents-packages` check: builds the MCP servers, the services' Python and workbench's scripts as they're deployed. |
 | `hosts/agents/eval-test.nix` | Example values for the flake checks, not used by the real host. |
 | `infra/terranix/hosts/agents.nix` | The VM, its storage, CPU type and HA resource. |
 | `hosts/agents/agents.nix` | The Hermes agents, their models, which ones have a Paperclip key, and what they may reach in the LAN. |

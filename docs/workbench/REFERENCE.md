@@ -35,10 +35,12 @@ backed up, and rebuilding it loses nothing that matters.
 | `hosts/workbench/agent-worktree.sh` | Makes or finds an agent's worktree for a piece of work. |
 | `hosts/workbench/agent-review.sh` | Makes or moves a read-only worktree at a pull request's head, for the reviewer. |
 | `hosts/workbench/prune-worktrees.sh` | Removes finished worktrees. |
+| `hosts/workbench/scripts.nix` | Packages those three scripts, for the host and the `agents-packages` check. |
 | `hosts/workbench/eval-test.nix` | Example values for the flake checks, not used by the real host. |
 | `infra/terranix/hosts/workbench.nix` | The VM, its node and storage. |
 | `hosts/agents/agents.nix` | The other end: the engineer's, reviewer's and infra's ssh terminals, and workbench's host key. |
-| `scripts/flake-check.sh` | What infra and the reviewer run to check nixconfig here: every host evaluates and every flake check builds. |
+| `scripts/flake-check.sh` | What infra, the reviewer and CI run to check nixconfig: every host evaluates and every flake check builds. |
+| `.github/workflows/check.yml` | CI for nixconfig on GitHub's runners, through `flake-check.sh`. |
 | `modules/roles/agent-egress.nix` | The outbound filter, shared with the agents VM. |
 | `scripts/workbench/post-install-check.sh` | Read-only health report. |
 
@@ -146,6 +148,11 @@ the commit before pushing, and deletes the branch once the pull request is
 closed. It refuses a pull request whose branch moved while it ran, and one
 that doesn't apply cleanly to its base, which the agent then rebases.
 
+It also refuses one whose checks aren't all green, listing what failed, is
+still running, or never ran. `land-pr.sh --skip-checks <number>` lands it
+anyway, and the commit and the closing comment both say which checks it
+skipped.
+
 Until `workbench.github` is set in `agents.nix`, there's no token, no
 credential helper and no `gh`, agents can only clone public repos, and
 evaluation warns about it.
@@ -173,9 +180,30 @@ evaluate, so infra and the reviewer run `scripts/flake-check.sh` from a
 worktree instead:
 `eval` evaluates every other NixOS host, and `checks` builds every flake check
 for this system, one by one, with a line each and a summary. They're separate
-because Hermes stops a terminal command after 600 seconds. Nothing builds a
-host here: CUDA for inference would compile from source, since the agents
-can't add binary caches. darwin isn't checked anywhere but the Mac.
+because Hermes stops a terminal command after 600 seconds. Names after either
+check only those, like `eval agents desktop` or `checks jev-mcp`, which is how
+to rerun what failed. `darwin` evaluates the two Macs, and a run with no
+part includes it when it's on a Mac. Nothing builds a host here:
+CUDA for inference would compile from source, since the agents can't add
+binary caches.
+
+`agents-packages`, a check for Linux only, builds what the agents run that no
+other check builds whole: the four MCP servers, the Python board-bridge and
+paperclip-events run with, and the three scripts above. The MCP servers'
+own checks test with the same Python their package runs.
+
+### CI
+
+`.github/workflows/check.yml` runs on GitHub's free hosted runners for every
+pull request to master, every push to master, and any run started with
+`gh workflow run check.yml --ref <branch>`. One job evaluates the NixOS
+hosts, one on a macOS runner evaluates the Macs, and every flake check is its
+own job, listed from the flake each run, so a failure names the check. It
+reads the repo and nothing else: no secrets, `contents: read`, and both
+actions pinned to a commit. The machine account's token has no `workflow`
+scope, so agents can't change it. The runners are free while nixconfig is
+public; a private repo would need a runner on the lab instead, with the same
+workflow.
 
 `prune-worktrees.timer` runs daily. It removes worktrees nobody touched for
 two weeks, with their local branches, but only when everything in them is

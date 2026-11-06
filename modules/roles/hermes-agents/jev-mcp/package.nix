@@ -8,6 +8,8 @@ let
 in
 writeShellApplication {
   name = "jev-mcp-server";
+  # check.nix tests server.py with this same Python.
+  passthru = { inherit python; };
   text = ''
     exec ${python}/bin/python3 -I ${./server.py} "$@"
   '';
