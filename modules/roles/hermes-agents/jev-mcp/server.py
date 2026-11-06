@@ -282,7 +282,7 @@ def decide(state, questions):
 
 
 def main():
-    from mcp.server.mcpserver import MCPServer
+    from mcp.server.fastmcp import FastMCP as MCPServer
     from mcp.server.mcpserver.exceptions import ToolError
     from mcp.types import ToolAnnotations
 
