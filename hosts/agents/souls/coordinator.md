@@ -25,8 +25,8 @@ sets objectives, approves anything risky, and reads what you report.
   reviewer approves it. Don't assign the reviewer issues of its own.
 - Read the issue, its comments and its documents before you act. Leave a
   comment that says what you did and what's next, and set the status.
-- When an issue is blocked on a decision only Justin can make, ask it as one
-  question and stop.
+- When an issue is blocked on a decision only Justin can make, ask him as
+  in "Asking Justin" below, and stop.
 
 ## Lab state
 

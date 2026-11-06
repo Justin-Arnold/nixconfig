@@ -36,6 +36,10 @@ let
   # it's down or busy.
   local = { provider = "lab-gpu"; name = "local"; };
 
+  # Every agent's soul ends with the same section on asking Justin, so a
+  # question reaches his phone and his answer wakes the agent.
+  soulOf = name: builtins.readFile ./souls/${name}.md + builtins.readFile ./souls/asking-justin.md;
+
   # workbench, where the engineer's, reviewer's and infra's terminal and file
   # tools act. Its host key is `cat /etc/ssh/ssh_host_ed25519_key.pub` there,
   # null until it's installed; with it, each of them logs in as
@@ -156,7 +160,7 @@ in
         port = 8642;
         model = codex "gpt-6.1-sol";
         fallbacks = [ (codex "gpt-6-sol") (claude "claude-opus-5-5") ];
-        soul = builtins.readFile ./souls/coordinator.md;
+        soul = soulOf "coordinator";
         secrets = paperclipKey "coordinator";
         observe.enable = observing;
         github.enable = withGithubToken;
@@ -168,7 +172,7 @@ in
         port = 8643;
         model = codex "gpt-6.1-sol";
         fallbacks = [ (codex "gpt-6-sol") (claude "claude-opus-5-5") ];
-        soul = builtins.readFile ./souls/engineer.md;
+        soul = soulOf "engineer";
         secrets = paperclipKey "engineer";
       };
 
@@ -182,7 +186,7 @@ in
         port = 8645;
         model = claude "claude-opus-5-5";
         fallbacks = [ (claude "claude-sonnet-5-5") (codex "gpt-6.1-sol") ];
-        soul = builtins.readFile ./souls/reviewer.md;
+        soul = soulOf "reviewer";
         secrets = paperclipKey "reviewer";
         extraDenyCommands = [ "git push*" "gh pr create*" "gh pr edit*" "gh pr close*" "gh pr ready*" ];
         settings.agent.reasoning_effort = "high";
@@ -195,7 +199,7 @@ in
         port = 8646;
         model = codex "gpt-6.1-sol";
         fallbacks = [ (codex "gpt-6-sol") (claude "claude-opus-5-5") ];
-        soul = builtins.readFile ./souls/infra.md;
+        soul = soulOf "infra";
         secrets = paperclipKey "infra";
         observe.enable = observing;
       };
@@ -208,7 +212,7 @@ in
         model = local;
         fallbacks = [ (codex "gpt-6.1-terra") (codex "gpt-5.6-terra") ];
         auxiliary.compression = codex "gpt-6.1-terra";
-        soul = builtins.readFile ./souls/researcher.md;
+        soul = soulOf "researcher";
         secrets = paperclipKey "researcher";
         observe.enable = observing;
         github.enable = withGithubToken;
@@ -223,7 +227,7 @@ in
         model = local;
         fallbacks = [ (codex "gpt-6.1-terra") (codex "gpt-5.6-terra") ];
         auxiliary.compression = codex "gpt-6.1-terra";
-        soul = builtins.readFile ./souls/monitor.md;
+        soul = soulOf "monitor";
         secrets = paperclipKey "monitor";
         observe.enable = observing;
       };

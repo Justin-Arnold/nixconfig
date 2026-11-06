@@ -33,6 +33,30 @@ them, and checks what came back:
             ends done with a comment naming smoke/<nonce>, which it can only
             learn by reading the alert, and an alerta_alert call in its log.
             The alert is cleared afterwards. The phone gets both.
+  ask       the researcher asks the board a two-option question on an issue
+            and leaves the issue blocked; agent-watch raises
+            WaitingOnYou with a link to the issue; the smoke test answers as
+            the board, picking the second option, and the researcher has to
+            wake, comment the option it was given and close the issue, after
+            which the alert clears. The phone gets both. With board-bridge
+            on, the question has to reach every chat channel, and every copy
+            has to show it answered in Paperclip. With paperclip-events
+            connected, nothing is forced: the alert has to be raised within
+            20 s of the question, the DMs sent within 10 s, and the alert
+            cleared after the answer, all on their own.
+  approve   the same for a board approval: the researcher asks for one,
+            linked to its issue, and leaves the issue blocked;
+            agent-watch raises ApprovalWaiting with a link to it, and
+            board-bridge sends it to every chat channel; the smoke test
+            approves it as the board, and the researcher has to wake, comment
+            the decision and close the issue. The phone gets both.
+
+With --by-hand, ask and approve wait for Justin to answer from Telegram,
+Discord or Paperclip instead of answering as the board, and say which
+channel the bridge saw the answer come from. The DM can beat any check, so
+they don't assume an order and leave agent-watch's alerts to the automatic
+run. Rejecting the approval ends the stage there, since Paperclip only wakes
+the agent on an approval.
   change    the engineer pushes an agent/engineer/* branch to agent-scratch
             with the one file it was asked for and opens a pull request. The
             pull request is closed and its branch deleted afterwards, unless
@@ -62,7 +86,7 @@ revokes the key it signed in with before it exits. Nothing it prints is a
 secret: the Alerta key is read and used on the agents VM.
 
 usage:
-  scripts/agents/smoke-e2e.py [--only ping,change,...] [--keep-pr] [--timeout-minutes 20]
+  scripts/agents/smoke-e2e.py [--only ping,change,...] [--keep-pr] [--by-hand] [--timeout-minutes 20]
 """
 import argparse
 import datetime
@@ -90,8 +114,8 @@ ENGINEER_LOGS = "/var/lib/hermes-engineer/.hermes/logs"
 # agents.watch.alertaUrl and the secret agent-watch reads its key from.
 ALERTA = "http://10.118.0.1:5000"
 ALERTA_KEY = "/run/secrets/agent-watch/alerta-key"
-STAGES = ["rulesets", "refused", "watch", "ping", "local", "decide", "observe", "health", "intake", "change", "review",
-          "costs", "infra", "gate"]
+STAGES = ["rulesets", "refused", "watch", "ping", "local", "decide", "observe", "health", "intake", "ask", "approve", "change",
+          "review", "costs", "infra", "gate"]
 RESEARCHER_CONFIG = "/var/lib/hermes-researcher/.hermes/config.yaml"
 RESEARCHER_LOGS = "/var/lib/hermes-researcher/.hermes/logs"
 # The Jev MCP server's call log: one line per call, ids and outcomes only.
@@ -109,6 +133,10 @@ FALLBACKS = 'cat "$logs"/agent.log* 2>/dev/null | grep -c "Fallback activated" |
 INFERENCE_LOG = "/var/log/nginx/inference.log"
 # Where an agent leaves an issue when its run is over.
 SETTLED = {"done", "in_review", "blocked", "cancelled"}
+# With paperclip-events connected, how soon after a question or approval is
+# made its alert has to be in Alerta, and its DM in every chat channel.
+ALERT_SECONDS = 20
+CHAT_SECONDS = 10
 # The same for an issue with a review stage, where in_review means the
 # reviewer has it.
 REVIEWED = {"done", "blocked", "cancelled"}
@@ -147,6 +175,14 @@ def remote(host, script, user=None, **values):
     prelude = "".join(f"{k}={shlex.quote(str(v))}\n" for k, v in values.items())
     sudo = ["sudo", "-H", "-u", user] if user else ["sudo"]
     return run(["ssh", "-o", "BatchMode=yes", host, *sudo, "bash", "-s"], stdin=prelude + script)
+
+
+def seconds_between(earlier, later):
+    """Seconds from one ISO timestamp (Paperclip's, Alerta's, the bridge's)
+    to another."""
+    def parse(stamp):
+        return datetime.datetime.fromisoformat(str(stamp).replace("Z", "+00:00"))
+    return (parse(later) - parse(earlier)).total_seconds()
 
 
 def text(s, limit=300):
@@ -284,14 +320,70 @@ if git push origin "HEAD:refs/heads/$branch" 2>&1; then echo "smoke: pushed"; fi
             raise Fail(f"the MarkedChange alert for {resource} wasn't cleared after the issue was cancelled")
         return f"{resource} raised MarkedChange in Alerta, and cancelling it cleared the alert"
 
-    def after_pass(self, resource, status):
+    def after_pass(self, resource, status, event="MarkedChange"):
+        """The alert once a pass has raised or cleared it, or None."""
         # A pass the timer had already started would only join that run, which
         # may have read Paperclip before the change; so up to two.
         for _ in range(2):
             self.agent_watch_pass()
-            if self.alert(resource, status) is not None:
-                return True
-        return False
+            found = self.alert(resource, status, event)
+            if found is not None:
+                return found
+        return None
+
+    def events_check(self):
+        """Whether paperclip-events is on (self.events). On and not
+        connected fails the stage, since nothing would come on its own."""
+        proc = remote("agents", "cat /var/lib/paperclip-events/status.json 2>/dev/null || true")
+        out = proc.stdout.strip()
+        if not out:
+            self.events = False
+            print("    paperclip-events is off, so agent-watch's passes are forced")
+            return
+        try:
+            status = json.loads(out)
+        except ValueError:
+            raise Fail(f"paperclip-events' status.json isn't JSON: {text(out, 120)}") from None
+        if not status.get("connected"):
+            raise Fail(f"paperclip-events isn't connected to Paperclip: {text(status.get('last_error') or 'no error', 200)}")
+        self.events = True
+        print("    paperclip-events is connected, so alerts and DMs have to come on their own")
+
+    def watched(self, resource, status, event, asked=None):
+        """The alert once agent-watch has raised or cleared it. With
+        paperclip-events connected it has to come on its own, and an open
+        one within ALERT_SECONDS of asked; otherwise passes are forced."""
+        if not getattr(self, "events", False):
+            return self.after_pass(resource, status, event)
+        deadline = time.monotonic() + 90
+        while time.monotonic() < deadline:
+            found = self.alert(resource, status, event)
+            if found is not None:
+                if status == "open" and asked:
+                    delay = seconds_between(asked, found.get("createTime"))
+                    print(f"    {event} raised {delay:.0f} s after it was asked")
+                    if delay > ALERT_SECONDS:
+                        raise Fail(f"{event} for {resource} came {delay:.0f} s after it was asked, "
+                                   f"more than {ALERT_SECONDS} s")
+                else:
+                    print(f"    {event} {'raised' if status == 'open' else 'cleared'} without a forced pass")
+                return found
+            time.sleep(2)
+        return None
+
+    def chat_delay(self, bridged):
+        """With paperclip-events connected, the DM has to have reached every
+        chat channel within CHAT_SECONDS of the question or approval."""
+        if bridged is None or not getattr(self, "events", False):
+            return
+        _, entry = bridged
+        sent = list((entry.get("sent_at") or {}).values())
+        if not entry.get("created") or not sent:
+            raise Fail("board-bridge's status doesn't say when it sent the DMs")
+        delay = max(seconds_between(entry["created"], at) for at in sent)
+        print(f"    every chat channel had it {delay:.0f} s after it was asked")
+        if delay > CHAT_SECONDS:
+            raise Fail(f"board-bridge took {delay:.0f} s to reach every chat channel, more than {CHAT_SECONDS} s")
 
     def agent_watch_pass(self):
         # The pass's own summary, not systemd's accounting line after it.
@@ -301,15 +393,15 @@ if git push origin "HEAD:refs/heads/$branch" 2>&1; then echo "smoke: pushed"; fi
             raise Fail(f"agent-watch's pass failed: {text(proc.stdout + proc.stderr)}")
         print(f"    agent-watch: {proc.stdout.strip()}")
 
-    def alert(self, resource, status):
+    def alert(self, resource, status, event="MarkedChange"):
         # The key is printed by a shell builtin into curl's stdin, so it's
         # never in a command line on the agents VM.
         proc = remote("agents", r'''
 printf 'Authorization: Key %s\n' "$(cat "$key")" \
   | curl -fsS --max-time 10 -H @- -G "$alerta/alerts" \
       --data-urlencode environment=Homelab --data-urlencode "resource=$resource" \
-      --data-urlencode event=MarkedChange --data-urlencode "status=$status"
-''', key=ALERTA_KEY, alerta=ALERTA, resource=resource, status=status)
+      --data-urlencode "event=$event" --data-urlencode "status=$status"
+''', key=ALERTA_KEY, alerta=ALERTA, resource=resource, status=status, event=event)
         if proc.returncode != 0:
             raise Fail(f"couldn't query Alerta from the agents VM: {text(proc.stderr) or f'curl exit {proc.returncode}'}")
         alerts = json.loads(proc.stdout).get("alerts") or []
@@ -514,6 +606,215 @@ awk -v since="$since" '$1 >= since && $3 == "client=agents" && $5 == "/v1/chat/c
             self.send_alert(resource, "cleared", "Resolved.")
         return f"the monitor triaged {resource} on {issue['identifier']} and the alert was cleared"
 
+    def ask(self):
+        researcher = self.agent("Researcher")
+        prompt = f"Which tree for smoke test {self.nonce}?"
+        issue = self.file("researcher asks the board", (
+            "An automated smoke test of asking Justin a question. Ask the board one question on this issue, "
+            "as in \"Asking Justin\": `paperclipAskUserQuestions` with one single-choice question whose prompt is "
+            f"`{prompt}` and two options, with ids `pine` and `oak` and labels Pine and Oak. Then set this "
+            "issue to blocked as in \"Asking Justin\" and end your run. When the answer wakes you, comment `answer <id>` "
+            "with the id of the option that was picked, and set this issue to done."), assignee=researcher)
+        listing = f"/api/issues/{issue['id']}/interactions"
+        if self.args.by_hand:
+            return self.ask_by_hand(issue, researcher, listing)
+        asked = self.wait(issue)
+        if asked["status"] != "blocked":
+            raise self.ended(issue, asked["status"], researcher)
+        question = next((i for i in self.pc.call("get", listing)
+                         if i.get("status") == "pending" and i.get("kind") == "ask_user_questions"), None)
+        if question is None:
+            raise Fail(f"{issue['identifier']} is blocked, but has no question waiting for the board")
+        asks = (question.get("payload") or {}).get("questions") or []
+        options = [o.get("id") for o in (asks[0].get("options") if asks else None) or []]
+        if len(options) < 2:
+            raise Fail(f"the question on {issue['identifier']} doesn't have two options: {text(json.dumps(asks), 300)}")
+
+        self.events_check()
+        resource = f"paperclip/{issue['identifier']}"
+        raised = self.watched(resource, "open", "WaitingOnYou", question.get("createdAt"))
+        if raised is None:
+            raise Fail(f"no open WaitingOnYou alert for {resource} in Alerta")
+        link = (raised.get("attributes") or {}).get("url") or ""
+        if not link.endswith(f"/issues/{issue['identifier']}"):
+            raise Fail(f"the WaitingOnYou alert for {resource} doesn't link to the issue: {link or 'no link'}")
+        bridged = self.bridge(f"i:{question['id']}")
+        self.chat_delay(bridged)
+
+        # The second option, so a reply that just takes the first proves nothing.
+        pick = options[1]
+        self.pc.call("post", f"/api/issues/{issue['id']}/interactions/{question['id']}/respond",
+                     {"answers": [{"questionId": asks[0]["id"], "optionIds": [pick]}]})
+        print(f"    answered {pick} as the board")
+        self.acted(issue, researcher, f"answer {pick}")
+        if self.watched(resource, "closed", "WaitingOnYou") is None:
+            raise Fail(f"the WaitingOnYou alert for {resource} wasn't cleared after the answer")
+        return (f"the researcher asked on {issue['identifier']}, WaitingOnYou linked to it, and the board's answer "
+                f"woke it to act on {pick}; the alert cleared" + self.bridged(f"i:{question['id']}", bridged))
+
+    def ask_by_hand(self, issue, researcher, listing):
+        """ask, answered by Justin from whichever channel he likes. The DM
+        can beat any check here, so nothing assumes the order: agent-watch's
+        alert is left to the automatic run."""
+        question = self.appears(issue, researcher, listing, "ask_user_questions")
+        bridged = self.bridge(f"i:{question['id']}")
+        print(f"    answer {issue['identifier']}'s question from Telegram, Discord or Paperclip, if you haven't")
+        answered = self.settled(listing, question["id"])
+        picked = (((answered.get("result") or {}).get("answers") or [{}])[0].get("optionIds") or [])
+        if answered.get("status") != "answered" or not picked:
+            raise Fail(f"the question on {issue['identifier']} ended {answered.get('status')} with no option picked")
+        self.acted(issue, researcher, f"answer {picked[0]}")
+        return (f"you answered {picked[0]} on {issue['identifier']}, and it woke the researcher to act on it "
+                f"(alerts aren't checked by hand)" + self.bridged(f"i:{question['id']}", bridged))
+
+    def approve(self):
+        researcher = self.agent("Researcher")
+        title = f"Smoke test {self.nonce} approval"
+        issue = self.file("researcher asks the board for an approval", (
+            "An automated smoke test of board approvals. Ask the board for an approval with "
+            "`paperclipCreateApproval`: type `request_board_approval`, `issueIds` holding this issue's id, and a "
+            f"payload whose title is `{title}` and whose summary is `An automated test; nothing happens either way.` "
+            "Then set this issue to blocked as in \"Asking Justin\" and end your run. When the decision wakes "
+            "you, comment `decision <status>` with the "
+            "approval's status, and set this issue to done."), assignee=researcher)
+        listing = f"/api/issues/{issue['id']}/approvals"
+        if self.args.by_hand:
+            return self.approve_by_hand(issue, researcher, listing)
+        asked = self.wait(issue)
+        if asked["status"] != "blocked":
+            raise self.ended(issue, asked["status"], researcher)
+        approval = next((a for a in self.pc.call("get", listing) or [] if a.get("status") == "pending"), None)
+        if approval is None:
+            raise Fail(f"{issue['identifier']} is blocked, but has no approval waiting for the board")
+        self.requested_by(issue, approval, researcher)
+
+        resource = f"paperclip/approval-{approval['id'][:8]}"
+        self.events_check()
+        raised = self.watched(resource, "open", "ApprovalWaiting", approval.get("createdAt"))
+        if raised is None:
+            raise Fail(f"no open ApprovalWaiting alert for {resource} in Alerta")
+        link = (raised.get("attributes") or {}).get("url") or ""
+        if not link.endswith(f"/approvals/{approval['id']}"):
+            raise Fail(f"the ApprovalWaiting alert for {resource} doesn't link to the approval: {link or 'no link'}")
+        bridged = self.bridge(f"a:{approval['id']}")
+        self.chat_delay(bridged)
+
+        self.pc.call("post", f"/api/approvals/{approval['id']}/approve", {})
+        print("    approved it as the board")
+        self.acted(issue, researcher, "decision approved")
+        if self.watched(resource, "closed", "ApprovalWaiting") is None:
+            raise Fail(f"the ApprovalWaiting alert for {resource} wasn't cleared after the approval")
+        return (f"the researcher asked for an approval on {issue['identifier']}, ApprovalWaiting linked to it, and "
+                f"approving it woke the researcher to close the issue; the alert cleared"
+                + self.bridged(f"a:{approval['id']}", bridged))
+
+    def approve_by_hand(self, issue, researcher, listing):
+        """approve, decided by Justin from whichever channel he likes, in
+        any order, as in ask_by_hand."""
+        approval = self.appears(issue, researcher, listing)
+        self.requested_by(issue, approval, researcher)
+        bridged = self.bridge(f"a:{approval['id']}")
+        print("    approve or reject the approval from Telegram, Discord or Paperclip, if you haven't")
+        decided = self.settled(listing, approval["id"])
+        if decided.get("status") != "approved":
+            # Paperclip wakes the agent only on an approval, so the issue would wait forever.
+            self.pc.call("patch", f"/api/issues/{issue['id']}", {"status": "cancelled"})
+            return (f"you {decided.get('status')} the approval on {issue['identifier']}, which Paperclip doesn't "
+                    f"wake the agent for, so the issue was cancelled" + self.bridged(f"a:{approval['id']}", bridged))
+        self.acted(issue, researcher, "decision approved")
+        return (f"you approved the approval on {issue['identifier']}, and it woke the researcher to close the issue "
+                f"(alerts aren't checked by hand)" + self.bridged(f"a:{approval['id']}", bridged))
+
+    def appears(self, issue, author, listing, kind=None):
+        """The first item in listing (of that kind), once the agent has made
+        it, answered or not."""
+        deadline = time.monotonic() + self.args.timeout_minutes * 60
+        while True:
+            found = [i for i in self.pc.call("get", listing) or [] if kind is None or i.get("kind") == kind]
+            if found:
+                return min(found, key=lambda i: i.get("createdAt") or "")
+            now = self.pc.call("get", f"/api/issues/{issue['id']}")
+            if now.get("status") in ("done", "cancelled", "blocked") and not now.get("activeRun"):
+                raise self.ended(issue, now["status"], author)
+            if time.monotonic() > deadline:
+                raise Fail(f"{issue['identifier']} has nothing at {listing} after {self.args.timeout_minutes} minutes")
+            time.sleep(10)
+
+    def requested_by(self, issue, approval, researcher):
+        if approval.get("requestedByAgentId") != researcher:
+            raise Fail(f"the approval on {issue['identifier']} wasn't requested by the researcher, so approving it "
+                       "wouldn't wake it")
+
+    def acted(self, issue, author, said):
+        """The agent woke, commented said and closed the issue."""
+        done = self.wait(issue, settled={"done", "cancelled"})
+        if done["status"] != "done":
+            raise self.ended(issue, done["status"], author)
+        if not any(said in body for body in self.comments(issue, author)):
+            raise Fail(f"the researcher closed {issue['identifier']} without commenting `{said}`")
+
+    def bridge_status(self):
+        """board-bridge's status.json, or None when it's off."""
+        proc = remote("agents", "cat /var/lib/board-bridge/status.json 2>/dev/null || true")
+        out = proc.stdout.strip()
+        if not out:
+            return None
+        try:
+            return json.loads(out)
+        except ValueError:
+            raise Fail(f"board-bridge's status.json isn't JSON: {text(out, 120)}") from None
+
+    def bridge(self, key, finished=False):
+        """The channels board-bridge sent key to, once it has sent it to all
+        of them, or how it finished once it has; None when the bridge is off.
+        A pass is 20 seconds, so this waits up to two minutes."""
+        deadline = time.monotonic() + 120
+        while True:
+            status = self.bridge_status()
+            if not status or not status.get("channels"):
+                return None
+            channels = sorted(status["channels"])
+            if finished:
+                found = next((r for r in status.get("recent") or [] if r.get("key") == key), None)
+            else:
+                # Answered already is fine, as long as it went everywhere first.
+                found = next((w for w in (status.get("waiting") or []) + (status.get("recent") or [])
+                              if w.get("key") == key and sorted(w.get("sent") or []) == channels), None)
+            if found:
+                return channels, found
+            if time.monotonic() > deadline:
+                where = "finished it" if finished else f"sent it to every channel ({', '.join(channels)})"
+                raise Fail(f"board-bridge hasn't {where} after two minutes; its last error: "
+                           f"{text(status.get('last_error') or 'none', 200)}")
+            time.sleep(10)
+
+    def bridged(self, key, sent):
+        """What board-bridge did with key, for the stage's line, once it's
+        answered: in Paperclip by this test, or anywhere by hand."""
+        if sent is None:
+            return "; board-bridge is off"
+        channels, finished = self.bridge(key, finished=True)
+        via = finished.get("via")
+        if via is None or (via != "Paperclip" and not self.args.by_hand):
+            raise Fail(f"board-bridge finished {key} as {via}: {finished.get('what')}, not answered in Paperclip")
+        return (f"; board-bridge sent it to {', '.join(channels)} and marked every copy answered in {via}: "
+                f"{finished.get('what')}")
+
+    def settled(self, listing, item_id):
+        """The interaction or approval item_id, from listing, once it's no
+        longer pending, for answers given by hand."""
+        deadline = time.monotonic() + self.args.timeout_minutes * 60
+        while True:
+            found = next((i for i in self.pc.call("get", listing) or [] if i.get("id") == item_id), None)
+            if found is None:
+                raise Fail(f"{item_id} is gone from {listing}")
+            if found.get("status") != "pending":
+                print(f"    it's {found.get('status')}")
+                return found
+            if time.monotonic() > deadline:
+                raise Fail(f"nobody answered within {self.args.timeout_minutes} minutes")
+            time.sleep(10)
+
     def description(self, issue):
         # The issue list may leave descriptions out.
         if issue.get("description") is None:
@@ -707,6 +1008,8 @@ def main():
     ap.add_argument("--url", default="https://paperclip.servicestack.xyz")
     ap.add_argument("--only", default=",".join(STAGES), help=f"comma-separated, from {','.join(STAGES)}")
     ap.add_argument("--keep-pr", action="store_true", help="leave the agents' pull requests open")
+    ap.add_argument("--by-hand", action="store_true",
+                    help="in ask and approve, wait for you to answer from Telegram, Discord or Paperclip")
     ap.add_argument("--timeout-minutes", type=int, default=20, help="how long to wait for each agent run")
     args = ap.parse_args()
     stages = [s.strip() for s in args.only.split(",") if s.strip()]

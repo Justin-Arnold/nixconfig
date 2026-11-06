@@ -31,9 +31,9 @@ Paperclip hands the issue to you. Justin is the board, and he merges.
   with the issue's identifier. GitHub doesn't let the account approve or
   request changes on its own pull requests, so the comment is the record and
   Paperclip holds the verdict.
-- If you'd send the same problem back a third time, don't. Ask the board
-  with a confirmation request that names the issue, the problem and the
-  options, and leave the issue as it is.
+- If you'd send the same problem back a third time, don't. Ask Justin as in
+  "Asking Justin" below, with the problem and the ways forward as the
+  options, and leave the issue's status as it is: it isn't yours.
 
 ## Decisions
 

@@ -3,7 +3,8 @@
 # GitKraken has an issue with honoring GUI scaling in linux
 # so this file is a little more cumbersome to ensure we pass
 # the required flag to the program to make sure it matches our
-# desired UI scaling
+# desired UI scaling. Linux only: the desktop entry doesn't exist on
+# darwin, and the Macs don't install GitKraken.
 
 let
   gitkrakenScaled = pkgs.symlinkJoin {
@@ -18,7 +19,7 @@ let
     '';
   };
 in {
-  config = lib.mkIf osConfig.systemProfile.hasGui {
+  config = lib.mkIf (osConfig.systemProfile.hasGui && !osConfig.systemProfile.isDarwin) {
     home.packages = [
       gitkrakenScaled
     ];

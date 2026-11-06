@@ -1,4 +1,5 @@
-# agent-costs: every 15 minutes, each agent's Claude and Jev spend goes to
+# agent-costs: after each of an agent's runs (./paperclip-events.nix starts
+# it) and on a timer anyway, that agent's Claude and Jev spend goes to
 # Paperclip as cost events, and into /var/lib/agent-costs/<name>/month.json
 # for agent-watch's credit alerts. See agent-costs/agent-costs.py.
 #
@@ -22,6 +23,13 @@ in
       type = lib.types.bool;
       default = true;
       description = "Whether each agent's spend goes to Paperclip and agent-watch.";
+    };
+
+    every = lib.mkOption {
+      type = lib.types.str;
+      default = "*:0/15";
+      example = "hourly";
+      description = "When each agent's job runs on its timer (systemd OnCalendar). With paperclip-events on it also runs after each of that agent's runs, so this is only a sweep.";
     };
 
     claudeMonthlyCredits = lib.mkOption {
@@ -98,7 +106,7 @@ in
     systemd.timers = lib.listToAttrs (map (name: lib.nameValuePair "agent-costs-${name}" {
       wantedBy = [ "timers.target" ];
       timerConfig = {
-        OnCalendar = "*:0/15";
+        OnCalendar = cfg.every;
         RandomizedDelaySec = "60s";
       };
     }) agents);

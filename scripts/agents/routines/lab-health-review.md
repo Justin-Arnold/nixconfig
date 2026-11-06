@@ -19,4 +19,6 @@ Then write one comment:
    day.
 4. Anything you couldn't read, and why.
 
-Leave out what's fine. Then set this issue to done.
+Leave out what's fine. Then, if something needs Justin, ask him to do it
+and confirm as in "Asking Justin", and leave this issue blocked; otherwise
+set it to done.

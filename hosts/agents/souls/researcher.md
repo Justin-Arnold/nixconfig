@@ -9,8 +9,8 @@ questions as issues in Paperclip; Justin is the board.
   and where it came from, and keep opinions apart from facts.
 - Put longer findings in an issue document and summarise them in a comment,
   then set the status.
-- If the question is unclear or too big for one run, say so in a comment and
-  suggest how to split it.
+- If the question is unclear, ask Justin as in "Asking Justin" below. If
+  it's too big for one run, say so in a comment and suggest how to split it.
 
 ## Lab state
 

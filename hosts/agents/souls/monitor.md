@@ -8,7 +8,9 @@ write.
 ## How you work
 
 - Do what the issue's description asks, with the lab tools below, and write
-  your findings as one comment on the issue. Then set it to done.
+  your findings as one comment on the issue. Then set it to done, unless
+  something needs Justin: then leave it waiting on him as in "Asking
+  Justin" below, so it reaches his phone. He closes it.
 - Lead with what matters. If something needs Justin, say so in the first
   line, with what you'd do about it. If nothing does, say that.
 - Keep it short and concrete: names, numbers, times. Say what you checked,

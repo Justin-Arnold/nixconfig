@@ -4,7 +4,8 @@
 Two passes over a Paperclip with something wrong of every kind, then a third
 after most of it is fixed, and one with Paperclip failing. Checks which
 alerts are raised and cleared, that repeats are identical so the forwarder
-stays quiet, and that Kuma only hears about passes that worked.
+stays quiet, that questions for the board and issues blocked on it link to
+Paperclip, and that Kuma only hears about passes that worked.
 
 usage: test.py <agent-watch.py>
 """
@@ -33,9 +34,16 @@ def run(agent, status, error=None, minutes=5):
     return {"id": f"r-{agent}-{minutes}", "agentId": agent, "status": status, "error": error, "createdAt": ago(minutes)}
 
 
-def issue(number, status, minutes, active=False, title="Something"):
-    return {"identifier": f"LAB-{number}", "title": title, "status": status, "lastActivityAt": ago(minutes),
-            "updatedAt": ago(minutes), "activeRun": {"id": "r", "status": "running"} if active else None}
+def issue(number, status, minutes, active=False, title="Something", unblock=None):
+    return {"id": f"i{number}", "identifier": f"LAB-{number}", "title": title, "status": status,
+            "lastActivityAt": ago(minutes), "updatedAt": ago(minutes),
+            "activeRun": {"id": "r", "status": "running"} if active else None, "unblockDescriptor": unblock}
+
+
+def ask(iid, status="pending", title=None, prompt="Which bar replaces hyprpanel?", minutes=5):
+    return {"id": iid, "kind": "ask_user_questions", "status": status, "title": title, "createdAt": ago(minutes),
+            "payload": {"version": 1, "questions": [{"id": "q1", "prompt": prompt, "selectionMode": "single",
+                                                     "options": [{"id": "a", "label": "wayle"}]}]}}
 
 
 class Fake:
@@ -59,6 +67,21 @@ class Fake:
             issue(3, "in_progress", 10),
         ]
         self.labelled = {"lc": [issue(4, "todo", 5, title="Switch the agents host")], "ls": []}
+        # Issues where the board might be wanted: one asks a question, one is
+        # blocked on the board, one is blocked on another issue, and one only
+        # has a question that's been answered.
+        self.asking = [
+            issue(5, "blocked", 5, title="Update flake.lock",
+                  unblock={"owner": "board", "action": "Pick hyprpanel's replacement"}),
+            issue(6, "in_progress", 5, title="Review a pull request"),
+            issue(7, "blocked", 5, unblock={"owner": {"agentId": "a1"}, "action": "Wait for LAB-3"}),
+            issue(8, "in_review", 5),
+        ]
+        self.interactions = {
+            "i6": [ask("x1", prompt="Which bar replaces hyprpanel?", minutes=10),
+                   ask("x2", prompt="And pnpm?", minutes=2), ask("x0", status="answered", minutes=30)],
+            "i8": [ask("x3", status="answered")],
+        }
         self.approvals = [{"id": "ap123456789", "type": "hire_agent", "status": "pending", "payload": {"name": "Reviewer"}}]
         self.budgets = [{"id": "b1234567890", "scopeType": "company", "status": "warning", "warnPercent": 80},
                         {"id": "b2", "scopeType": "agent", "status": "ok", "warnPercent": 80}]
@@ -95,8 +118,12 @@ class Fake:
             if "labelId" in query:
                 assert query["status"] == ["backlog,todo,in_progress,in_review,blocked"], query
                 return 200, self.labelled[query["labelId"][0]]
+            if query["status"] == ["todo,in_progress,in_review,blocked"]:
+                return 200, self.asking
             assert query["status"] == ["in_progress"], query
             return 200, self.issues
+        if path.startswith("/api/issues/") and path.endswith("/interactions"):
+            return 200, self.interactions.get(path.split("/")[3], [])
         if path == f"{base}/approvals":
             assert query["status"] == ["pending"], query
             return 200, [a for a in self.approvals if a["status"] == "pending"]
@@ -171,7 +198,8 @@ creds = pathlib.Path(tempfile.mkdtemp())
 (creds / "alerta-key").write_text("alerta-key\n")
 (creds / "kuma-push-url").write_text(f"{url}/kuma/push/{TOKEN}?status=up&msg=OK&ping=\n")
 env = {"PATH": os.environ.get("PATH", ""), "CREDENTIALS_DIRECTORY": str(creds),
-       "PAPERCLIP_URL": url, "ALERTA_URL": f"{url}/alerta", "STUCK_AFTER_MINUTES": "60"}
+       "PAPERCLIP_URL": url, "ALERTA_URL": f"{url}/alerta", "STUCK_AFTER_MINUTES": "60",
+       "PAPERCLIP_LINK": "https://paperclip.example/LAB/"}
 
 
 def watch():
@@ -197,7 +225,8 @@ check("a pass succeeds", code == 0)
 check("raises exactly what's wrong", raised == {
     ("paperclip/engineer", "RunFailed"), ("paperclip/researcher", "RunFailed"), ("paperclip/LAB-1", "IssueStuck"),
     ("paperclip/approval-ap123456", "ApprovalWaiting"), ("paperclip/LAB-4", "MarkedChange"),
-    ("paperclip/budget-b1234567", "BudgetWarning")})
+    ("paperclip/budget-b1234567", "BudgetWarning"), ("paperclip/LAB-5", "WaitingOnYou"),
+    ("paperclip/LAB-6", "WaitingOnYou")})
 check("clears its own alert that no longer holds",
       sent.get(("paperclip/LAB-9", "IssueStuck"), {}).get("severity") == "cleared")
 check("leaves other origins' alerts alone", ("SVC / gitea", "http") not in sent)
@@ -209,6 +238,14 @@ check("names a timed-out run", sent.get(("paperclip/researcher", "RunFailed"), {
 check("gives a readable title", eng.get("attributes") == {"notificationTitle": "Paperclip: Engineer failed"})
 check("names the approval", sent.get(("paperclip/approval-ap123456", "ApprovalWaiting"), {}).get("text")
       == "Waiting on you: a new agent: Reviewer")
+check("links the approval", sent.get(("paperclip/approval-ap123456", "ApprovalWaiting"), {}).get("attributes")
+      == {"notificationTitle": "Paperclip: approval waiting", "url": "https://paperclip.example/LAB/approvals/ap123456789"})
+asks = sent.get(("paperclip/LAB-6", "WaitingOnYou"), {})
+check("names the oldest question waiting on an issue", asks.get("text") == "LAB-6 asks: Which bar replaces hyprpanel?")
+check("links the issue", asks.get("attributes") == {"notificationTitle": "Paperclip: LAB-6 needs you",
+                                                     "url": "https://paperclip.example/LAB/issues/LAB-6"})
+check("names what an issue blocked on the board needs", sent.get(("paperclip/LAB-5", "WaitingOnYou"), {}).get("text")
+      == "LAB-5 waits on you: Pick hyprpanel's replacement")
 check("reports to Kuma", fake.pushes == ["up"])
 check("only reads Paperclip", all(m == "GET" for m, p in fake.requests if p.startswith("/api/")))
 
@@ -220,9 +257,13 @@ fake.agents[1] = {"id": "a2", "name": "Engineer", "status": "idle"}
 fake.runs["a2"].insert(0, run("a2", "succeeded", minutes=1))
 fake.approvals[0]["status"] = "approved"
 fake.issues[0]["activeRun"] = {"id": "r9", "status": "running"}
+for interaction in fake.interactions["i6"]:
+    interaction["status"] = "answered"
+fake.asking[0].update(status="in_progress", unblockDescriptor=None)
 code, sent = watch()
-check("clears what was fixed", code == 0 and {k for k, p in sent.items() if p["severity"] == "cleared"} == {
-    ("paperclip/engineer", "RunFailed"), ("paperclip/approval-ap123456", "ApprovalWaiting"), ("paperclip/LAB-1", "IssueStuck")})
+check("clears what was fixed, and questions once answered", code == 0 and {k for k, p in sent.items() if p["severity"] == "cleared"} == {
+    ("paperclip/engineer", "RunFailed"), ("paperclip/approval-ap123456", "ApprovalWaiting"), ("paperclip/LAB-1", "IssueStuck"),
+    ("paperclip/LAB-5", "WaitingOnYou"), ("paperclip/LAB-6", "WaitingOnYou")})
 check("keeps what still holds", {k for k, p in sent.items() if p["severity"] != "cleared"} == {
     ("paperclip/researcher", "RunFailed"), ("paperclip/LAB-4", "MarkedChange"), ("paperclip/budget-b1234567", "BudgetWarning")})
 
@@ -322,6 +363,38 @@ os.utime(intake_dir, (old, old))
 code, sent = watch()
 check("a status it can't read raises IntakeStale saying so",
       sent.get(STALE, {}).get("text", "").endswith(": its status file can't be read"))
+
+# BridgeStale, from board-bridge's status.json, the same way.
+bridge_dir = pathlib.Path(tempfile.mkdtemp())
+bridge_file = bridge_dir / "status.json"
+env.update({"BRIDGE_STATUS": str(bridge_file), "BRIDGE_STALE_MINUTES": "15"})
+BRIDGE = ("agents/board-bridge", "BridgeStale")
+bridge_file.write_text(json.dumps({"started": ago(600), "last_ok": ago(3)}))
+code, sent = watch()
+check("a bridge that passed 3 minutes ago raises nothing", code == 0 and BRIDGE not in sent)
+bridge_file.write_text(json.dumps({"started": ago(600), "last_ok": ago(40), "last_error_at": ago(1),
+                                   "last_error": "Telegram: getUpdates: Unauthorized"}))
+code, sent = watch()
+check("a bridge with no good pass for 40 minutes raises BridgeStale with the reason",
+      sent.get(BRIDGE, {}).get("severity") == "warning"
+      and sent[BRIDGE]["text"].startswith("board-bridge hasn't had a good pass since ")
+      and sent[BRIDGE]["text"].endswith(": Telegram: getUpdates: Unauthorized"))
+
+# EventsStale, from paperclip-events' status.json, after 5 minutes.
+events_dir = pathlib.Path(tempfile.mkdtemp())
+events_file = events_dir / "status.json"
+env.update({"EVENTS_STATUS": str(events_file), "EVENTS_STALE_MINUTES": "5"})
+EVENTS = ("agents/paperclip-events", "EventsStale")
+events_file.write_text(json.dumps({"started": ago(600), "connected": True, "last_ok": ago(1)}))
+code, sent = watch()
+check("a relay connected a minute ago raises nothing", code == 0 and EVENTS not in sent)
+events_file.write_text(json.dumps({"started": ago(600), "connected": False, "last_ok": ago(8), "last_error_at": ago(2),
+                                   "last_error": "not connected: GET /api/agents/me answered 401"}))
+code, sent = watch()
+check("a relay disconnected for 8 minutes raises EventsStale with the reason",
+      sent.get(EVENTS, {}).get("severity") == "warning"
+      and sent[EVENTS]["text"].startswith("paperclip-events hasn't been connected since ")
+      and sent[EVENTS]["text"].endswith(": not connected: GET /api/agents/me answered 401"))
 
 server.shutdown()
 if failures:

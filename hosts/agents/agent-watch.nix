@@ -1,11 +1,14 @@
-# agent-watch: every five minutes, a read-only pass over Paperclip that
+# agent-watch: a read-only pass over Paperclip, within seconds of a change
+# there (./paperclip-events.nix starts it) and every five minutes anyway, that
 # raises and clears Alerta alerts for agents whose last run failed, issues
-# stuck in progress, approvals waiting on the board, open issues labelled
-# change or sensitive, and budgets past their warning level, and, from what
-# agent-costs writes, Claude spend nearing the month's credit and Claude or
-# Jev refusing an agent for credits. Alerta's
-# forwarder on lab118-services sends them to the phone. See
-# agent-watch/agent-watch.py for what each alert means.
+# stuck in progress, approvals and questions waiting on the board, open
+# issues labelled change or sensitive, and budgets past their warning level,
+# and, from what agent-costs writes, Claude spend nearing the month's credit
+# and Claude or Jev refusing an agent for credits, and, from their status
+# files, monitor-intake, board-bridge or paperclip-events stalling. Alerta's forwarder on
+# lab118-services sends them to the phone, with a link to the issue or
+# approval where there is one. See agent-watch/agent-watch.py for what each
+# alert means.
 #
 # It reads with its own key on the researcher, the least privileged agent on
 # this host, posts to Alerta over the lab tunnel, and reports each good pass
@@ -16,6 +19,8 @@
 let
   cfg = config.agents.watch;
   secret = name: config.sops.secrets."agent-watch/${name}".path;
+  # Alerts about an issue or approval link to it on the board.
+  spec = builtins.fromJSON (builtins.readFile ../../scripts/agents/paperclip-spec.json);
 in
 {
   options.agents.watch = {
@@ -56,6 +61,7 @@ in
         after = [ "network-online.target" "podman-paperclip.service" ];
         environment = {
           PAPERCLIP_URL = "http://127.0.0.1:${toString config.roles.paperclip.port}";
+          PAPERCLIP_LINK = "${config.roles.paperclip.publicUrl}/${spec.company.issuePrefix}";
           ALERTA_URL = cfg.alertaUrl;
           STUCK_AFTER_MINUTES = toString cfg.stuckAfterMinutes;
         } // lib.optionalAttrs config.agents.costs.enable {
@@ -68,6 +74,17 @@ in
           # which runs every 2 minutes.
           INTAKE_STATUS = config.agents.monitorIntake.statusFile;
           INTAKE_STALE_MINUTES = "15";
+        } // lib.optionalAttrs config.agents.boardBridge.enable {
+          # Whether the board's questions still reach the chat channels
+          # (./board-bridge.nix).
+          BRIDGE_STATUS = config.agents.boardBridge.statusFile;
+          BRIDGE_STALE_MINUTES = "15";
+        } // lib.optionalAttrs config.agents.events.enable {
+          # Whether Paperclip's live events still reach this host
+          # (./paperclip-events.nix). Its status stays fresh every minute
+          # while it's connected.
+          EVENTS_STATUS = config.agents.events.statusFile;
+          EVENTS_STALE_MINUTES = "5";
         } // {
           # For the HTTPS push to Kuma; Python doesn't find the bundle itself.
           SSL_CERT_FILE = config.security.pki.caBundle;

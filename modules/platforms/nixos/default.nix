@@ -1,5 +1,5 @@
 { home-manager, pkgs, inputs, lib, sops-nix, zen-browser, config, ... }: {
-  imports = [ home-manager.nixosModules.home-manager ./desktopEnvironments ];
+  imports = [ home-manager.nixosModules.home-manager ./desktopEnvironments ./apps ];
 
   system.stateVersion = config.systemProfile.stateVersion;
 

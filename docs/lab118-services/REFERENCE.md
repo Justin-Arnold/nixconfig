@@ -34,6 +34,7 @@ the alert over cellular.
 | `hosts/lab118-services/disko.nix` | Disk layout (hybrid BIOS/UEFI GRUB). |
 | `hosts/lab118-services/eval-test.nix` | Example values used by a flake check, not by the real host. |
 | `modules/roles/notifications-stack.nix` | Alerta + PostgreSQL + Alerta web UI, ntfy, Apprise, Node-RED and the forwarder, as a reusable role. |
+| `modules/roles/notifications-stack/` | The forwarder, Alerta's `push` plugin and the Alerta build that includes it, with their tests. |
 | `modules/roles/uptime-kuma.nix` | Kuma in Docker with a pinned image. |
 | `modules/roles/doppler-secrets.nix`, `modules/roles/doppler-secrets/` | Secret sync with an encrypted last-known-good cache, and its tests. |
 | `infra/terranix/lib/contabo-instance.nix` | The Contabo instance and its safety settings. |
@@ -95,16 +96,31 @@ Alerta identifies an alert by environment + resource + event.
   the full history.
 - `ALLOWED_ENVIRONMENTS` is `Production`, `Development`, `Homelab`; anything
   else is rejected.
-- No Alerta plugins are enabled. Alerta itself never sends anything.
+- One Alerta plugin is on, `push`. It sends nothing about the alert: it
+  only tells the forwarder to read Alerta now (see Delivery).
 
 ### Delivery
 
-`alerta-apprise-forwarder` is a short Python service defined inline in the
-notifications-stack role. Every 15 seconds it fetches open, acknowledged and
-closed alerts. For each one it hashes the id, severity, status, text and any
+`alerta-apprise-forwarder` is a short Python service in the
+notifications-stack role (`notifications-stack/forwarder.py`). Alerta's
+`push` plugin POSTs an empty `/kick` to it on 127.0.0.1:9088 whenever an
+alert comes in, changes status or has an action taken on it, and the
+forwarder then fetches open, acknowledged and closed alerts. So a Kuma state
+change reaches ntfy in about a second. It also fetches every 5 minutes in
+case a kick was lost, and 15 seconds after a fetch or send that failed.
+
+The plugin sends each kick from its own thread with a one-second timeout and
+catches every error, and `PLUGINS_RAISE_ON_ERROR` is off, so a forwarder
+that's down never fails Kuma's call into Alerta. A status change through the
+API kicks a second late, because Alerta calls the plugin before it saves the
+new status. The plugin is a small package with an `alerta.plugins` entry
+point, and the role runs `alertad` from an Alerta build that includes it.
+
+For each alert it hashes the id, severity, status, text and any
 custom title or body, and compares the result with
 `/var/lib/alerta-apprise-forwarder/state.json`.
-- A new hash means something changed, so it sends a notification and records the hash.
+- A new hash means something changed, so it sends a notification, logs
+  `sent <id>: <title>`, and records the hash.
 - Closed alerts that haven't changed in over an hour are recorded without sending.
 
 That's what stops floods after a restart or a restore.
@@ -540,6 +556,8 @@ Upgrades are manual. There's no auto-upgrade on this host. The flow:
 - No backups.
 - Nothing outside watches this VPS itself.
 - A rebuild during a Doppler outage needs the old cache file.
+- A kick that's lost, say while the forwarder restarts, waits for its
+  5-minute fetch.
 - sops-nix restarts services from the activation script, which NixOS deprecates in 26.11. After that, secret changes coming from SOPS (Doppler token, WireGuard key) may need a manual restart of the affected unit.
 
 ## Gotchas

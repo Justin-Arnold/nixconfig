@@ -18,6 +18,15 @@ pkgs.runCommand "provisioning-tests"
       cat paperclip-cancel.log
       exit 1
     fi
+    # The same for paperclip-board-key.py, with a fake sops.
+    if ! python3 -I ${../../agents}/tests/paperclip-board-key-test.py ${../../agents}/paperclip-board-key.py >paperclip-board-key.log 2>&1; then
+      cat paperclip-board-key.log
+      exit 1
+    fi
+    if ! python3 -I ${../../agents}/tests/paperclip-agent-key-test.py ${../../agents}/paperclip-agent-key.py >paperclip-agent-key.log 2>&1; then
+      cat paperclip-agent-key.log
+      exit 1
+    fi
     if ! python3 -I ${../../inference/tests/model-test-test.py} ${../../inference/model-test.py} >model-test.log 2>&1; then
       cat model-test.log
       exit 1

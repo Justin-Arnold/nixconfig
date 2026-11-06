@@ -43,6 +43,8 @@ in
       ./agent-watch.nix
       ./agent-costs.nix
       ./monitor-intake.nix
+      ./board-bridge.nix
+      ./paperclip-events.nix
       ../../modules/common
       ../../modules/profiles/server.nix
       ../../modules/platforms/nixos
@@ -136,6 +138,20 @@ in
   # Alerts from Paperclip's state (./agent-watch.nix). Its three secrets are
   # in SOPS (docs/agents/REFERENCE.md, "Monitoring").
   agents.watch.enable = true;
+
+  # Paperclip's live events start agent-watch, board-bridge, monitor-intake
+  # and agent-costs within seconds of a change, instead of on their timers
+  # (./paperclip-events.nix). Its key on the researcher is in SOPS.
+  agents.events.enable = true;
+
+  # The board's questions and approvals as Telegram and Discord DMs
+  # (./board-bridge.nix). Its board key and bot tokens are in SOPS. The
+  # user IDs aren't secret: only presses from these accounts count.
+  agents.boardBridge = {
+    enable = true;
+    telegram.userId = "8610869785";
+    discord.userId = "178696475692367873";
+  };
 
   # The TrueNAS share for ./backup.nix, by address so the mount never waits
   # on DNS.

@@ -11,6 +11,8 @@ the forwarder on lab118-services sends to the phone:
   IssueStuck       an issue is in progress with no run and no activity for
                    STUCK_AFTER_MINUTES (warning)
   ApprovalWaiting  an approval waits on the board (warning)
+  WaitingOnYou     an open issue has a question for the board, or is blocked
+                   on the board (warning)
   MarkedChange,    an open issue carries the change or sensitive label
   MarkedSensitive  (warning)
   BudgetWarning    a budget is past its warning level (warning) or stopped
@@ -34,6 +36,24 @@ agents/monitor-intake):
                    for INTAKE_STALE_MINUTES, with the reason it last gave
                    (warning)
 
+and, from board-bridge's BRIDGE_STATUS file (resource agents/board-bridge):
+
+  BridgeStale      board-bridge hasn't read Paperclip and reached every chat
+                   channel that's on for BRIDGE_STALE_MINUTES, with the
+                   reason it last gave (warning)
+
+and, from paperclip-events' EVENTS_STATUS file (resource
+agents/paperclip-events):
+
+  EventsStale      paperclip-events hasn't been connected to Paperclip's
+                   live events for EVENTS_STALE_MINUTES, so nothing on this
+                   host reacts until its timers come round, with the reason
+                   it last gave (warning)
+
+Alerts about one issue or approval carry a link to it in Paperclip
+(attributes.url, under PAPERCLIP_LINK), which the forwarder puts on the
+phone.
+
 Every pass sends each alert that still holds. Alerta counts a repeat as a
 duplicate and the forwarder only notifies on a change, so a text never
 carries anything that moves on its own, like a duration. Alerts it raised
@@ -41,9 +61,11 @@ earlier that no longer hold are cleared; it finds them by asking Alerta for
 its open ones, so it keeps no state. After a good pass it reports to Kuma's
 push URL, so Kuma notices when it stops.
 
-Environment: PAPERCLIP_URL, ALERTA_URL, STUCK_AFTER_MINUTES (60), COSTS_DIR,
-CLAUDE_MONTHLY_CREDITS (100), CLAUDE_WARN_PERCENT (80), INTAKE_STATUS,
-INTAKE_STALE_MINUTES (15), and
+Environment: PAPERCLIP_URL, PAPERCLIP_LINK (the board's public URL and the
+company's prefix, as https://<host>/LAB), ALERTA_URL, STUCK_AFTER_MINUTES
+(60), COSTS_DIR, CLAUDE_MONTHLY_CREDITS (100), CLAUDE_WARN_PERCENT (80),
+INTAKE_STATUS, INTAKE_STALE_MINUTES (15), BRIDGE_STATUS,
+BRIDGE_STALE_MINUTES (15), EVENTS_STATUS, EVENTS_STALE_MINUTES (5), and
 CREDENTIALS_DIRECTORY holding paperclip-key, alerta-key and kuma-push-url.
 """
 import datetime
@@ -61,6 +83,8 @@ ENVIRONMENT = "Homelab"
 FINISHED = {"succeeded", "failed", "timed_out", "cancelled", "interrupted"}
 FAILED = {"failed", "timed_out"}
 OPEN_ISSUE = "backlog,todo,in_progress,in_review,blocked"
+# Where a question for the board can be waiting.
+ASKING_ISSUE = "todo,in_progress,in_review,blocked"
 APPROVALS = {
     "hire_agent": "a new agent",
     "approve_ceo_strategy": "the coordinator's strategy",
@@ -103,7 +127,7 @@ def short(text, limit=200):
     return text if len(text) <= limit else text[: limit - 1] + "…"
 
 
-def alert(resource, event, severity, title, text, service="Paperclip"):
+def alert(resource, event, severity, title, text, service="Paperclip", url=None):
     return {
         "environment": ENVIRONMENT,
         "resource": resource if "/" in resource else f"paperclip/{resource}",
@@ -114,12 +138,21 @@ def alert(resource, event, severity, title, text, service="Paperclip"):
         "origin": ORIGIN,
         "tags": [ORIGIN],
         "text": text,
-        "attributes": {"notificationTitle": title},
+        "attributes": {"notificationTitle": title, **({"url": url} if url else {})},
     }
 
 
-def watch(get, stuck_after, now):
-    """Every alert that holds right now."""
+def question(interaction):
+    """What an interaction asks, in a line."""
+    payload = interaction.get("payload") or {}
+    questions = payload.get("questions") or []
+    return (interaction.get("title") or payload.get("title")
+            or (questions[0].get("prompt") if questions else None) or payload.get("prompt")
+            or (interaction.get("kind") or "a question").replace("_", " "))
+
+
+def watch(get, stuck_after, now, link=None):
+    """Every alert that holds right now. link is PAPERCLIP_LINK, or None."""
     cid = get("/api/agents/me")["companyId"]
     base = f"/api/companies/{cid}"
     alerts = []
@@ -146,7 +179,24 @@ def watch(get, stuck_after, now):
         name = payload.get("title") or payload.get("name") or payload.get("summary")
         what = APPROVALS.get(approval.get("type"), approval.get("type") or "an approval")
         alerts.append(alert(f"approval-{approval['id'][:8]}", "ApprovalWaiting", "warning", "Paperclip: approval waiting",
-                            f"Waiting on you: {what}" + (f": {short(name)}" if name else ".")))
+                            f"Waiting on you: {what}" + (f": {short(name)}" if name else "."),
+                            url=link and f"{link}/approvals/{approval['id']}"))
+
+    # A question or confirmation the board hasn't answered, or an issue left
+    # blocked on the board, which only the board itself can do (Paperclip
+    # refuses agents that name it). Issues blocked on other issues don't count.
+    for issue in get(f"{base}/issues?status={ASKING_ISSUE}&limit=1000"):
+        pending = sorted((i for i in get(f"/api/issues/{issue['id']}/interactions") or [] if i.get("status") == "pending"),
+                         key=lambda i: i.get("createdAt") or "")
+        descriptor = issue.get("unblockDescriptor") or {}
+        if pending:
+            text = f"{issue['identifier']} asks: {short(question(pending[0]))}"
+        elif issue.get("status") == "blocked" and descriptor.get("owner") == "board":
+            text = f"{issue['identifier']} waits on you: {short(descriptor.get('action') or issue['title'])}"
+        else:
+            continue
+        alerts.append(alert(issue["identifier"], "WaitingOnYou", "warning", f"Paperclip: {issue['identifier']} needs you",
+                            text, url=link and f"{link}/issues/{issue['identifier']}"))
 
     labels = {label["name"]: label["id"] for label in get(f"{base}/labels")}
     for label, event in (("change", "MarkedChange"), ("sensitive", "MarkedSensitive")):
@@ -204,10 +254,11 @@ def credits(costs_dir, monthly_dollars, warn_percent, now):
     return alerts
 
 
-def intake(status_file, stale_after, now):
-    """IntakeStale, when monitor-intake hasn't had a good pass for
-    stale_after. Before its first pass, it counts from when the intake
-    started, or when its folder was made."""
+def stale(status_file, stale_after, now, resource, event, title, what):
+    """event, when a service that writes a status.json (last_ok, last_error,
+    last_error_at, started) hasn't had a good pass for stale_after. Before
+    its first pass, it counts from when the service started, or when its
+    folder was made. what says what's stopped, as "<service> hasn't ..."."""
     path = pathlib.Path(status_file)
     try:
         status = json.loads(path.read_text())
@@ -227,10 +278,10 @@ def intake(status_file, stale_after, now):
     error = status.get("last_error")
     if error and last_ok and (status.get("last_error_at") or "") < last_ok:
         error = None
-    text = ("monitor-intake hasn't handed new alerts to the monitor since "
+    text = (f"{what} since "
             + (f"{when(last_ok):%Y-%m-%d %H:%M} UTC" if last_ok else "it was set up")
             + (f": {short(error)}" if error else "."))
-    return [alert("agents/monitor-intake", "IntakeStale", "warning", "Alert intake stalled", text, service="Agents")]
+    return [alert(resource, event, "warning", title, text, service="Agents")]
 
 
 def main():
@@ -244,13 +295,25 @@ def main():
         return request("GET", paperclip + path, paperclip_auth)
 
     now = datetime.datetime.now(datetime.timezone.utc)
-    alerts = watch(get, stuck_after, now)
+    alerts = watch(get, stuck_after, now, os.environ.get("PAPERCLIP_LINK", "").rstrip("/") or None)
     if os.environ.get("COSTS_DIR"):
         alerts += credits(os.environ["COSTS_DIR"], int(os.environ.get("CLAUDE_MONTHLY_CREDITS", "100")),
                           int(os.environ.get("CLAUDE_WARN_PERCENT", "80")), now)
     if os.environ.get("INTAKE_STATUS"):
-        alerts += intake(os.environ["INTAKE_STATUS"],
-                         datetime.timedelta(minutes=int(os.environ.get("INTAKE_STALE_MINUTES", "15"))), now)
+        alerts += stale(os.environ["INTAKE_STATUS"],
+                        datetime.timedelta(minutes=int(os.environ.get("INTAKE_STALE_MINUTES", "15"))), now,
+                        "agents/monitor-intake", "IntakeStale", "Alert intake stalled",
+                        "monitor-intake hasn't handed new alerts to the monitor")
+    if os.environ.get("BRIDGE_STATUS"):
+        alerts += stale(os.environ["BRIDGE_STATUS"],
+                        datetime.timedelta(minutes=int(os.environ.get("BRIDGE_STALE_MINUTES", "15"))), now,
+                        "agents/board-bridge", "BridgeStale", "Board bridge stalled",
+                        "board-bridge hasn't had a good pass")
+    if os.environ.get("EVENTS_STATUS"):
+        alerts += stale(os.environ["EVENTS_STATUS"],
+                        datetime.timedelta(minutes=int(os.environ.get("EVENTS_STALE_MINUTES", "5"))), now,
+                        "agents/paperclip-events", "EventsStale", "Paperclip events lost",
+                        "paperclip-events hasn't been connected")
     wanted = {(a["resource"], a["event"]) for a in alerts}
 
     query = urllib.parse.urlencode([("environment", ENVIRONMENT), ("origin", ORIGIN),

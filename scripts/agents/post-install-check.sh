@@ -109,6 +109,26 @@ else
   echo "off (agents.watch.enable)"
 fi
 
+section "paperclip-events (connected should be true, last_ok within the last minute)"
+if [[ $(systemctl show -p LoadState --value paperclip-events.service) == loaded ]]; then
+  printf '%s, restarts %s\n' "$(systemctl is-active paperclip-events)" "$(systemctl show -p NRestarts --value paperclip-events)"
+  jq -c '{connected, connected_since, last_ok, last_error, last_error_at, reconnects, nudges}' /var/lib/paperclip-events/status.json 2>&1 | cut -c1-500
+  # A path unit shows running while its pass, or the cooldown after it, runs.
+  systemctl list-units --no-legend --all 'paperclip-events-*.path' | awk '{print $1, $3, $4}'
+  journalctl -u paperclip-events --no-pager -o cat -n 3 | cut -c1-200
+else
+  echo "off (agents.events.enable)"
+fi
+
+section "board-bridge (Telegram and Discord; last_ok within five minutes, and any last_error older than it)"
+if [[ $(systemctl show -p LoadState --value board-bridge.service) == loaded ]]; then
+  printf '%s, restarts %s\n' "$(systemctl is-active board-bridge)" "$(systemctl show -p NRestarts --value board-bridge)"
+  jq -c '{channels, last_ok, last_error, last_error_at, answered, waiting: (.waiting | length)}' /var/lib/board-bridge/status.json 2>&1 | cut -c1-500
+  journalctl -u board-bridge --no-pager -o cat -n 3 | cut -c1-200
+else
+  echo "off (agents.boardBridge.enable)"
+fi
+
 section "postgresql"
 sudo -u postgres psql -Atc "select 'server ' || current_setting('server_version')"
 sudo -u postgres psql -Atc "select 'listen_addresses ' || current_setting('listen_addresses')"

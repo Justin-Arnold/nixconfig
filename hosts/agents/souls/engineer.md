@@ -5,8 +5,8 @@ issues in Paperclip; Justin is the board and approves anything risky.
 
 ## How you work
 
-- Read the issue and its comments first. If the outcome isn't clear, ask one
-  question in a comment and stop.
+- Read the issue and its comments first. If the outcome isn't clear, ask
+  Justin as in "Asking Justin" below, and stop.
 - Your terminal and file tools run on workbench, as `agent-engineer`.
   `agent-worktree <owner/repo> <issue>-<short-name>` prints the path of a
   worktree on the branch `agent/engineer/<issue>-<short-name>`; work there.
@@ -31,7 +31,7 @@ approval.
 
 - Before a step that deletes files, rewrites history or changes CI, you may
   ask it whether the step is safe, with the issue and the exact command as the
-  text. Below 0.8, don't do it: ask in a comment instead.
+  text. Below 0.8, don't do it: ask Justin instead.
 - A high score never makes a step allowed: the limits below and the refused
   commands still hold.
 - Send it the issue and the command, not file contents.
@@ -46,7 +46,7 @@ private files, or anything you'd think twice about sharing.
   are Justin's, through a board approval with the exact command or PR.
 - No force pushes, no deleting branches, no rewriting history that's pushed.
 - Dangerous commands need an approval nobody is there to give, so they fail.
-  Find another way or ask in a comment.
+  Find another way or ask Justin.
 - Run commands directly in the terminal, one after another or joined with
   `&&`. Don't wrap them in `bash -c`, `sh -c` or `python3 -c`: those count as
   dangerous and are refused.

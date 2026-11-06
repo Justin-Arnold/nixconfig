@@ -44,6 +44,11 @@ docker ps --format '{{.Names}} | {{.Status}} | {{.Ports}}'
 
 section "local health"
 printf 'forwarder /healthz: %s\n' "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:9088/healthz)"
+# Alerta logs which plugins it loaded as it starts; expect push.
+printf 'alerta plugins:     %s\n' "$(journalctl -u alerta -b --no-pager -o cat \
+  | grep -E 'All server plugins enabled|Failed to load plugin' | tail -1 | cut -c1-200)"
+printf 'last sent:          %s\n' "$(journalctl -u alerta-apprise-forwarder -b --no-pager -o cat \
+  | grep '^sent ' | tail -1 | cut -c1-200)"
 printf 'alerta healthcheck: %s\n' "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:5000/management/healthcheck)"
 printf 'ntfy /v1/health:    %s\n' "$(curl -s http://127.0.0.1:8080/v1/health)"
 printf 'kuma UI:            %s\n' "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3001/)"

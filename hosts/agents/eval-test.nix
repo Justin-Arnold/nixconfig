@@ -20,4 +20,11 @@
     coordinator.github.enable = lib.mkForce true;
     researcher.github.enable = lib.mkForce true;
   };
+  agents.events.enable = lib.mkForce true;
+  # The bridge with both channels, under example user IDs.
+  agents.boardBridge = {
+    enable = lib.mkForce true;
+    telegram.userId = lib.mkForce "1111";
+    discord.userId = lib.mkForce "222222222222222222";
+  };
 }

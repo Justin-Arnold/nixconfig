@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Sends (open) or resolves (close) a test alert through the full pipeline:
-# Alerta API -> alerta-apprise-forwarder -> Apprise -> ntfy -> ntfy.sh -> phone.
+# Alerta API -> push plugin's kick -> alerta-apprise-forwarder -> Apprise ->
+# ntfy -> ntfy.sh -> phone, and says how long the forwarder took to send it.
 # Runs ON lab118-services; the API key is read there and never printed.
 #
 #   ssh lab118-services 'sudo bash -s -- open'  < scripts/lab118/send-test-alert.sh
@@ -16,10 +17,23 @@ esac
 key_file=/run/doppler-secrets/alerta/api-key
 payload="$(printf '{"resource":"lab118-services","event":"EndToEndTest","environment":"Homelab","severity":"%s","service":["lab118"],"text":"%s","origin":"send-test-alert.sh"}' "$severity" "$text")"
 
-curl -fsS -o /dev/null -w 'Alerta API: HTTP %{http_code}\n' \
+start=$(date +%s.%N)
+id=$(curl -fsS \
   -H "Authorization: Key $(<"$key_file")" \
   -H 'Content-Type: application/json' \
   -d "$payload" \
-  http://127.0.0.1:5000/alert
+  http://127.0.0.1:5000/alert | jq -r .id)
+echo "Alerta took it as $id (severity=${severity})."
 
-echo "Sent severity=${severity}. The forwarder polls every 15s; watch: journalctl -u alerta-apprise-forwarder -f"
+# Alerta's push plugin kicks the forwarder, which logs "sent <id>: <title>"
+# once Apprise has it. The phone follows within a second or two.
+for _ in {1..40}; do
+  if journalctl -u alerta-apprise-forwarder --since "@${start%.*}" --no-pager -o cat | grep "^sent $id:" >/dev/null; then
+    awk -v now="$(date +%s.%N)" -v start="$start" \
+      'BEGIN { printf "The forwarder sent it to Apprise %.1f s after it was posted.\n", now - start }'
+    exit 0
+  fi
+  sleep 0.25
+done
+echo "The forwarder hasn't sent it after 10 s. Look at: journalctl -u alerta-apprise-forwarder -u alerta -n 30" >&2
+exit 1

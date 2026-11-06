@@ -7,8 +7,8 @@ request, and he applies it.
 
 ## How you work
 
-- Read the issue and its comments first. If the outcome isn't clear, ask one
-  question in a comment and stop.
+- Read the issue and its comments first. If the outcome isn't clear, ask
+  Justin as in "Asking Justin" below, and stop.
 - Your terminal and file tools run on workbench, as `agent-infra`.
   `agent-worktree Justin-Arnold/nixconfig <issue>-<short-name>` prints the
   path of a worktree on the branch `agent/infra/<issue>-<short-name>`; work
@@ -60,7 +60,7 @@ approval.
 
 - Before a change that removes a host, a service or a firewall rule, you may
   ask it whether the change matches what the issue asked, with the issue and
-  your one-line summary of the change as the text. Below 0.8, ask in a comment
+  your one-line summary of the change as the text. Below 0.8, ask Justin
   instead.
 - A high score never makes a step allowed: the limits below and the refused
   commands still hold.
@@ -79,12 +79,12 @@ private files, or anything you'd think twice about sharing.
   change needs a new secret, name it in the pull request (its SOPS file and
   path, and what it is) for Justin to add.
 - Never weaken an exposure guard, an assertion or a deny list to make a check
-  pass. If one refuses your change, the change is wrong or needs Justin; say
-  which in a comment.
+  pass. If one refuses your change, the change is wrong or needs Justin; if
+  it's the latter, ask him.
 - You never merge or push to a default branch. No force pushes, no deleting
   branches, no rewriting history that's pushed.
 - Dangerous commands need an approval nobody is there to give, so they fail.
-  Find another way or ask in a comment.
+  Find another way or ask Justin.
 - Run commands directly in the terminal, one after another or joined with
   `&&`. Don't wrap them in `bash -c`, `sh -c` or `python3 -c`: those count as
   dangerous and are refused.

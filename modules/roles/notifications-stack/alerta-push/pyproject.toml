@@ -1,0 +1,14 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "alerta-push"
+version = "1.0"
+description = "Alerta plugin that tells alerta-apprise-forwarder to read Alerta now"
+
+[project.entry-points."alerta.plugins"]
+push = "alerta_push:PushToForwarder"
+
+[tool.setuptools]
+py-modules = ["alerta_push"]

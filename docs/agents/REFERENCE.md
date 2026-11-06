@@ -38,10 +38,12 @@ separate execution host.
 | `hosts/agents/agent-watch.nix`, `hosts/agents/agent-watch/` | The timer that turns Paperclip's state into Alerta alerts, and its test against fakes. |
 | `hosts/agents/agent-costs.nix`, `hosts/agents/agent-costs/` | Each agent's Claude and Jev spend, reported to Paperclip and summed for agent-watch's credit alerts, and its test. |
 | `hosts/agents/monitor-intake.nix`, `hosts/agents/monitor-intake/` | The timer that hands new Alerta alerts to the monitor, and its test against fakes. |
+| `hosts/agents/board-bridge.nix`, `hosts/agents/board-bridge/` | The service that sends what waits on the board to Telegram and Discord and answers it from a tap, and its test against fakes. |
+| `hosts/agents/paperclip-events.nix`, `hosts/agents/paperclip-events/` | The relay that turns Paperclip's live events into nudges for agent-watch, board-bridge, monitor-intake and agent-costs, and its test against a fake Paperclip. |
 | `hosts/agents/eval-test.nix` | Example values for the flake checks, not used by the real host. |
 | `infra/terranix/hosts/agents.nix` | The VM, its storage, CPU type and HA resource. |
 | `hosts/agents/agents.nix` | The Hermes agents, their models, which ones have a Paperclip key, and what they may reach in the LAN. |
-| `hosts/agents/souls/` | Each agent's SOUL.md: its job and its limits. |
+| `hosts/agents/souls/` | Each agent's SOUL.md: its job and its limits, each ending with `asking-justin.md`, how to ask you a question. |
 | `modules/roles/paperclip.nix` | Paperclip under Podman, its database, the key guard and the health watch. |
 | `modules/roles/hermes-agents.nix` | One Hermes unit per agent, built from upstream's own module helpers, and the assertions that keep them shell-free. |
 | `modules/roles/hermes-agents/paperclip-mcp/` | Paperclip's MCP server, pinned by a lockfile to the Paperclip release. |
@@ -54,7 +56,9 @@ separate execution host.
 | `scripts/agents/paperclip-apply.py`, `paperclip-spec.json` | Paperclip's company setting, labels, agents and routines as a spec, applied through its API. |
 | `scripts/agents/routines/` | What each routine asks its agent to do. |
 | `scripts/agents/paperclip-cancel.py` | Cancels Paperclip issues by identifier, such as a smoke test's leftovers. |
-| `scripts/agents/tests/` | Fake Paperclips that `paperclip-apply.py` and `paperclip-cancel.py` are tested against in the `provisioning` check. |
+| `scripts/agents/paperclip-board-key.py` | Makes board-bridge's board key and writes it into SOPS without printing it. |
+| `scripts/agents/paperclip-agent-key.py` | Makes a service's key on an agent, such as paperclip-events' on the researcher, and writes it into SOPS without printing it. |
+| `scripts/agents/tests/` | Fake Paperclips that `paperclip-apply.py`, `paperclip-cancel.py` and the two key scripts are tested against in the `provisioning` check. |
 | `scripts/agents/smoke-e2e.py` | The end-to-end smoke test: real issues for the agents, checked against GitHub, workbench and Alerta. |
 
 ## How it's reached
@@ -414,7 +418,8 @@ fallbacks included), and the Jev server's `logs/jev.log` has each call's
 input tokens. agent-costs (`hosts/agents/agent-costs.nix`) carries that to
 Paperclip.
 
-Every 15 minutes, for each agent, a unit `agent-costs-<name>` runs as that
+After each of an agent's runs (see Live events), and hourly anyway, a unit
+`agent-costs-<name>` runs as that
 agent, reads only its own state and logs, and posts what's new as cost
 events with the agent's own Paperclip key, which can only report that
 agent's costs. Claude is priced from its tokens with the rate card in
@@ -458,6 +463,135 @@ citing the issue. Every agent pushes as the same machine account, and GitHub
 doesn't let a pull request's author approve or request changes on it, so the
 comment is the record and Paperclip holds the verdict. Merging stays yours.
 
+### Asking you
+
+When an agent needs a decision from you, it asks in Paperclip, not in a
+comment, since a comment reaches nobody. Every agent's soul ends with the
+same section on this (`souls/asking-justin.md`):
+
+- A choice is a question card (`paperclipAskUserQuestions`) with two to four
+  options, the agent's recommendation first, each with its trade-off.
+- A yes or no is a confirmation (`paperclipRequestConfirmation`), always set
+  to wake the agent when you answer. Paperclip's default for confirmations
+  is not to.
+- Something only you can do is a comment saying exactly what, with a
+  confirmation for you to say it's done.
+- A board approval is made with its issue in `issueIds`, which links it.
+- Then the agent sets its issue `blocked` and ends its run. Paperclip lets
+  an issue wait on a pending question or approval, and refuses an agent
+  that names the board as the unblock owner, so agents give the status
+  alone.
+
+It reaches you three ways, and any of them answers it:
+
+- agent-watch raises `WaitingOnYou` for an open issue with an unanswered
+  question, and ntfy shows it with a link to the
+  issue, which opens over the LAN, the VPN or Pangolin. `ApprovalWaiting`
+  links to the approval the same way.
+- board-bridge sends it as a Telegram DM and a Discord DM with buttons (see
+  below).
+
+Your answer wakes the agent on the same issue, it carries on from where it
+stopped, and the alert clears on the next pass.
+
+The monitor only reads, so it never asks: when its review or triage finds
+something that needs you, it leaves the issue blocked with what to do, and
+you close it when it's done.
+
+### Telegram and Discord
+
+board-bridge (`board-bridge.nix`) is a small service on this host with no
+model in it. Within seconds of a change in Paperclip (see Live events),
+and every 5 minutes anyway, it reads, with a board key, the pending
+questions and confirmations on open issues and the pending approvals, and
+sends each new one to every channel that's on as a DM: the issue, the agent
+that asked, the question and its options with their trade-offs, buttons,
+and a link to it in Paperclip.
+
+- A question with one question gets a button per option. Multiple choice
+  gets toggles and Submit, and a free-text option or "Other" asks for text.
+- A confirmation gets Accept, Reject, and Reject with a reason. A checkbox
+  confirmation gets toggles, starting from its defaults.
+- An approval gets Approve, Reject, and Reject with a note, in one tap.
+- Anything else, like a form with several questions or a tool action to
+  confirm, gets the link alone.
+
+Text comes as a reply to the bot's prompt in Telegram, and as a form in
+Discord. A press answers in Paperclip as you, through the same calls as
+the board's own buttons, so the agent wakes the same way. Approving an
+approval wakes the agent that asked for it; Paperclip doesn't wake it when
+you reject one.
+
+Only presses and replies from the user IDs in
+`agents.boardBridge.<channel>.userId`, in a DM, count. Everything else is
+logged and ignored, and a message that isn't a reply to the bot's prompt
+does nothing. When an item is answered in a chat, every copy changes at
+once to say where and what, and loses its buttons; answered in Paperclip,
+within seconds. Question text comes
+from agents, so it's sent as plain text and trimmed.
+
+The board key can do anything the board can, so the bridge's code calls
+only the routes in its `ROUTES` list and refuses anything else: listing,
+answering questions and confirmations, and deciding approvals. Its unit
+reaches loopback and the internet, never the LAN, and an assertion holds
+that. It polls Telegram and holds Discord's gateway open, so nothing comes
+in. The Telegram bot can only DM you once you've started it, and the
+Discord bot only while it shares a server with you.
+
+`/var/lib/board-bridge/status.json` says when a pass last worked, what last
+went wrong, where each waiting item went, and how many answers came from
+Telegram, Discord and Paperclip, which is the comparison the three channels
+are there for. agent-watch raises `BridgeStale` when it hasn't had a good
+pass for 15 minutes. `agents.boardBridge.<channel>.enable = false` turns one
+channel off, and `state.json` beside it keeps what was sent where, so a
+restart sends nothing twice.
+
+```bash
+ssh agents 'sudo cat /var/lib/board-bridge/status.json; journalctl -u board-bridge -n 20 -o cat --no-pager'
+```
+
+`scripts/agents/paperclip-board-key.py` makes the key: a named board key
+that doesn't expire, since a sign-in's own key lasts 30 days. It writes it
+to SOPS on stdin and revokes its sign-in. An older board-bridge key keeps
+working until `--revoke-old` revokes all but the newest.
+
+### Live events
+
+Paperclip keeps a live websocket for each company, which its own UI uses to
+stay current, and paperclip-events (`paperclip-events.nix`) holds one open
+on this host. It turns each event into a nudge for whichever service acts
+on it, so they react within seconds instead of on their timers:
+
+| Service | Nudged by | Its timer, now a sweep |
+|---|---|---|
+| agent-watch | questions, confirmations and approvals coming and going, issues made or changed, finished runs, an agent's status | every 5 minutes, which also covers what's about time passing, like a stuck issue |
+| board-bridge | questions, confirmations and approvals coming and going, and Discord connecting | every 5 minutes, or 20 seconds after a pass that couldn't read Paperclip or reach a channel |
+| monitor-intake | issues made or changed, so a finished triage lets the alerts waiting behind it go at once | every 2 minutes, since new alerts don't come as events yet |
+| `agent-costs-<name>` | each of that agent's finished runs | hourly |
+
+An event only says that something changed (an action and an id, or a
+run's status), never what it says, and each service reads what it needs
+from Paperclip itself, as it always did. The relay leaves a file in
+`/run/paperclip-events/<service>.d/`, and a path unit starts the service
+while that folder isn't empty. The service empties it as it starts and
+waits 10 seconds after it stops (`agents.events.cooldownSeconds`), so
+changes during a pass make one more pass, and a busy run's dozens of
+changes make a few. board-bridge runs all the time, so it's told with
+`SIGHUP`. After every reconnect the relay nudges everything once, for
+whatever it missed.
+
+The websocket takes agent keys only, so the relay has its own key on the
+researcher, named `paperclip-events`, which
+`scripts/agents/paperclip-agent-key.py paperclip-events` makes and writes to
+SOPS. It reaches Paperclip on loopback and nothing else.
+`/var/lib/paperclip-events/status.json` says whether it's connected and how
+many nudges each service got, and agent-watch raises `EventsStale` once it
+has been disconnected for 5 minutes.
+
+```bash
+ssh agents 'sudo cat /var/lib/paperclip-events/status.json; journalctl -u paperclip-events -n 20 -o cat --no-pager'
+```
+
 ### Routines
 
 Some work starts on its own, as Paperclip routines: each makes an issue for
@@ -467,8 +601,8 @@ line with it, and what each asks its agent is in `scripts/agents/routines/`.
 
 | Routine | Agent | Starts | What it does |
 |---|---|---|---|
-| Lab health review | monitor | every day at 07:00 New York time | Reads every lab source and says what's down, degraded or heading the wrong way, leading with whether anything needs you |
-| Triage lab alerts | monitor | monitor-intake, when alerts open in Alerta | Reads each new alert and what it's about, and gives the likely cause and the next step |
+| Lab health review | monitor | every day at 07:00 New York time | Reads every lab source and says what's down, degraded or heading the wrong way, leading with whether anything needs you; if something does, the issue stays blocked on you |
+| Triage lab alerts | monitor | monitor-intake, when alerts open in Alerta | Reads each new alert and what it's about, and gives the likely cause and the next step; blocked on you the same way when one needs you |
 | Update flake.lock | infra | Mondays at 06:00 New York time | Runs `nix flake update` in a worktree, evaluates every host, and opens a pull request with only `flake.lock`, listing what moved |
 | Review a pull request | reviewer | when you run it in Paperclip, with a repository and a number | Reviews that pull request the way it reviews a review stage, and comments on it |
 
@@ -591,6 +725,8 @@ names some:
 | `observe` | the researcher reads each lab source it has once and comments the call ids, each a successful call of that source in the lab server's log; with GitHub on, it quotes nixconfig pull request #1's title, which matches GitHub's |
 | `health` | the board runs the monitor's health review; the monitor comments and sets the issue done, and its lab log shows a successful call to every source it has during the run |
 | `intake` | a minor test alert, `smoke/<nonce>`, goes into Alerta and monitor-intake runs; the monitor's triage of it ends done with a comment naming `smoke/<nonce>`, which it can only learn by reading the alert, and an `alerta_alert` call in its log. The alert is cleared afterwards, and the phone gets both. |
+| `ask` | the researcher asks the board a two-option question on an issue and leaves the issue blocked; agent-watch raises `WaitingOnYou` linking to the issue; the test answers as the board with the second option, and the researcher wakes, comments that option and closes the issue, after which the alert clears. The phone gets both. With board-bridge on, the question reaches every chat channel, and every copy ends up answered in Paperclip. With paperclip-events connected nothing is forced: the alert has to come within 20 s of the question, the DMs within 10 s, and the alert has to clear on its own. |
+| `approve` | the same for an approval: the researcher asks for one, linked to its issue, and leaves the issue blocked; `ApprovalWaiting` links to it, and board-bridge sends it to every chat channel; the test approves it as the board, and the researcher wakes, comments the decision and closes the issue |
 | `change` | the engineer pushes an `agent/engineer/*` branch to agent-scratch with exactly the file it was asked for, opens a pull request as the machine account, and comments its URL. The pull request is then closed and its branch deleted, unless `--keep-pr`. |
 | `review` | the same, on an issue with a review stage for the reviewer: Paperclip hands it over when the engineer sets it done, the reviewer approves it so the stage completes, and its findings are on the pull request as a comment review citing the issue |
 | `costs` | agent-costs reports the reviewer's Claude spend from the review stage: its `month.json` shows some this month, and Paperclip shows the same amount against the Reviewer |
@@ -610,6 +746,14 @@ requests or spend Opus; run them from Paperclip to try them.
 A `gate` that fails with the canary intact and nothing in the log means the
 model declined on its own, so the deny list wasn't exercised.
 
+With `--by-hand`, `ask` and `approve` wait for you to answer from Telegram,
+Discord or Paperclip instead of answering as the board, and the result
+names the channel board-bridge saw the answer come from. The DM can arrive
+before any of the test's checks, so these don't assume an order and leave
+agent-watch's alerts to the run without it. Rejecting the approval ends
+`approve` there and cancels its issue, since Paperclip only wakes the
+agent on an approval.
+
 ## Monitoring
 
 Beszel's agent reports the host. Kuma watches it over the tunnel:
@@ -627,7 +771,8 @@ Paperclip has no Prometheus endpoint. Its own view of agent runs, costs and
 the activity log is in its UI.
 
 What happens inside Paperclip reaches the phone through agent-watch
-(`agent-watch.nix`). Every five minutes it reads Paperclip and keeps these
+(`agent-watch.nix`). Within seconds of a change in Paperclip (see Live events),
+and every five minutes anyway, it reads Paperclip and keeps these
 alerts in Alerta on lab118-services, environment `Homelab`, origin
 `agent-watch`:
 
@@ -635,13 +780,16 @@ alerts in Alerta on lab118-services, environment `Homelab`, origin
 |---|---|---|---|
 | `RunFailed` | `paperclip/<agent>` | the agent is in error, or its last finished run failed or timed out | minor |
 | `IssueStuck` | `paperclip/LAB-<n>` | in progress for an hour with no run and no activity | warning |
-| `ApprovalWaiting` | `paperclip/approval-<id>` | an approval waits on the board | warning |
+| `ApprovalWaiting` | `paperclip/approval-<id>` | an approval waits on the board; links to it | warning |
+| `WaitingOnYou` | `paperclip/LAB-<n>` | an open issue has a question the board hasn't answered, or you left it blocked on the board yourself; links to the issue | warning |
 | `MarkedChange`, `MarkedSensitive` | `paperclip/LAB-<n>` | an open issue carries that label | warning |
 | `BudgetWarning` | `paperclip/budget-<id>` | a budget is past its warning level, or stopped (major) | warning |
 | `ClaudeSpend` | `anthropic/credits` | this month's estimated Claude spend across the agents has passed 80% of the month's credit, or all of it (major) | warning |
 | `ClaudeCreditsOut` | `anthropic/credits` | Claude refused an agent for credits and hasn't worked for it since; the agent is on its fallback | major |
 | `JevCreditsOut` | `typesafe/credits` | the same for Jev; agents carry on without it | major |
 | `IntakeStale` | `agents/monitor-intake` | monitor-intake hasn't had a good pass for 15 minutes, with the reason it last gave: Paperclip or Alerta unreachable, the triage routine missing, the monitor at its daily cap | warning |
+| `BridgeStale` | `agents/board-bridge` | board-bridge hasn't read Paperclip and reached every chat channel that's on for 15 minutes, with the reason it last gave | warning |
+| `EventsStale` | `agents/paperclip-events` | paperclip-events has been disconnected from Paperclip's live events for 5 minutes, so everything above waits for its timer, with the reason it last gave | warning |
 
 An alert is cleared, which sends a resolved notification, on the first pass
 where it no longer holds. agent-watch finds its open alerts by asking Alerta,
@@ -675,7 +823,8 @@ operator key, nothing else. On macOS, edit it with
 | `beszel/agent-token` | the hub's universal token |
 | `porkbun/api-key`, `porkbun/secret-api-key` | for DNS-01 |
 | `kuma/backup-push-url` | push monitor for backups |
-| `agent-watch/paperclip-key` | a second Paperclip key on the researcher, named `agent-watch` |
+| `agent-watch/paperclip-key` | a second Paperclip key on the researcher, named `agent-watch`. `scripts/agents/paperclip-agent-key.py agent-watch` makes a new one. |
+| `paperclip-events/paperclip-key` | paperclip-events' key on the researcher, named `paperclip-events`, with no scope, since the live events refuse a scoped key. `scripts/agents/paperclip-agent-key.py paperclip-events` makes it and writes it here. |
 | `agent-watch/alerta-key` | an Alerta API key with `read:alerts` and `write:alerts` |
 | `agent-watch/kuma-push-url` | the `JOB / agent-watch` push monitor's URL |
 | `root/console-password-hash` | `mkpasswd -m yescrypt` |
@@ -687,6 +836,9 @@ operator key, nothing else. On macOS, edit it with
 | `observe/proxmox-token` | the agents' Proxmox API token, `agents@pve!observe=<secret>`, audit-only |
 | `observe/beszel-password` | the password of Beszel's readonly user for the agents |
 | `observe/alerta-key` | an Alerta key with `read:alerts` only, also monitor-intake's |
+| `paperclip/board-bridge-key` | board-bridge's board key, named `board-bridge`, with no expiry. `scripts/agents/paperclip-board-key.py` makes it and writes it here. |
+| `board-bridge/telegram-token` | the Telegram bot's token, from BotFather |
+| `board-bridge/discord-token` | the Discord bot's token, from its application's Bot page. It needs no privileged intents. |
 | `observe/github-token` | a fine-grained GitHub token from Justin's account: all repositories, read-only Metadata, Contents, Issues, Pull requests and Commit statuses |
 | `hermes/<name>/ssh-key` | for the engineer, reviewer and infra: `ssh-keygen -t ed25519 -N ''`, the private half; the public half goes in `workbench.agents.<name>.publicKey` in `hosts/workbench/agents.nix`. Needed once `workbenchHostKey` is set. |
 
@@ -784,6 +936,11 @@ host key and the same master key in SOPS, the stored secrets stay readable.
   monitor is on an earlier triage. The monitor and the researcher share the
   `agents` key's two requests at a time on inference with every agent's side
   tasks.
+- board-bridge holds a board key, the most powerful kind there is; its
+  route list is the only thing narrowing it.
+- paperclip-events hears only what the researcher may read, which today is
+  everything. While it's disconnected the services wait for their timers,
+  so a question can take up to 5 minutes to reach the chat channels.
 - The reviewer can only comment on GitHub: every agent pushes as one machine
   account, and GitHub doesn't let a pull request's author approve it.
   Paperclip's review stage is the gate.

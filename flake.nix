@@ -217,8 +217,11 @@
           agent-watch = import ./hosts/agents/agent-watch/check.nix { inherit pkgs; };
           agent-costs = import ./hosts/agents/agent-costs/check.nix { inherit pkgs; };
           monitor-intake = import ./hosts/agents/monitor-intake/check.nix { inherit pkgs; };
+          board-bridge = import ./hosts/agents/board-bridge/check.nix { inherit pkgs; };
+          paperclip-events = import ./hosts/agents/paperclip-events/check.nix { inherit pkgs; };
           jev-mcp = import ./modules/roles/hermes-agents/jev-mcp/check.nix { inherit pkgs; };
           lab-mcp = import ./modules/roles/hermes-agents/lab-mcp/check.nix { inherit pkgs; };
+          notifications-stack = import ./modules/roles/notifications-stack/check.nix { inherit pkgs; };
           provisioning = import ./scripts/provisioning/tests/check.nix {
             inherit pkgs;
             manifest = mkInfraManifest system;
@@ -319,6 +322,10 @@
                 sops-file-missing = { sops.validateSopsFiles = lib.mkOverride 40 true; };
                 backup-target-missing = { agents.backup.nfsDevice = lib.mkOverride 40 null; };
                 beszel-agent-listening = { services.beszel.agent.openFirewall = true; };
+                bridge-reaches-lan = { systemd.services.board-bridge.serviceConfig.IPAddressDeny = lib.mkForce [ "10.0.0.0/8" ]; };
+                bridge-allows-lan = { systemd.services.board-bridge.serviceConfig.IPAddressAllow = lib.mkForce [ "localhost" "10.0.0.0/24" ]; };
+                events-allows-lan = { systemd.services.paperclip-events.serviceConfig.IPAddressAllow = lib.mkForce [ "localhost" "10.0.0.0/24" ]; };
+                events-reaches-internet = { systemd.services.paperclip-events.serviceConfig.IPAddressDeny = lib.mkForce [ "10.0.0.0/8" ]; };
                 hermes-api-on-all-interfaces = { roles.hermesAgents.instances.coordinator.environment.API_SERVER_HOST = lib.mkForce "0.0.0.0"; };
                 hermes-duplicate-port = { roles.hermesAgents.instances.engineer.port = lib.mkForce 8642; };
                 hermes-machine-tools-here = { roles.hermesAgents.instances.coordinator.toolsets = [ "terminal" ]; };
