@@ -44,9 +44,13 @@ if [[ -n $untracked ]]; then
   while read -r file; do echo "  $file"; done <<<"$untracked"
 fi
 
-# In CI there's no running it again by hand, so a failure prints more.
+# In CI there's no running it again by hand, so a failure prints more,
+# including more of a failed build's own log than the 25 lines Nix keeps.
 tail_lines=15
-[[ ${CI:-} == true ]] && tail_lines=200
+if [[ ${CI:-} == true ]]; then
+  tail_lines=200
+  export NIX_CONFIG="${NIX_CONFIG-}"$'\n''log-lines = 200'
+fi
 
 failed=()
 run() {

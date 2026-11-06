@@ -29,23 +29,26 @@ mkdir -p "$T/bin" "$T/calls" "$T/live/app" "$T/live/hub/certs" "$T/dest" "$T/wor
 age-keygen -o "$T/host.key" 2>/dev/null
 age-keygen -o "$T/operator.key" 2>/dev/null
 
-cat >"$T/bin/curl" <<'FAKE'
-#!/usr/bin/env bash
+# Writes stdin to $T/bin/<name> as an executable fake. The shebang names this
+# bash, since the Linux build sandbox has no /usr/bin/env.
+fake() {
+  { printf '#!%s\n' "$BASH"; cat; } >"$T/bin/$1"
+  chmod +x "$T/bin/$1"
+}
+
+fake curl <<'FAKE'
 echo "$*" >>"$CALLS/curl"
 FAKE
-cat >"$T/bin/findmnt" <<'FAKE'
-#!/usr/bin/env bash
+fake findmnt <<'FAKE'
 echo "$*" >>"$CALLS/findmnt"
 [[ -n "${FAKE_MOUNTED:-}" ]]
 FAKE
-cat >"$T/bin/systemctl" <<'FAKE'
-#!/usr/bin/env bash
+fake systemctl <<'FAKE'
 echo "$*" >>"$CALLS/systemctl"
 echo "systemctl $*" >>"$CALLS/order"
 FAKE
 # A dump is "PGDMP" followed by the database's contents.
-cat >"$T/bin/pg_dump" <<'FAKE'
-#!/usr/bin/env bash
+fake pg_dump <<'FAKE'
 echo "$*" >>"$CALLS/pg_dump"
 for a in "$@"; do
   case "$a" in
@@ -60,8 +63,7 @@ else
   { echo PGDMP; cat "$FAKE_PG/$db"; } >"$file"
 fi
 FAKE
-cat >"$T/bin/pg_restore" <<'FAKE'
-#!/usr/bin/env bash
+fake pg_restore <<'FAKE'
 echo "$*" >>"$CALLS/pg_restore"
 if [[ "$1" == --list ]]; then
   [[ "$(head -n 1 "$2")" == PGDMP ]]
@@ -76,7 +78,6 @@ input="$(cat)"
 [[ -z "${FAKE_PG_RESTORE_FAIL:-}" ]] || exit 1
 tail -n +2 <<<"$input" >"$FAKE_PG/$db"
 FAKE
-chmod +x "$T/bin/"*
 
 APP="$T/live/app/db.sqlite"
 HUB="$T/live/hub/data.db"

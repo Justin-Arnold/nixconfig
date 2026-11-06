@@ -52,8 +52,14 @@ touch "$REPO/secrets/hosts/$KEYED.yaml"
 echo "fake private key" >"$T/bootstrap_key"
 echo "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKE test" >"$T/bootstrap_key.pub"
 
-cat >"$T/bin/terraform" <<'EOF'
-#!/usr/bin/env bash
+# Writes stdin to $T/bin/<name> as an executable fake. The shebang names this
+# bash, since the Linux build sandbox has no /usr/bin/env.
+fake() {
+  { printf '#!%s\n' "$BASH"; cat; } >"$T/bin/$1"
+  chmod +x "$T/bin/$1"
+}
+
+fake terraform <<'EOF'
 echo "terraform $*" >>"$CALLS/terraform"
 case " $* " in
   *" state list "*)
@@ -66,8 +72,7 @@ case " $* " in
   *) exit 0 ;;
 esac
 EOF
-cat >"$T/bin/nixos-anywhere" <<'EOF'
-#!/usr/bin/env bash
+fake nixos-anywhere <<'EOF'
 echo "nixos-anywhere $*" >>"$CALLS/nixos-anywhere"
 while [[ $# -gt 0 ]]; do
   if [[ "$1" == --extra-files ]]; then
@@ -79,17 +84,14 @@ while [[ $# -gt 0 ]]; do
   shift
 done
 EOF
-cat >"$T/bin/nixos-rebuild" <<'EOF'
-#!/usr/bin/env bash
+fake nixos-rebuild <<'EOF'
 echo "nixos-rebuild $*" >>"$CALLS/nixos-rebuild"
 EOF
-cat >"$T/bin/ssh" <<'EOF'
-#!/usr/bin/env bash
+fake ssh <<'EOF'
 echo "ssh $*" >>"$CALLS/ssh"
 printf '%s' "${FAKE_OS_ID:-ubuntu}"
 EOF
-cat >"$T/bin/sops" <<'EOF'
-#!/usr/bin/env bash
+fake sops <<'EOF'
 echo "sops $*" >>"$CALLS/sops"
 echo "key=${SOPS_AGE_KEY_FILE:-} home=${HOME:-}" >>"$CALLS/sops-env"
 # Defaults live in variables: "${VAR:-{...}}" would close at the first brace
@@ -105,8 +107,7 @@ case " $* " in
   *) echo "fake-value" ;;
 esac
 EOF
-cat >"$T/bin/curl" <<'EOF'
-#!/usr/bin/env bash
+fake curl <<'EOF'
 echo "curl $*" >>"$CALLS/curl"
 no_vms='{"data":[]}'
 case "$*" in
@@ -114,7 +115,6 @@ case "$*" in
   *network-get-interfaces*) echo '{"data":{"result":[{"name":"ens18","ip-addresses":[{"ip-address-type":"ipv4","ip-address":"10.0.0.50"}]}]}}' ;;
 esac
 EOF
-chmod +x "$T/bin/"*
 
 export PATH="$T/bin:$PATH"
 export CALLS="$T/calls"

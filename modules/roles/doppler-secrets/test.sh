@@ -31,8 +31,14 @@ operator_pub="$(age-keygen -y "$T/operator.key")"
 jq --arg r "$operator_pub" '.recipients = [$r]' "$BASE_SPEC" >"$T/spec.json"
 printf 'dp.st.prd.FAKETOKEN0123456789\n' >"$T/token"
 
-cat >"$T/bin/doppler" <<'EOF'
-#!/usr/bin/env bash
+# Writes stdin to $T/bin/<name> as an executable fake. The shebang names this
+# bash, since the Linux build sandbox has no /usr/bin/env.
+fake() {
+  { printf '#!%s\n' "$BASH"; cat; } >"$T/bin/$1"
+  chmod +x "$T/bin/$1"
+}
+
+fake doppler <<'EOF'
 echo "$*" >>"$FAKE/doppler.calls"
 if [[ "${DOPPLER_TOKEN:-}" != "dp.st.prd.FAKETOKEN0123456789" ]]; then
   echo "Doppler Error: invalid token" >&2
@@ -43,15 +49,12 @@ case "$(cat "$FAKE/mode")" in
   *) echo "Doppler Error: Unable to reach api.doppler.com using dp.st.prd.FAKETOKEN0123456789" >&2; exit 1 ;;
 esac
 EOF
-cat >"$T/bin/systemctl" <<'EOF'
-#!/usr/bin/env bash
+fake systemctl <<'EOF'
 echo "$*" >>"$FAKE/systemctl.calls"
 EOF
-cat >"$T/bin/chown" <<'EOF'
-#!/usr/bin/env bash
+fake chown <<'EOF'
 echo "$*" >>"$FAKE/chown.calls"
 EOF
-chmod +x "$T/bin/"*
 
 export FAKE="$T/fake"
 export DOPPLER_BIN="$T/bin/doppler" SYSTEMCTL_BIN="$T/bin/systemctl" CHOWN_BIN="$T/bin/chown"
