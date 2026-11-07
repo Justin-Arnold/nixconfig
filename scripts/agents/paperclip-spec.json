@@ -178,18 +178,33 @@
       "triggers": []
     },
     {
-      "title": "Update flake.lock {{date}}",
+      "title": "Fix CI on {{repo}}#{{number}}",
       "assignee": "Infra",
-      "descriptionFile": "routines/update-flake-lock.md",
-      "priority": "low",
-      "concurrencyPolicy": "skip_if_active",
+      "descriptionFile": "routines/fix-ci.md",
+      "priority": "high",
+      "concurrencyPolicy": "coalesce_if_active",
       "catchUpPolicy": "skip_missed",
+      "variables": [
+        {
+          "name": "repo",
+          "label": "Repository",
+          "type": "select",
+          "options": [
+            "nixconfig"
+          ]
+        },
+        {
+          "name": "number",
+          "label": "Pull request number",
+          "type": "number"
+        }
+      ],
       "triggers": [
         {
-          "label": "Monday mornings",
-          "kind": "schedule",
-          "cronExpression": "0 6 * * 1",
-          "timezone": "America/New_York"
+          "label": "n8n",
+          "kind": "webhook",
+          "signingMode": "bearer",
+          "secretsTo": "paperclip-triggers/fix-ci"
         }
       ]
     },
@@ -218,5 +233,9 @@
       ],
       "triggers": []
     }
-  ]
+  ],
+  "webhookTriggers": {
+    "sopsFile": "../../secrets/hosts/automation.yaml",
+    "baseUrl": "https://paperclip-triggers.servicestack.xyz"
+  }
 }

@@ -308,7 +308,15 @@
               refused = module: !(builtins.tryEval
                 (agentsExample.extendModules { modules = [ module ]; }).config.system.build.toplevel.drvPath).success;
               vhost = "paperclip.servicestack.xyz";
+              triggers = "paperclip-triggers.servicestack.xyz";
+              fire = ''~ "^/api/routine-triggers/public/(?<trigger>[0-9a-f]{24})/fire$"'';
               results = lib.mapAttrs (_: refused) {
+                triggers-from-lan = { services.nginx.virtualHosts.${triggers}.locations.${fire}.extraConfig = lib.mkForce "allow 10.0.0.0/24;\ndeny all;\nlimit_except POST { deny all; }\n"; };
+                triggers-any-method = { services.nginx.virtualHosts.${triggers}.locations.${fire}.extraConfig = lib.mkForce "allow 10.0.0.155;\ndeny all;\n"; };
+                triggers-extra-location = { services.nginx.virtualHosts.${triggers}.locations."/api/".proxyPass = "http://127.0.0.1:3100"; };
+                triggers-root-proxied = { services.nginx.virtualHosts.${triggers}.locations."/" = { return = lib.mkForce null; proxyPass = "http://127.0.0.1:3100"; }; };
+                triggers-passes-query = { services.nginx.virtualHosts.${triggers}.locations.${fire}.proxyPass = lib.mkForce "http://127.0.0.1:3100"; };
+                unguarded-with-variable = { services.nginx.virtualHosts."other.servicestack.xyz".locations."/".proxyPass = "http://127.0.0.1:3100$uri"; };
                 extra-public-tcp-port = { networking.firewall.allowedTCPPorts = [ 3100 ]; };
                 extra-public-udp-port = { networking.firewall.allowedUDPPorts = [ 9999 ]; };
                 interface-opening = { networking.firewall.interfaces.podman0.allowedTCPPorts = [ 3100 ]; };

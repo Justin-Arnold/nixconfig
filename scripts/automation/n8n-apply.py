@@ -6,19 +6,25 @@ n8n/api-key in secrets/hosts/automation.yaml or N8N_API_KEY, and only for
 what the repo names:
 
 - credentials, from hosts/automation/n8n-credentials.json, matched by name.
-  Each field's value comes from SOPS, at the path the file gives. A missing
-  credential is created. n8n never shows a stored value, and its public API
-  can't change one (2.39 answers PATCH /credentials/{id} with 405), so an
-  existing credential is left alone. To change a secret, delete the
-  credential in n8n and run this again; the workflows follow the new one.
+  Each field's value comes from SOPS, at the path the file gives, or is
+  written out as {"literal": ...} when it isn't the secret (a header's
+  name). A missing credential is created. n8n never shows a stored value,
+  and its public API can't change one (2.39 answers PATCH /credentials/{id}
+  with 405), so an existing credential is left alone. To change a secret,
+  delete the credential in n8n and run this again; the workflows follow the
+  new one.
 - workflows, one file each in hosts/automation/workflows/, matched by name.
   A node names its credentials, and this fills in the ids n8n gave them. A
-  missing workflow is created, and one whose nodes, connections or settings
-  differ is updated. Either way it's then published.
+  URL that lives in SOPS, like a Paperclip trigger's (which
+  paperclip-apply.py writes there), is written {"sops": "<path>/url"} in a
+  parameter named url, and this fills it in. A missing workflow is created,
+  and one whose nodes, connections or settings differ is updated. Either way
+  it's then published.
 - never deletes anything and never prints a secret. It refuses a workflow
   file that carries a credential's id or data, a literal Authorization
-  header or a field named like a secret, or any value from SOPS. --check
-  runs the checks that need neither n8n nor SOPS, for the flake check.
+  header or a field named like a secret, any value from SOPS, or a SOPS
+  path anywhere but a url. --check runs the checks that need neither n8n
+  nor SOPS, for the flake check.
 
 It's a dry run unless you pass --apply. SOPS_AGE_KEY_FILE defaults to
 ~/.config/sops/age/keys.txt, the operator key.
@@ -47,6 +53,8 @@ API_KEY_PATH = "n8n/api-key"
 WORKFLOW_KEYS = ("name", "nodes", "connections", "settings")
 # Parameter names that hold a secret when they hold a literal.
 SECRET_NAME = re.compile(r"(?i)(password|secret|token|api[_-]?key)$")
+# Credential fields that are the secret itself, so never a literal.
+SECRET_FIELD = re.compile(r"(?i)^(value|password|secret|token|api[_-]?key|.*(secret|token|password))$")
 
 
 class N8n:
@@ -94,11 +102,27 @@ def sops_value(path, sops_file, env):
     return done.stdout.strip()
 
 
+def literal(value):
+    return isinstance(value, dict) and set(value) == {"literal"}
+
+
+def sops_paths(credential):
+    """The SOPS paths a credential's fields come from."""
+    return [value for value in credential["data"].values() if not literal(value)]
+
+
 def load(host):
     credentials = json.loads((host / "n8n-credentials.json").read_text())["credentials"]
     names = [c["name"] for c in credentials]
     if len(names) != len(set(names)):
         sys.exit("n8n-credentials.json names a credential twice")
+    for credential in credentials:
+        for field, value in credential["data"].items():
+            if literal(value) and SECRET_FIELD.match(field):
+                sys.exit(f"n8n-credentials.json: {credential['name']}'s {field} is the secret, so it comes from SOPS, "
+                         "not a literal")
+            if not literal(value) and not (isinstance(value, str) and value):
+                sys.exit(f"n8n-credentials.json: {credential['name']}'s {field} is a SOPS path or {{\"literal\": ...}}")
     workflows = {}
     for path in sorted((host / "workflows").glob("*.json")):
         workflow = json.loads(path.read_text())
@@ -127,12 +151,53 @@ def strings(value, where=()):
                 yield from strings(item, where + (index,))
 
 
+def marker(value):
+    return isinstance(value, dict) and set(value) == {"sops"}
+
+
+def markers(value, where=()):
+    """Every (path, key, SOPS path) of a {"sops": ...} marker in a JSON value."""
+    if isinstance(value, dict):
+        for key, item in value.items():
+            if marker(item):
+                yield where, key, item["sops"]
+            else:
+                yield from markers(item, where + (key,))
+    elif isinstance(value, list):
+        for index, item in enumerate(value):
+            yield from markers(item, where + (index,))
+
+
+def url_paths(workflows):
+    """The SOPS paths the workflows' url markers name."""
+    return sorted({path for _, (_, w) in workflows.items() for node in w["nodes"]
+                   for _, _, path in markers(node.get("parameters") or {})})
+
+
+def resolve(value, values):
+    """value with every marker replaced by the SOPS value it names."""
+    if marker(value):
+        return values[value["sops"]]
+    if isinstance(value, dict):
+        return {k: resolve(v, values) for k, v in value.items()}
+    if isinstance(value, list):
+        return [resolve(v, values) for v in value]
+    return value
+
+
 def check(credentials, workflows, secrets=()):
     """Refuse workflow files that carry anything secret."""
     declared = {c["name"] for c in credentials}
+    credential_paths = {path for c in credentials for path in sops_paths(c)}
     problems = []
     for name, (file, workflow) in workflows.items():
         for node in workflow["nodes"]:
+            for where, key, path in markers(node):
+                if where[:1] != ("parameters",) or key != "url" or not str(path).endswith("/url") \
+                        or path in credential_paths:
+                    problems.append(f"{file}: node {node['name']} takes {path} from SOPS at "
+                                    f"{'.'.join(map(str, where + (key,)))}; only a parameter named url may, "
+                                    "and only from a path ending in /url")
             for kind, ref in (node.get("credentials") or {}).items():
                 if set(ref) != {"name"}:
                     problems.append(f"{file}: node {node['name']} gives its {kind} credential more than a name")
@@ -165,11 +230,11 @@ def _headers(value):
             yield from _headers(item)
 
 
-def with_ids(workflow, ids):
-    """The workflow as n8n stores it: credentials by id and name."""
+def with_ids(workflow, ids, values):
+    """The workflow as n8n stores it: credentials by id and name, URLs from SOPS filled in."""
     nodes = []
     for node in workflow["nodes"]:
-        node = dict(node)
+        node = resolve(node, values)
         if node.get("credentials"):
             node["credentials"] = {kind: {"id": ids.get(ref["name"]), "name": ref["name"]}
                                    for kind, ref in node["credentials"].items()}
@@ -206,11 +271,12 @@ def apply(n8n, credentials, workflows, values, write):
     ids = {name: c["id"] for name, c in have.items()}
     for credential in credentials:
         name = credential["name"]
-        data = {field: values[path] for field, path in credential["data"].items()}
+        data = {field: value["literal"] if literal(value) else values[value]
+                for field, value in credential["data"].items()}
         cur = have.get(name)
         if cur is None:
             changes += 1
-            print(f"  + credential {name} ({credential['type']}, from {', '.join(credential['data'].values())})")
+            print(f"  + credential {name} ({credential['type']}, from {', '.join(sops_paths(credential))})")
             if write:
                 ids[name] = n8n.call("post", "/credentials", {"name": name, "type": credential["type"], "data": data})["id"]
         elif cur.get("type") != credential["type"]:
@@ -227,7 +293,7 @@ def apply(n8n, credentials, workflows, values, write):
         if not workflow.get("isArchived"):
             current.setdefault(workflow["name"], workflow)
     for name, (file, workflow) in workflows.items():
-        want = with_ids(workflow, ids)
+        want = with_ids(workflow, ids, values)
         cur = current.get(name)
         if cur is None:
             changes += 1
@@ -272,11 +338,12 @@ def main():
 
     env = {**os.environ, "SOPS_AGE_KEY_FILE": os.environ.get("SOPS_AGE_KEY_FILE",
                                                               str(pathlib.Path.home() / ".config/sops/age/keys.txt"))}
-    paths = sorted({path for c in credentials for path in c["data"].values()})
-    values = {path: sops_value(path, args.sops_file, env) for path in paths}
+    secret_paths = sorted({path for c in credentials for path in sops_paths(c)})
+    values = {path: sops_value(path, args.sops_file, env) for path in [*secret_paths, *url_paths(workflows)]}
     empty = [path for path, value in values.items() if not value]
     if empty:
         sys.exit(f"these SOPS values are empty: {', '.join(empty)}")
+    # Every value from SOPS, the URLs too, must stay out of the files.
     check(credentials, workflows, values.values())
 
     key = os.environ.get("N8N_API_KEY") or sops_value(API_KEY_PATH, args.sops_file, env)

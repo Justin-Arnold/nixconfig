@@ -9,8 +9,11 @@ answers --decrypt --extract from a JSON file.
 Like 2.39, it answers PATCH /credentials/{id} with 405.
 
 It checks that --check needs neither, and refuses workflow files with a
-credential's id, an undeclared credential, a literal Authorization header
-or a literal secret-named field; that a dry run writes nothing; that
+credential's id, an undeclared credential, a literal Authorization header,
+a literal secret-named field, or a SOPS path anywhere but a url and outside
+a /url path, and a credentials file with a literal secret; that a dry run
+writes nothing; that a credential's literal field is sent as written and a
+url marker is filled in from SOPS; that
 --apply creates the credential from SOPS, the workflow with that
 credential's id, and publishes it; that a second run changes nothing; that
 drift in n8n is put back with publishIfActive; that a credential deleted in
@@ -35,7 +38,13 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 SCRIPT, HOST = sys.argv[1], pathlib.Path(sys.argv[2])
 API_KEY = "n8n_api_" + "ab" * 20
-SECRETS = {"n8n/api-key": API_KEY, "github/webhook-secret": "whsec-" + "cd" * 16}
+SECRETS = {
+    "n8n/api-key": API_KEY,
+    "github/webhook-secret": "whsec-" + "cd" * 16,
+    "alerta/n8n-key": "alerta-" + "ef" * 16,
+    "paperclip-triggers/fix-ci/secret": "pctrig-" + "12" * 16,
+    "paperclip-triggers/fix-ci/url": "https://triggers.example/api/routine-triggers/public/" + "0a" * 12 + "/fire",
+}
 PAGE = 2
 WORKFLOW_KEYS = {"name", "nodes", "connections", "settings"}
 
@@ -167,10 +176,12 @@ def run(*args, host=HOST, path=True):
     return done
 
 
-def host_with(change):
-    """A copy of hosts/automation with the github workflow changed."""
+def host_with(change=lambda w: None, change_credentials=lambda c: None):
+    """A copy of hosts/automation with the github workflow or the credentials changed."""
     copy_dir = pathlib.Path(tempfile.mkdtemp(dir=tmp))
-    shutil.copy(HOST / "n8n-credentials.json", copy_dir)
+    credentials = json.loads((HOST / "n8n-credentials.json").read_text())
+    change_credentials(credentials)
+    (copy_dir / "n8n-credentials.json").write_text(json.dumps(credentials))
     (copy_dir / "workflows").mkdir()
     workflow = json.loads((HOST / "workflows/github.json").read_text())
     change(workflow)
@@ -180,6 +191,14 @@ def host_with(change):
 
 def node(workflow, kind):
     return next(n for n in workflow["nodes"] if n["type"] == kind)
+
+
+def named(workflow, name):
+    return next(n for n in workflow["nodes"] if n["name"] == name)
+
+
+def made(name):
+    return next((c for c in fake.credentials if c["name"] == name), {})
 
 
 print("== --check needs neither n8n nor sops")
@@ -194,6 +213,10 @@ cases = {
     "a literal Authorization header": lambda w: node(w, "n8n-nodes-base.webhook")["parameters"].update(
         headerParameters={"parameters": [{"name": "Authorization", "value": "Bearer x"}]}),
     "a literal secret-named field": lambda w: node(w, "n8n-nodes-base.webhook")["parameters"].update(apiKey="abc"),
+    "a SOPS path in a field that isn't a url": lambda w: node(w, "n8n-nodes-base.webhook")["parameters"].update(
+        path={"sops": "paperclip-triggers/fix-ci/url"}),
+    "a url from a SOPS path that isn't a /url": lambda w: named(w, "Start Fix CI")["parameters"].update(
+        url={"sops": "paperclip-triggers/fix-ci/secret"}),
 }
 for what, change in cases.items():
     done = run("--check", host=host_with(change), path=False)
@@ -201,6 +224,9 @@ for what, change in cases.items():
 done = run("--check", host=host_with(lambda w: node(w, "n8n-nodes-base.webhook")["parameters"].update(
     apiKey="={{ $json.key }}")), path=False)
 check("takes an expression in a secret-named field", done.returncode == 0)
+done = run("--check", host=host_with(change_credentials=lambda c: c["credentials"][1]["data"].update(
+    value={"literal": "abc"})), path=False)
+check("refuses a literal secret in n8n-credentials.json", done.returncode != 0 and "comes from SOPS" in done.stderr)
 
 print("== dry run")
 done = run()
@@ -212,14 +238,20 @@ check("  ...writes nothing", all(method == "GET" for method, *_ in fake.calls))
 print("== --apply")
 done = run("--apply")
 check("exits 0", done.returncode == 0)
-credential = fake.credentials[0] if fake.credentials else {}
+credential = made("GitHub webhook secret")
 check("creates the credential from SOPS",
       credential.get("type") == "crypto" and credential.get("data") == {"hmacSecret": SECRETS["github/webhook-secret"]})
+check("  ...a literal field as written",
+      made("Alerta key").get("data") == {"name": "X-API-Key", "value": SECRETS["alerta/n8n-key"]})
+check("  ...and the trigger's bearer token", made("Paperclip Fix CI trigger").get("data") == {
+      "token": SECRETS["paperclip-triggers/fix-ci/secret"]})
 workflow = fake.workflows[0] if fake.workflows else {"nodes": []}
 signer = next((n for n in workflow["nodes"] if n["type"] == "n8n-nodes-base.crypto"), {})
 check("creates the workflow with the credential's id",
       signer.get("credentials") == {"crypto": {"id": credential.get("id"), "name": "GitHub webhook secret"}})
 check("  ...and publishes it", workflow.get("active") is True)
+fire = next((n for n in workflow["nodes"] if n["name"] == "Start Fix CI"), {})
+check("fills in the trigger's URL from SOPS", fire.get("parameters", {}).get("url") == SECRETS["paperclip-triggers/fix-ci/url"])
 
 print("== a second run")
 fake.calls.clear()
@@ -234,7 +266,7 @@ check("--apply writes nothing", done.returncode == 0 and writes == [])
 print("== a credential deleted in n8n")
 fake.credentials.clear()
 done = run("--apply")
-remade = fake.credentials[0] if fake.credentials else {}
+remade = made("GitHub webhook secret")
 signer = node(fake.workflows[0], "n8n-nodes-base.crypto")
 check("is made again", remade.get("data") == {"hmacSecret": SECRETS["github/webhook-secret"]})
 check("  ...and the workflow follows it", signer.get("credentials", {}).get("crypto", {}).get("id") == remade.get("id")
@@ -257,7 +289,8 @@ fake.workflows[0]["active"] = False
 done = run("--apply")
 check("reports the workflow", "? workflow by hand exists only in n8n" in done.stdout)
 check("  ...and the credential", "? credential by hand exists only in n8n" in done.stdout)
-check("  ...deletes neither", len(fake.workflows) == 2 and len(fake.credentials) == 2)
+declared = len(json.loads((HOST / "n8n-credentials.json").read_text())["credentials"])
+check("  ...deletes neither", len(fake.workflows) == 2 and len(fake.credentials) == declared + 1)
 check("publishes the unpublished workflow", fake.workflows[0]["active"] is True)
 
 print("== a workflow file holding a SOPS value")
@@ -273,7 +306,7 @@ check("stops with n8n's answer", done.returncode != 0 and "HTTP 401" in done.std
 
 print("== no secret in any output")
 check("no SOPS value or API key printed",
-      not any(secret in out for out in outputs for secret in (API_KEY, SECRETS["github/webhook-secret"])))
+      not any(secret in out for out in outputs for secret in SECRETS.values()))
 
 server.shutdown()
 print(f"\nfailed: {failed}")

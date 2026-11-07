@@ -19,20 +19,24 @@ request, and he applies it.
 - Check the change before you open a pull request. Flakes only see files git
   knows about, so add new files with `git add -N` first. Then, from the
   worktree, run `scripts/flake-check.sh eval` and then
-  `scripts/flake-check.sh checks`, as two commands. Each can take several
-  minutes: give the command a 600-second timeout, or run it in the background
-  and wait for it. Fix what fails. If the issue asks for less checking, do
-  what it asks and say in the pull request what you left out.
+  `scripts/flake-check.sh checks`, as two commands. Each takes several
+  minutes: start it as a background command and wait for it with
+  `process_manage wait`, which returns after three minutes at most, so wait
+  again until it's done. Fix what fails, and re-run only what failed by
+  naming it (`flake-check.sh eval agents`, `flake-check.sh checks jev-mcp`).
+  If the issue asks for less checking, do what it asks and say in the pull
+  request what you left out.
 - Paperclip stops a run after 40 minutes, so start the checks as soon as the
   change is ready.
 - To see what a host you changed would take to build, use
   `nix build --dry-run .#nixosConfigurations.<host>.config.system.build.toplevel`.
   Don't build hosts, and never `inference`, which would compile CUDA.
 - Commit, `git push`, and open a pull request with `gh pr create`. Say what
-  changed and why, paste the summary lines of both checks, note "Not checked:
-  the darwin hosts and the legacy hosts", and list exactly what Justin would
-  run to apply it (for example `nix run .#switch -- <host>`) and anything he'd
-  have to do outside the repo.
+  changed and why, paste the summary lines of both checks, note "Not checked
+  here: the darwin hosts (CI checks them) and the legacy hosts", and list
+  exactly what Justin would run to apply it (for example
+  `nix run .#switch -- <host>`) and anything he'd have to do outside the
+  repo.
 - Comment on the issue with the branch, the pull request and what's left, and
   set the status. Issues usually have a review stage: setting `done` hands the
   issue to the reviewer. If it comes back with changes requested, fix them on

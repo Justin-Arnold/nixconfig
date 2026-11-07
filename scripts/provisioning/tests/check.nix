@@ -2,7 +2,7 @@
 { pkgs, manifest }:
 pkgs.runCommand "provisioning-tests"
   {
-    nativeBuildInputs = with pkgs; [ age bash coreutils diffutils findutils gnugrep gnused jq python3 shellcheck ];
+    nativeBuildInputs = with pkgs; [ actionlint age bash coreutils diffutils findutils gnugrep gnused jq python3 shellcheck ];
   }
   ''
     shellcheck ${../provision-host.sh} ${../inspect-cloud-host.sh} ${../../lab118/post-install-check.sh} ${../../lab118/send-test-alert.sh} ${../../lab118/check-lab-tunnel.sh} ${../../lab118/diagnose-lab-dns.sh} ${../../dashboard/post-install-check.sh} ${../../automation/post-install-check.sh} ${../../dashboard/probe-mcp-block.sh} ${../../agents/post-install-check.sh} ${../../workbench/post-install-check.sh} ${../../workbench/land-pr.sh} ${../../openclaw/post-install-check.sh} ${../../inference/post-install-check.sh} ${../../flake-check.sh}
@@ -37,6 +37,12 @@ pkgs.runCommand "provisioning-tests"
       exit 1
     fi
     python3 -I ${../../automation/n8n-apply.py} --check --host-dir ${../../../hosts/automation}
+    if ! python3 -I ${../../ci/tests/lock-diff-test.py} ${../../ci/lock-diff.py} >lock-diff.log 2>&1; then
+      cat lock-diff.log
+      exit 1
+    fi
+    # The workflows, with shellcheck on their run steps.
+    actionlint ${../../../.github/workflows}/*.yml
     jq -e '.bypass_actors == [{actor_id: 5, actor_type: "RepositoryRole", bypass_mode: "always"}] and .enforcement == "active"' \
       ${../../workbench/github-rulesets/branches.json} ${../../workbench/github-rulesets/tags.json} >/dev/null
     # GitHub matches with FNM_PATHNAME, so agent/** would leave out

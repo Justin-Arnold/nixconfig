@@ -85,8 +85,25 @@ WAN or Pangolin is down.
 assistants acting as a signed-in person. It's off in Paperclip, and nginx
 keeps it unreachable regardless. Routine webhooks are where outside systems
 fire routines. A trigger can be created with no authentication, so they stay
-closed: routines here start from their schedules, from the board, or from
-monitor-intake on this host (see Routines).
+closed on this name.
+
+One other name reaches Paperclip, made for one sender: n8n on the automation
+VM, which starts infra's Fix CI routine when CI goes red
+(`docs/automation/REFERENCE.md`). It has its own certificate and doesn't
+include the guard, and it answers nothing but a trigger's fire URL.
+
+| `paperclip-triggers.servicestack.xyz` | Who may use it | Goes to |
+|---|---|---|
+| `/api/routine-triggers/public/<24 hex digits>/fire` | the automation VM (`10.0.0.155`), POST only | Paperclip, at that trigger's fire path, rebuilt from the id alone |
+| everything else | nobody | 404 |
+
+Every webhook trigger is signed with bearer, so firing one also takes the
+secret n8n holds; `paperclip-apply.py` refuses any other signing mode.
+Paperclip only accepts hostnames it knows, so this one is in
+`roles.paperclip.allowedHostnames`. The assertions in `endpoints.nix` keep
+both server blocks this way, and a server block that reaches Paperclip any
+other way, a path or variable after the upstream included, has to include
+the guard.
 
 lab118-services resolves the name through lab DNS over the tunnel
 (`labDomains` in `hosts/lab118-services/configuration.nix`), not through
@@ -101,7 +118,8 @@ changes, and `.#checks.<system>.agents-exposure-guards` proves they fire.
 ### DNS and router settings this depends on
 
 These live outside the repo:
-- An AdGuard rewrite for `paperclip.servicestack.xyz` to the VM's address.
+- An AdGuard rewrite for `paperclip.servicestack.xyz` to the VM's address,
+  and one for `paperclip-triggers.servicestack.xyz`, which n8n uses.
 - AdGuard's rewrite for `inference.servicestack.xyz`, which the agents use to
   reach the GPU host.
 - An OPNsense DHCP reservation for `02:01:18:00:00:06`.
@@ -604,7 +622,7 @@ line with it, and what each asks its agent is in `scripts/agents/routines/`.
 |---|---|---|---|
 | Lab health review | monitor | every day at 07:00 New York time | Reads every lab source and says what's down, degraded or heading the wrong way, leading with whether anything needs you; if something does, the issue stays blocked on you |
 | Triage lab alerts | monitor | monitor-intake, when alerts open in Alerta | Reads each new alert and what it's about, and gives the likely cause and the next step; blocked on you the same way when one needs you |
-| Update flake.lock | infra | Mondays at 06:00 New York time | Runs `nix flake update` in a worktree, evaluates every host, and opens a pull request with only `flake.lock`, listing what moved |
+| Fix CI on a pull request | infra | n8n, when `check.yml` finishes red on an `agent/ci/*` or `agent/infra/*` branch | Reads what failed, reproduces only that, fixes what it may and asks you about the rest, and pushes to the same branch |
 | Review a pull request | reviewer | when you run it in Paperclip, with a repository and a number | Reviews that pull request the way it reviews a review stage, and comments on it |
 
 The scheduled ones skip a tick while the last one's run is still going, and
@@ -613,11 +631,26 @@ the week as 0 to 6, Sunday first, and when a day of the month and a day of
 the week are both set, both have to match. `{{date}}` in a title is the UTC
 date. The review's repository is a choice between nixconfig and
 agent-scratch, the two the machine account can reach, and its number is a
-number, so nothing typed into a run reaches a prompt as free text.
+number, so nothing typed into a run reaches a prompt as free text. Fix CI
+takes the same two, with nixconfig the only choice, and n8n sends nothing
+else.
+
+The weekly flake update has no model in it any more. A GitHub Actions
+workflow, `update-flake-lock.yml`, opens the pull request every Monday and
+starts its checks (`docs/workbench/REFERENCE.md`, CI). A green result tells
+you it's ready to land, and only a red one wakes infra, through Fix CI.
+Paperclip combines a Fix CI run with a live one only when the variables
+match, so a second red on the same pull request joins the open issue and a
+different pull request gets its own.
 
 A routine paused in Paperclip stays paused: `paperclip-apply.py` reports it
-and leaves it alone. It never deletes or archives a routine, and never makes
-a webhook trigger. Nothing a routine starts can change the lab: the monitor
+and leaves it alone. It never deletes or archives a routine. A webhook
+trigger it makes is signed with bearer, and Paperclip shows the secret only
+then, so the script writes the trigger's URL (on the triggers name) and its
+secret straight into `secrets/hosts/automation.yaml`, at the trigger's
+`secretsTo`, without printing either. A trigger whose URL or secret isn't
+there gets a new secret the same way, and n8n's credential for it then has
+to be made again. Nothing a routine starts can change the lab: the monitor
 only reads, infra stops at a pull request you land with `land-pr.sh`, and the
 reviewer only comments. A routine can't carry a review stage, so the
 flake.lock pull request has no reviewer but you.
@@ -641,8 +674,8 @@ without a good pass.
 ssh agents 'cat /var/lib/monitor-intake/status.json; journalctl -u monitor-intake -n 5 -o cat --no-pager'
 ```
 
-Nothing comes in from lab118 for this. Node-RED there has no flows, and
-Paperclip's public trigger path stays closed ("How it's reached").
+Nothing comes in from lab118 for this. Node-RED there has no flows, and the
+triage doesn't use a webhook.
 
 ## How agents and tasks are meant to be set up
 

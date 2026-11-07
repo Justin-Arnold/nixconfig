@@ -6,13 +6,18 @@
       "name": "GitHub delivery",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2.1,
-      "position": [0, 0],
+      "position": [
+        0,
+        0
+      ],
       "webhookId": "6a584ec3-6c76-41bf-8e25-8f490dd5f089",
       "parameters": {
         "httpMethod": "POST",
         "path": "github",
         "responseMode": "responseNode",
-        "options": { "rawBody": true }
+        "options": {
+          "rawBody": true
+        }
       }
     },
     {
@@ -20,7 +25,10 @@
       "name": "Sign the body",
       "type": "n8n-nodes-base.crypto",
       "typeVersion": 2,
-      "position": [220, 0],
+      "position": [
+        220,
+        0
+      ],
       "parameters": {
         "action": "hmac",
         "binaryData": true,
@@ -29,23 +37,38 @@
         "dataPropertyName": "expected",
         "encoding": "hex"
       },
-      "credentials": { "crypto": { "name": "GitHub webhook secret" } }
+      "credentials": {
+        "crypto": {
+          "name": "GitHub webhook secret"
+        }
+      }
     },
     {
       "id": "9aaf74df-5feb-4441-9dcb-dbe3607640bf",
       "name": "Signed by GitHub?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [440, 0],
+      "position": [
+        440,
+        0
+      ],
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
           "conditions": [
             {
               "id": "b7cc897d-ada7-46b8-964c-88d8400c09e7",
               "leftValue": "={{ $json.headers['x-hub-signature-256'] || '' }}",
               "rightValue": "=sha256={{ $json.expected }}",
-              "operator": { "type": "string", "operation": "equals" }
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
             }
           ],
           "combinator": "and"
@@ -58,16 +81,27 @@
       "name": "Ping?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [660, -100],
+      "position": [
+        660,
+        -100
+      ],
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
           "conditions": [
             {
               "id": "85b15f17-225f-43c7-8257-68302c56c76a",
               "leftValue": "={{ $json.headers['x-github-event'] || '' }}",
               "rightValue": "ping",
-              "operator": { "type": "string", "operation": "equals" }
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
             }
           ],
           "combinator": "and"
@@ -80,11 +114,16 @@
       "name": "Pong",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.5,
-      "position": [880, -200],
+      "position": [
+        880,
+        -200
+      ],
       "parameters": {
         "respondWith": "json",
         "responseBody": "={{ { ok: true, event: 'ping', hook: $json.body.hook_id } }}",
-        "options": { "responseCode": 200 }
+        "options": {
+          "responseCode": 200
+        }
       }
     },
     {
@@ -92,10 +131,15 @@
       "name": "Nothing to do yet",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.5,
-      "position": [880, 0],
+      "position": [
+        1320,
+        400
+      ],
       "parameters": {
         "respondWith": "noData",
-        "options": { "responseCode": 202 }
+        "options": {
+          "responseCode": 202
+        }
       }
     },
     {
@@ -103,29 +147,688 @@
       "name": "Refuse",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.5,
-      "position": [660, 150],
+      "position": [
+        660,
+        300
+      ],
       "parameters": {
         "respondWith": "text",
         "responseBody": "signature doesn't match",
-        "options": { "responseCode": 401 }
+        "options": {
+          "responseCode": 401
+        }
+      }
+    },
+    {
+      "id": "1fe7b7ff-dbb5-422e-817c-f0d5875c60f3",
+      "name": "Check finished on an agent branch?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        880,
+        100
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "49bea7ce-7105-46ae-9b31-38e038786e9b",
+              "leftValue": "={{ $json.headers['x-github-event'] || '' }}",
+              "rightValue": "workflow_run",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "7f486b9b-8c19-4e4f-b513-ad775f476c49",
+              "leftValue": "={{ $json.body.action || '' }}",
+              "rightValue": "completed",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "261bd65a-53e4-4f5d-a2c1-1d327ad4dce6",
+              "leftValue": "={{ $json.body.workflow?.path || '' }}",
+              "rightValue": ".github/workflows/check.yml",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "7ea84ec0-b040-4e6f-bd11-2536c8211110",
+              "leftValue": "={{ $json.body.repository?.full_name || '' }}",
+              "rightValue": "Justin-Arnold/nixconfig",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "d794ad18-dace-4bd4-a608-281cb0919118",
+              "leftValue": "={{ $json.body.workflow_run?.head_repository?.full_name || '' }}",
+              "rightValue": "Justin-Arnold/nixconfig",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "df127bd9-c03c-46c4-a98a-97646e1593e3",
+              "leftValue": "={{ $json.body.workflow_run?.head_branch || '' }}",
+              "rightValue": "^agent/(ci|infra)/",
+              "operator": {
+                "type": "string",
+                "operation": "regex"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "6fead1ba-d87a-4e76-9871-d02f065401df",
+      "name": "Accepted",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        1100,
+        0
+      ],
+      "parameters": {
+        "respondWith": "noData",
+        "options": {
+          "responseCode": 202
+        }
+      }
+    },
+    {
+      "id": "eee7d036-438e-42e9-90b6-dcc1a70a2c28",
+      "name": "Find its pull request",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1320,
+        0
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "parameters": {
+        "method": "GET",
+        "url": "https://api.github.com/repos/Justin-Arnold/nixconfig/pulls",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "head",
+              "value": "={{ 'Justin-Arnold:' + $json.body.workflow_run.head_branch }}"
+            },
+            {
+              "name": "state",
+              "value": "open"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/vnd.github+json"
+            },
+            {
+              "name": "X-GitHub-Api-Version",
+              "value": "2022-11-28"
+            },
+            {
+              "name": "User-Agent",
+              "value": "n8n-automation"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 10000
+        }
+      }
+    },
+    {
+      "id": "7b030033-66e9-4e89-8443-5c3616f2b014",
+      "name": "Green?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1540,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "d6f1286a-bb66-477e-8c94-9291ddecdb9b",
+              "leftValue": "={{ $('GitHub delivery').first().json.body.workflow_run.conclusion }}",
+              "rightValue": "success",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "b100f583-d241-40ca-a487-7ec3c480a6ff",
+      "name": "Red?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1760,
+        100
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c4ba1312-c8aa-4b6f-8510-33da63d00d76",
+              "leftValue": "={{ $('GitHub delivery').first().json.body.workflow_run.conclusion }}",
+              "rightValue": "failure",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "88b32fdc-ef9c-4349-9db9-39e09138dbc5",
+              "leftValue": "={{ $('GitHub delivery').first().json.body.workflow_run.conclusion }}",
+              "rightValue": "timed_out",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "1d8df09e-88b3-42b8-b8df-90762f101778",
+      "name": "Raise LandReady",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1760,
+        -100
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "parameters": {
+        "method": "POST",
+        "url": "http://10.118.0.1:5000/alert",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ environment: 'Homelab', resource: 'nixconfig#' + $json.number, event: 'LandReady', severity: 'informational', service: ['nixconfig'], group: 'CI', origin: 'n8n', tags: ['n8n'], text: 'CI passed on nixconfig#' + $json.number + '. Land it with scripts/workbench/land-pr.sh ' + $json.number + '.', attributes: { notificationTitle: 'nixconfig#' + $json.number + ' is green: land it', url: $json.html_url } }) }}",
+        "options": {
+          "timeout": 10000
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Alerta key"
+        }
+      }
+    },
+    {
+      "id": "600c2284-521f-436b-a8be-9dc338e1e22c",
+      "name": "Start Fix CI",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1980,
+        100
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "parameters": {
+        "method": "POST",
+        "url": {
+          "sops": "paperclip-triggers/fix-ci/url"
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Idempotency-Key",
+              "value": "={{ $('GitHub delivery').first().json.headers['x-github-delivery'] }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ variables: { repo: 'nixconfig', number: $json.number } }) }}",
+        "options": {
+          "timeout": 10000
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth"
+      },
+      "credentials": {
+        "httpBearerAuth": {
+          "name": "Paperclip Fix CI trigger"
+        }
+      }
+    },
+    {
+      "id": "2a6a37c8-6f5f-49b9-87bf-7ea3c9355103",
+      "name": "Agent pull request closed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1100,
+        250
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "b461e611-13c3-4470-8f7b-e6d66bb27a40",
+              "leftValue": "={{ $json.headers['x-github-event'] || '' }}",
+              "rightValue": "pull_request",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "85efa3ed-9e02-4dc8-b4a8-699c4f20c6e8",
+              "leftValue": "={{ $json.body.action || '' }}",
+              "rightValue": "closed",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "450903d3-e4e4-44b8-b085-a4463cca7195",
+              "leftValue": "={{ $json.body.repository?.full_name || '' }}",
+              "rightValue": "Justin-Arnold/nixconfig",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "4eabb4d6-9502-48a7-a9e2-38eef7d92909",
+              "leftValue": "={{ $json.body.pull_request?.head?.repo?.full_name || '' }}",
+              "rightValue": "Justin-Arnold/nixconfig",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "e9469e64-a8e4-46ac-9ee8-88008460b00a",
+              "leftValue": "={{ $json.body.pull_request?.head?.ref || '' }}",
+              "rightValue": "^agent/(ci|infra)/",
+              "operator": {
+                "type": "string",
+                "operation": "regex"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "81def7c8-856b-4f04-b506-27962d509c33",
+      "name": "Accepted (closed)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        1320,
+        200
+      ],
+      "parameters": {
+        "respondWith": "noData",
+        "options": {
+          "responseCode": 202
+        }
+      }
+    },
+    {
+      "id": "593473cc-a7b2-409b-9aba-78a69c4a17f9",
+      "name": "Find its LandReady",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1540,
+        200
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "parameters": {
+        "method": "GET",
+        "url": "http://10.118.0.1:5000/alerts",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "environment",
+              "value": "Homelab"
+            },
+            {
+              "name": "event",
+              "value": "LandReady"
+            },
+            {
+              "name": "resource",
+              "value": "={{ 'nixconfig#' + $json.body.number }}"
+            },
+            {
+              "name": "status",
+              "value": "open"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 10000
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Alerta key"
+        }
+      }
+    },
+    {
+      "id": "fa2ce29a-e21d-43d5-b87b-455020ba6097",
+      "name": "Raised?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1760,
+        200
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "e4f6a779-ad52-43f6-9bdb-fe63d9f61ee5",
+              "leftValue": "={{ $json.total }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "42b58a08-3e8e-4c42-a1d2-702456a0d551",
+      "name": "Clear LandReady",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1980,
+        200
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "parameters": {
+        "method": "POST",
+        "url": "http://10.118.0.1:5000/alert",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ environment: 'Homelab', resource: 'nixconfig#' + $('GitHub delivery').first().json.body.number, event: 'LandReady', severity: 'cleared', service: ['nixconfig'], group: 'CI', origin: 'n8n', tags: ['n8n'], text: 'nixconfig#' + $('GitHub delivery').first().json.body.number + ($('GitHub delivery').first().json.body.pull_request.merged ? ' was merged.' : ' was closed.'), attributes: { notificationTitle: 'nixconfig#' + $('GitHub delivery').first().json.body.number + ($('GitHub delivery').first().json.body.pull_request.merged ? ' landed' : ' closed'), url: $('GitHub delivery').first().json.body.pull_request.html_url } }) }}",
+        "options": {
+          "timeout": 10000
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Alerta key"
+        }
       }
     }
   ],
   "connections": {
-    "GitHub delivery": { "main": [[{ "node": "Sign the body", "type": "main", "index": 0 }]] },
-    "Sign the body": { "main": [[{ "node": "Signed by GitHub?", "type": "main", "index": 0 }]] },
+    "GitHub delivery": {
+      "main": [
+        [
+          {
+            "node": "Sign the body",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sign the body": {
+      "main": [
+        [
+          {
+            "node": "Signed by GitHub?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
     "Signed by GitHub?": {
       "main": [
-        [{ "node": "Ping?", "type": "main", "index": 0 }],
-        [{ "node": "Refuse", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "Ping?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Refuse",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Ping?": {
       "main": [
-        [{ "node": "Pong", "type": "main", "index": 0 }],
-        [{ "node": "Nothing to do yet", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "Pong",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Check finished on an agent branch?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check finished on an agent branch?": {
+      "main": [
+        [
+          {
+            "node": "Accepted",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Agent pull request closed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Accepted": {
+      "main": [
+        [
+          {
+            "node": "Find its pull request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find its pull request": {
+      "main": [
+        [
+          {
+            "node": "Green?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Green?": {
+      "main": [
+        [
+          {
+            "node": "Raise LandReady",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Red?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Red?": {
+      "main": [
+        [
+          {
+            "node": "Start Fix CI",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Agent pull request closed?": {
+      "main": [
+        [
+          {
+            "node": "Accepted (closed)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Nothing to do yet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Accepted (closed)": {
+      "main": [
+        [
+          {
+            "node": "Find its LandReady",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find its LandReady": {
+      "main": [
+        [
+          {
+            "node": "Raised?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Raised?": {
+      "main": [
+        [
+          {
+            "node": "Clear LandReady",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
       ]
     }
   },
-  "settings": { "executionOrder": "v1" }
+  "settings": {
+    "executionOrder": "v1"
+  }
 }

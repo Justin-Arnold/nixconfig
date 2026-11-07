@@ -7,8 +7,8 @@ routine, or raise an alert in Alerta. The point is that the mechanical part of
 a job never costs a model run, and an agent is woken only where judgment adds
 something.
 
-It holds the GitHub webhook secret and the secrets of the Paperclip routines it
-may start, and none of the agents' keys.
+It holds the GitHub webhook secret, the secrets of the Paperclip routines it
+may start, and an Alerta key of its own, and none of the agents' keys.
 
 ## At a glance
 
@@ -92,8 +92,8 @@ n8n runs from nixpkgs' module with these changes:
   environment. Execute Command and the local file trigger are excluded.
 
 n8n reaches only loopback, the internet, `10.0.0.152:443` (Paperclip's
-routine triggers on the agents VM) and `10.118.0.1` (Alerta over the
-tunnel). Every other private range is denied in its unit, so a workflow that
+routine triggers on the agents VM, as `paperclip-triggers.servicestack.xyz`,
+which AdGuard rewrites to it) and `10.118.0.1` (Alerta over the tunnel). Every other private range is denied in its unit, so a workflow that
 holds a secret can't send it anywhere else in the lab. An assertion keeps
 that list exact.
 
@@ -110,7 +110,8 @@ from `n8n/api-key`.
 
 Credentials come from `n8n-credentials.json`. Each field names a SOPS path,
 and the script reads the value with sops and hands it straight to n8n,
-without printing it. A missing credential is created. n8n never shows a
+without printing it. A field that isn't the secret, like the header name of
+the Alerta key, is written `{"literal": "X-API-Key"}`; one that is can't be. A missing credential is created. n8n never shows a
 stored value, and 2.39's public API refuses to change one (`PATCH
 /credentials/{id}` answers 405), so an existing credential is left alone. To
 change a secret, change it in SOPS, delete the credential in n8n's UI, and
@@ -119,7 +120,10 @@ new one.
 
 Workflows come from `workflows/`, one file each, with exactly `name`,
 `nodes`, `connections` and `settings`. A node names its credentials, and the
-script fills in the ids n8n gave them. A missing workflow is created and
+script fills in the ids n8n gave them. A URL that only SOPS has, like the
+Fix CI trigger's, is written `{"sops": "paperclip-triggers/fix-ci/url"}` in a
+parameter named `url`, and the script fills that in too; a SOPS path
+anywhere else, or one not ending in `/url`, is refused. A missing workflow is created and
 published. One whose nodes, connections or settings differ is put back and
 stays published. Editing a workflow in the UI works until the next apply,
 which undoes it.
@@ -147,8 +151,31 @@ fails only this path and never stops nginx starting.
 The `github` workflow takes the raw body, computes its HMAC-SHA256 with the
 `GitHub webhook secret` credential (n8n's Crypto node), and compares it with
 `X-Hub-Signature-256`. Anything that doesn't match gets 401 before it goes
-further. A signed `ping` gets 200 with the hook's id, and every other signed
-event gets 202 and nothing else for now.
+further, and a signed `ping` gets 200 with the hook's id. Then it routes,
+with plain rules and no model:
+
+| Event | When | What happens |
+|---|---|---|
+| `workflow_run` completed | `check.yml`, on an `agent/ci/*` or `agent/infra/*` branch of nixconfig itself | 202, then it finds the open pull request for the branch through GitHub's public API. Green raises LandReady; failure or timed out starts Fix CI. |
+| `pull_request` closed | the same branches | 202, then it clears that pull request's LandReady, if one is open |
+| anything else | | 202 and nothing more |
+
+LandReady goes to Alerta with the `Alerta key` credential (`X-API-Key`), as
+`informational` from origin `n8n`, resource `nixconfig#<n>`, with the pull
+request's link in `attributes.url`. So it reaches the phone with a link, and
+monitor-intake, which takes `warning` and above, never hands it to the
+monitor. Clearing it sends a "landed" or "closed" note the same way.
+
+Fix CI is a Paperclip routine webhook on the agents VM
+(`paperclip-triggers.servicestack.xyz`), signed with the `Paperclip Fix CI
+trigger` credential's bearer token. Its body is the repo and the number and
+nothing else, and GitHub's delivery id goes along as `Idempotency-Key`, so a
+redelivered event never starts a second run. No text from GitHub reaches an
+alert or a routine: only numbers, branch names checked against a pattern,
+and links.
+
+The three calls out retry twice, 5 seconds apart. One that still fails shows
+in n8n's executions; GitHub has its 202 by then and won't send it again.
 
 ## Monitoring
 
@@ -174,6 +201,8 @@ operator key, nothing else. On macOS, edit it with
 | `n8n/encryption-key` | `openssl rand -hex 32`. Never change it; keep a copy in 1Password. |
 | `n8n/api-key` | the owner's API key for `n8n-apply.py`, made in n8n's UI. The host never reads it. |
 | `github/webhook-secret` | `openssl rand -hex 32`, also set on the repository's webhook |
+| `alerta/n8n-key` | an Alerta API key with `read:alerts` and `write:alerts`, made with `alertad key` on lab118-services |
+| `paperclip-triggers/fix-ci/url`, `.../secret` | the Fix CI trigger's URL and bearer secret, written by `paperclip-apply.py` when it makes the trigger |
 | `porkbun/api-key`, `porkbun/secret-api-key` | for DNS-01 |
 | `beszel/agent-token` | the hub's universal token |
 | `kuma/backup-push-url` | push monitor for backups |
@@ -224,6 +253,9 @@ workflows still match.
 - GitHub doesn't retry a failed delivery, so one that arrives while the lab is
   down is lost until it's redelivered from the repository's webhook settings.
 - n8n-apply.py can't tell whether a stored credential still matches SOPS.
+- The pull request lookup goes to GitHub's API without a token, which allows
+  60 requests an hour from the lab's address: far more than CI finishes, but
+  a burst of redeliveries could run into it.
 
 ## Related
 

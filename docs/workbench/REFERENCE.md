@@ -41,6 +41,8 @@ backed up, and rebuilding it loses nothing that matters.
 | `hosts/agents/agents.nix` | The other end: the engineer's, reviewer's and infra's ssh terminals, and workbench's host key. |
 | `scripts/flake-check.sh` | What infra, the reviewer and CI run to check nixconfig: every host evaluates and every flake check builds. |
 | `.github/workflows/check.yml` | CI for nixconfig on GitHub's runners, through `flake-check.sh`. |
+| `.github/workflows/update-flake-lock.yml` | The weekly flake update: a pull request with only `flake.lock`, and its checks started. |
+| `scripts/ci/lock-diff.py` | That pull request's description: each input that moved, with its old and new revision. |
 | `modules/roles/agent-egress.nix` | The outbound filter, shared with the agents VM. |
 | `scripts/workbench/post-install-check.sh` | Read-only health report. |
 
@@ -166,6 +168,13 @@ per agent into `~/repos/<owner>/<repo>.git` and worktrees go in
 one that's already on GitHub is checked out where it was, and asking again
 for the same name gives the same path.
 
+`agent-worktree <owner/repo> agent/<who>/<name>` picks up a branch that's
+already on GitHub under someone else's `agent/` folder, in
+`~/work/<repo>/<who>-<name>`, so an agent can push onto that pull request.
+Infra does this with the weekly update's `agent/ci/flake-update-<date>` when
+its CI is red. This form never makes a branch, and the rulesets already let
+the machine account push anywhere under `agent/`.
+
 `agent-review <owner/repo> <pr>` is the reviewer's: it fetches the pull
 request's head into the same bare repo and prints a detached worktree at it,
 `~/work/<repo>/pr-<n>`. There's no branch, so nothing to push, and running it
@@ -204,6 +213,18 @@ actions pinned to a commit. The machine account's token has no `workflow`
 scope, so agents can't change it. The runners are free while nixconfig is
 public; a private repo would need a runner on the lab instead, with the same
 workflow.
+
+`.github/workflows/update-flake-lock.yml` runs every Monday at 10:00 UTC, or
+by hand from the Actions tab. It skips the week while an earlier update's
+pull request is open, and stops if nothing moved. Otherwise it commits
+`flake.lock` alone on `agent/ci/flake-update-<date>`, opens the pull request
+with `scripts/ci/lock-diff.py`'s table of what moved, and starts `check.yml`
+on the branch: a pull request opened with a workflow's own token doesn't
+start `pull_request` workflows. It needs the repo setting that lets Actions
+create pull requests. n8n hears when that check finishes: green raises
+LandReady on your phone, red starts infra's Fix CI routine
+(`docs/automation/REFERENCE.md`). The `provisioning` check lints both
+workflows with actionlint.
 
 `prune-worktrees.timer` runs daily. It removes worktrees nobody touched for
 two weeks, with their local branches, but only when everything in them is

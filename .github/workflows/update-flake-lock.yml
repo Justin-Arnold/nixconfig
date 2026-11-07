@@ -1,0 +1,92 @@
+# Updates flake.lock every Monday, with no model involved. It runs
+# `nix flake update`, commits flake.lock alone on agent/ci/flake-update-<date>,
+# opens a pull request that lists what moved (scripts/ci/lock-diff.py), and
+# starts check.yml on the branch, since a pull request opened with this
+# workflow's token doesn't start pull_request workflows itself.
+#
+# What happens next is n8n's (hosts/automation/workflows/github.json): when
+# check.yml finishes green it raises LandReady for Justin, and when it
+# finishes red it starts infra's "Fix CI" routine for this pull request.
+#
+# A week is skipped while an earlier update's pull request is still open. The
+# token can push only because the branch rulesets leave agent/**/* to anyone
+# with write access; it needs the repo setting that lets Actions create pull
+# requests. No secrets, and every action is pinned to a commit.
+name: update flake.lock
+
+on:
+  schedule:
+    - cron: "0 10 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write
+
+concurrency:
+  group: update-flake-lock
+  cancel-in-progress: false
+
+jobs:
+  update:
+    name: update flake.lock
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: master
+      - uses: cachix/install-nix-action@75c75c31ebece974e48ebc36b4ad125bd97bd97b # v31.11.3
+
+      - name: Skip the week if an earlier update is still open
+        id: open
+        run: |
+          open=$(gh pr list --state open --base master --json headRefName \
+            --jq '[.[] | select(.headRefName | startswith("agent/ci/flake-update-"))] | map(.headRefName) | join(" ")')
+          if [[ -n $open ]]; then
+            echo "Still open: $open. Nothing to do this week." >>"$GITHUB_STEP_SUMMARY"
+          fi
+          echo "open=$open" >>"$GITHUB_OUTPUT"
+
+      - name: Update the inputs
+        id: update
+        if: steps.open.outputs.open == ''
+        run: |
+          cp flake.lock "$RUNNER_TEMP/flake.lock.before"
+          nix flake update
+          if git diff --quiet -- flake.lock; then
+            echo "Every input was already current." >>"$GITHUB_STEP_SUMMARY"
+            echo "moved=false" >>"$GITHUB_OUTPUT"
+          else
+            echo "moved=true" >>"$GITHUB_OUTPUT"
+          fi
+
+      - name: Open the pull request and start its checks
+        if: steps.update.outputs.moved == 'true'
+        run: |
+          day=$(date -u +%F)
+          branch="agent/ci/flake-update-$day"
+          # A second run on the same day, after the first one's pull request closed.
+          if git ls-remote --exit-code --heads origin "$branch" >/dev/null; then
+            branch="$branch-$(date -u +%H%M)"
+          fi
+          title="Update flake.lock ($day)"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$branch"
+          git add flake.lock
+          git commit -m "$title"
+          git push origin "$branch"
+
+          {
+            python3 -I scripts/ci/lock-diff.py "$RUNNER_TEMP/flake.lock.before" flake.lock
+            echo
+            echo "Opened by \`update-flake-lock.yml\`. It starts \`check.yml\` on this branch; when that finishes, n8n either raises LandReady or starts infra's Fix CI routine for this pull request."
+          } >"$RUNNER_TEMP/body.md"
+          url=$(gh pr create --base master --head "$branch" --title "$title" --body-file "$RUNNER_TEMP/body.md")
+          gh workflow run check.yml --ref "$branch"
+          echo "Opened $url and started check.yml on $branch." >>"$GITHUB_STEP_SUMMARY"

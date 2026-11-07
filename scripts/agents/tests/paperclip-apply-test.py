@@ -6,9 +6,12 @@ board keys from the CLI sign-in, adapterConfig merged over what's stored with
 secrets redacted on the way out, runtimeConfig replaced whole, labels that
 can't be changed, hires that wait for approval when the company says so, and
 routines whose variables are rebuilt from the {{placeholders}} in their title
-and description.
+and description, and webhook triggers whose secret shows only when it's made
+or rotated. A fake sops keeps SOPS values in a JSON file.
 It checks a dry run changes nothing, --apply makes exactly the expected
-changes, and a second run finds nothing to do.
+changes, and a second run finds nothing to do. For webhook triggers it checks
+the URL and secret land in SOPS and are never printed, a trigger SOPS lost
+gets a new secret, and the spec can't ask for anything but bearer.
 
 usage: paperclip-apply-test.py <paperclip-apply.py>
 """
@@ -45,7 +48,9 @@ PATHS = {
     "/api/routines/{id}": ["get", "patch"],
     "/api/routines/{id}/triggers": ["post"],
     "/api/routine-triggers/{id}": ["patch", "delete"],
+    "/api/routine-triggers/{id}/rotate-secret": ["post"],
 }
+TRIGGER_FIELDS = ("id", "kind", "label", "enabled", "cronExpression", "timezone")
 
 # Built into Paperclip's routine templates, so never variables.
 BUILTIN = {"date", "timestamp", "workspaceBranch"}
@@ -142,7 +147,7 @@ def initial_state():
             {"id": "t1", "routineId": "r1", "kind": "schedule", "label": "every morning", "enabled": True,
              "cronExpression": "0 6 * * *", "timezone": "UTC"},
             {"id": "t2", "routineId": "r1", "kind": "webhook", "label": "old hook", "enabled": True,
-             "cronExpression": None, "timezone": None},
+             "cronExpression": None, "timezone": None, "publicId": "0" * 24, "signingMode": "none"},
         ],
     }
 
@@ -150,6 +155,7 @@ def initial_state():
 DESCRIPTIONS = {
     "routines/health.md": "Check the lab on {{date}}.\n",
     "routines/review.md": "Review pull request {{number}} in {{repo}}.\n",
+    "routines/fix-ci.md": "Fix CI on {{repo}}#{{number}}.\n",
 }
 
 
@@ -187,7 +193,14 @@ SPEC = {
          "variables": [{"name": "repo", "label": "Repository", "type": "select", "options": ["nixconfig", "agent-scratch"]},
                        {"name": "number", "label": "Pull request", "type": "number"}],
          "triggers": []},
+        {"title": "Fix CI on {{repo}}#{{number}}", "assignee": "Engineer", "descriptionFile": "routines/fix-ci.md",
+         "priority": "high", "concurrencyPolicy": "coalesce_if_active", "catchUpPolicy": "skip_missed",
+         "variables": [{"name": "repo", "label": "Repository", "type": "select", "options": ["nixconfig"]},
+                       {"name": "number", "label": "Pull request", "type": "number"}],
+         "triggers": [{"label": "n8n", "kind": "webhook", "signingMode": "bearer",
+                       "secretsTo": "paperclip-triggers/fix-ci"}]},
     ],
+    "webhookTriggers": {"sopsFile": "automation.yaml", "baseUrl": "https://triggers.example"},
 }
 
 
@@ -197,7 +210,16 @@ class Fake:
         self.writes = []
         self.keys = set()
         self.challenges = {}
+        self.hook_secrets = {}
+        self.made = 0
         self.lock = threading.Lock()
+
+    def material(self, trigger):
+        self.made += 1
+        secret = f"whsec_{self.made:02d}" + "cd" * 20
+        self.hook_secrets[trigger["id"]] = secret
+        return {"webhookUrl": f"https://paperclip.example/api/routine-triggers/public/{trigger['publicId']}/fire",
+                "webhookSecret": secret}
 
     def redact(self, agent):
         out = copy.deepcopy(agent)
@@ -286,23 +308,35 @@ class Fake:
                 routine["variables"] = rebuild(routine["title"], routine.get("description"), body.get("variables"))
                 routines.append(routine)
                 return 201, routine
-            return 200, [{**r, "triggers": [{k: t[k] for k in ("id", "kind", "label", "enabled", "cronExpression", "timezone")}
+            # The list leaves out a webhook's publicId and signing mode.
+            return 200, [{**r, "triggers": [{k: t[k] for k in TRIGGER_FIELDS}
                                             for t in triggers if t["routineId"] == r["id"]]} for r in routines]
         m = re.fullmatch(r"/api/routines/(\w+)(/triggers)?", path)
         if m:
             routine = next(r for r in routines if r["id"] == m[1])
             if m[2]:
-                assert method == "POST" and body["kind"] != "webhook", body
+                assert method == "POST", method
+                assert body["kind"] != "webhook" or body.get("signingMode") == "bearer", body
                 trigger = {"id": f"t{len(triggers) + 1}", "routineId": routine["id"], "cronExpression": None,
-                           "timezone": None, **body}
+                           "timezone": None, "publicId": None, "signingMode": None, **body}
+                material = None
+                if body["kind"] == "webhook":
+                    trigger["publicId"] = f"{len(triggers) + 1:024x}"
+                    material = self.material(trigger)
                 triggers.append(trigger)
-                return 201, {"trigger": trigger, "secretMaterial": None, "revision": {"id": "rev"}}
+                return 201, {"trigger": trigger, "secretMaterial": material, "revision": {"id": "rev"}}
             if method == "PATCH":
                 assert routine["status"] != "archived"
                 routine.update(body)
                 routine["variables"] = rebuild(routine["title"], routine.get("description"),
                                                body.get("variables", routine["variables"]))
-            return 200, routine
+                return 200, routine
+            return 200, {**routine, "triggers": [t for t in triggers if t["routineId"] == routine["id"]]}
+        m = re.fullmatch(r"/api/routine-triggers/(\w+)/rotate-secret", path)
+        if m and method == "POST":
+            trigger = next(t for t in triggers if t["id"] == m[1])
+            assert trigger["kind"] == "webhook" and body == {}, body
+            return 200, {"trigger": trigger, "secretMaterial": self.material(trigger), "revision": {"id": "rev"}}
         m = re.fullmatch(r"/api/routine-triggers/(\w+)", path)
         if m and method == "PATCH":
             trigger = next(t for t in triggers if t["id"] == m[1])
@@ -341,14 +375,55 @@ def serve(fake):
     return server
 
 
-def run(url, spec_path, *extra):
+TMP = pathlib.Path(tempfile.mkdtemp())
+SOPS_VALUES = TMP / "sops-values.json"
+SOPS_VALUES.write_text("{}")  # the spec's SOPS file is added once spec_path exists
+(TMP / "bin").mkdir()
+# sops decrypt --extract '["a"]["b"]' <file> and sops set --value-stdin <file> '["a"]["b"]', on a JSON file.
+(TMP / "bin" / "sops").write_text(f"""#!{sys.executable}
+import json, re, sys
+values = json.load(open({str(SOPS_VALUES)!r}))
+args = sys.argv[1:]
+if args[:1] == ["decrypt"] and len(args) == 2:
+    if args[1] not in values:
+        sys.exit("Failed to get the data key required to decrypt the SOPS file.")
+    print(json.dumps(values[args[1]]))
+elif args[:2] == ["decrypt", "--extract"]:
+    path, file = re.findall(r'\\["([^"]+)"\\]', args[2]), args[3]
+    node = values.get(file, {{}})
+    for part in path:
+        if not isinstance(node, dict) or part not in node:
+            sys.exit(f"error truncating tree: component {{part!r}} not found")
+        node = node[part]
+    print(node if isinstance(node, str) else json.dumps(node))
+elif args[:2] == ["set", "--value-stdin"]:
+    file, path = args[2], re.findall(r'\\["([^"]+)"\\]', args[3])
+    node = values.setdefault(file, {{}})
+    for part in path[:-1]:
+        node = node.setdefault(part, {{}})
+    node[path[-1]] = json.loads(sys.stdin.read())
+    json.dump(values, open({str(SOPS_VALUES)!r}, "w"))
+else:
+    sys.exit(f"fake sops doesn't know {{args}}")
+""")
+(TMP / "bin" / "sops").chmod(0o755)
+OUTPUTS = []
+
+
+def sops_values():
+    return json.loads(SOPS_VALUES.read_text())
+
+
+def run(url, spec_path, *extra, ok=True):
     env = {k: v for k, v in os.environ.items() if k != "PAPERCLIP_BOARD_KEY"}
+    env["PATH"] = f"{TMP / 'bin'}:{env.get('PATH', '')}"
     proc = subprocess.run([sys.executable, "-I", SCRIPT, "--url", url, "--spec", spec_path, *extra],
                           capture_output=True, text=True, env=env, timeout=60)
     print(proc.stdout + proc.stderr)
-    if proc.returncode != 0:
+    OUTPUTS.append(proc.stdout + proc.stderr)
+    if ok and proc.returncode != 0:
         sys.exit(f"FAIL: exit {proc.returncode}")
-    return proc.stdout
+    return proc if not ok else proc.stdout
 
 
 failures = []
@@ -363,11 +438,13 @@ def check(what, ok):
 fake = Fake()
 server = serve(fake)
 url = f"http://127.0.0.1:{server.server_address[1]}"
-spec_path = pathlib.Path(tempfile.mkdtemp()) / "spec.json"
+# Resolved, as the script resolves the SOPS file (macOS puts temp dirs behind a symlink).
+spec_path = pathlib.Path(tempfile.mkdtemp()).resolve() / "spec.json"
 spec_path.write_text(json.dumps(SPEC))
 for name, text in DESCRIPTIONS.items():
     (spec_path.parent / name).parent.mkdir(exist_ok=True)
     (spec_path.parent / name).write_text(text)
+SOPS_VALUES.write_text(json.dumps({str(spec_path.parent / "automation.yaml"): {"n8n": {"api-key": "x"}}}))
 
 out = run(url, str(spec_path))
 check("dry run writes nothing", fake.writes == [])
@@ -384,11 +461,16 @@ check("dry run plans the routine drift", "~ routine Lab health review {{date}}: 
       "Researcher, priority low -> medium, concurrencyPolicy coalesce_if_active -> skip_if_active, trigger every "
       "morning cronExpression 0 6 * * * -> 0 7 * * *, trigger every morning timezone UTC -> America/New_York" in out)
 check("dry run plans the new routine", "+ routine Review {{repo}}#{{number}} (for Reviewer, no triggers)" in out)
-check("dry run reports a webhook trigger it found",
-      "! routine Lab health review {{date}}: webhook trigger old hook exists in Paperclip" in out)
+check("dry run plans the routine with a webhook trigger",
+      "+ routine Fix CI on {{repo}}#{{number}} (for Engineer, n8n: webhook, its URL and secret to SOPS at "
+      "paperclip-triggers/fix-ci)" in out)
+check("dry run reports a webhook trigger only in Paperclip",
+      "? routine Lab health review {{date}}: webhook trigger old hook exists only in Paperclip (left alone)" in out)
 check("dry run reports routines only in Paperclip, but not archived ones",
       "? routine Scratch routine exists only in Paperclip" in out and "Gone" not in out)
-check("dry run counts its changes", "6 change(s) pending" in out)
+check("dry run counts its changes", "7 change(s) pending" in out)
+check("dry run writes nothing to SOPS",
+      sops_values() == {str(spec_path.parent / "automation.yaml"): {"n8n": {"api-key": "x"}}})
 
 out = run(url, str(spec_path), "--apply")
 state = fake.state
@@ -415,7 +497,7 @@ check("apply fixes the health routine", health["description"] == "Check the lab 
       and health["assigneeAgentId"] == "a3" and health["priority"] == "medium"
       and health["concurrencyPolicy"] == "skip_if_active")
 check("apply fixes its schedule and leaves the webhook alone",
-      [(t["id"], t["cronExpression"], t["timezone"]) for t in state["triggers"]]
+      [(t["id"], t["cronExpression"], t["timezone"]) for t in state["triggers"] if t["routineId"] == "r1"]
       == [("t1", "0 7 * * *", "America/New_York"), ("t2", None, None)])
 check("apply creates the review routine for the reviewer it just hired",
       review.get("assigneeAgentId") == rev["id"] and review.get("status") == "active"
@@ -426,22 +508,74 @@ check("apply leaves a paused routine paused and untouched",
       not any("/api/routines/r2" in path for _, path, _ in fake.writes)
       and next(r for r in state["routines"] if r["id"] == "r2")["status"] == "paused")
 
+fix_ci = next((r for r in state["routines"] if r["title"] == "Fix CI on {{repo}}#{{number}}"), {})
+hook = next((t for t in state["triggers"] if t["routineId"] == fix_ci.get("id")), {})
+stored = sops_values().get(str(spec_path.parent / "automation.yaml"), {}).get("paperclip-triggers", {}).get("fix-ci", {})
+check("apply makes the webhook trigger signed with bearer",
+      hook.get("kind") == "webhook" and hook.get("signingMode") == "bearer" and hook.get("label") == "n8n")
+check("  ...and writes its URL on the spec's base URL to SOPS",
+      stored.get("url") == f"https://triggers.example/api/routine-triggers/public/{hook.get('publicId')}/fire")
+check("  ...with its secret", stored.get("secret") == fake.hook_secrets.get(hook.get("id")))
+check("  ...and says to make n8n's credential", "n8n-apply.py --apply makes n8n's credential" in out)
+
 writes = len(fake.writes)
 out = run(url, str(spec_path), "--apply")
 check("a second run changes nothing", len(fake.writes) == writes and "0 change(s) made" in out)
 
-bad = json.loads(json.dumps(SPEC))
-bad["routines"][0]["triggers"].append({"label": "hook", "kind": "webhook"})
-bad_path = spec_path.with_name("bad.json")
-bad_path.write_text(json.dumps(bad))
+print("== a webhook trigger whose secret SOPS lost")
+values = sops_values()
+del values[str(spec_path.parent / "automation.yaml")]["paperclip-triggers"]["fix-ci"]["secret"]
+SOPS_VALUES.write_text(json.dumps(values))
+out = run(url, str(spec_path))
+check("dry run plans a new secret", "trigger n8n: a new secret, with its URL, to SOPS at paperclip-triggers/fix-ci" in out)
+old_secret = fake.hook_secrets[hook["id"]]
+out = run(url, str(spec_path), "--apply")
+stored = sops_values()[str(spec_path.parent / "automation.yaml")]["paperclip-triggers"]["fix-ci"]
+check("apply rotates it and writes the new one",
+      fake.hook_secrets[hook["id"]] != old_secret and stored.get("secret") == fake.hook_secrets[hook["id"]]
+      and any(p == f"/api/routine-triggers/{hook['id']}/rotate-secret" for _, p, _ in fake.writes))
+check("  ...and says n8n's credential has to be made again", "delete it in n8n, then run" in out)
 writes = len(fake.writes)
-env = {k: v for k, v in os.environ.items() if k != "PAPERCLIP_BOARD_KEY"}
-proc = subprocess.run([sys.executable, "-I", SCRIPT, "--url", url, "--spec", str(bad_path), "--apply"],
-                      capture_output=True, text=True, env=env, timeout=60)
-print(proc.stdout + proc.stderr)
-check("a webhook trigger in the spec is refused before signing in", proc.returncode != 0
-      and "only api and schedule are allowed" in proc.stderr and "Approve" not in proc.stdout
-      and len(fake.writes) == writes)
+out = run(url, str(spec_path), "--apply")
+check("then nothing more", len(fake.writes) == writes and "0 change(s) made" in out)
+check("no webhook secret is ever printed",
+      not any(secret in text for text in OUTPUTS for secret in fake.hook_secrets.values()))
+
+def refused(what, change, message):
+    bad = json.loads(json.dumps(SPEC))
+    change(bad)
+    bad_path = spec_path.with_name("bad.json")
+    bad_path.write_text(json.dumps(bad))
+    writes = len(fake.writes)
+    proc = run(url, str(bad_path), "--apply", ok=False)
+    check(f"{what} is refused before signing in", proc.returncode != 0 and message in proc.stderr
+          and "Approve" not in proc.stdout and len(fake.writes) == writes)
+
+
+refused("a webhook trigger without a signing mode",
+        lambda s: s["routines"][0]["triggers"].append({"label": "hook", "kind": "webhook"}), "only bearer is allowed")
+refused("a webhook trigger signed with none",
+        lambda s: s["routines"][0]["triggers"].append({"label": "hook", "kind": "webhook", "signingMode": "none",
+                                                       "secretsTo": "paperclip-triggers/x"}), "only bearer is allowed")
+refused("a webhook trigger without secretsTo",
+        lambda s: s["routines"][0]["triggers"].append({"label": "hook", "kind": "webhook", "signingMode": "bearer"}),
+        "needs secretsTo")
+refused("two webhook triggers writing to one place",
+        lambda s: s["routines"][0]["triggers"].append({"label": "hook", "kind": "webhook", "signingMode": "bearer",
+                                                       "secretsTo": "paperclip-triggers/fix-ci"}), "two webhook triggers")
+refused("webhook triggers without webhookTriggers", lambda s: s.pop("webhookTriggers"), "needs webhookTriggers")
+
+print("== a SOPS file this key can't decrypt")
+writes, secret_before = len(fake.writes), fake.hook_secrets[hook["id"]]
+saved = SOPS_VALUES.read_text()
+SOPS_VALUES.write_text("{}")
+proc = run(url, str(spec_path), "--apply", ok=False)
+SOPS_VALUES.write_text(saved)
+check("stops before touching the trigger", proc.returncode != 0 and "can't decrypt" in proc.stderr
+      and fake.hook_secrets[hook["id"]] == secret_before
+      and not any("rotate-secret" in path for _, path, _ in fake.writes[writes:]))
+refused("an unknown trigger kind",
+        lambda s: s["routines"][0]["triggers"].append({"label": "hook", "kind": "email"}), "only api, schedule, webhook")
 
 server.shutdown()
 if failures:
