@@ -2,13 +2,18 @@
 # names points straight at this host (A records in the lab118.xyz zone).
 #
 #   ntfy.lab118.xyz    ntfy (its own auth: deny-all default, users/tokens)
-#   intake.lab118.xyz  only Uptime Kuma push heartbeats (/api/push/<token>)
+#   intake.lab118.xyz  Uptime Kuma push heartbeats (/api/push/<token>), and
+#                      GitHub's webhook deliveries (POST /github), passed over
+#                      the tunnel to n8n on the automation VM, which refuses
+#                      anything GitHub didn't sign
 #
 # Dashboards (Alerta UI, Node-RED editor, Kuma UI) are NOT served here; they
 # go through Pangolin via the local Newt connector.
-{ config, ... }:
+{ config, lib, ... }:
 let
   domain = config.lab118.directDomain;
+  automation = "automation.servicestack.xyz";
+  github = config.services.nginx.virtualHosts."intake.${domain}".locations."= /github";
 in
 {
   security.acme = {
@@ -58,6 +63,30 @@ in
           limit_req zone=intake burst=30 nodelay;
         '';
       };
+      # The name resolves through the tunnel (lab118.wireguard.labDomains) when
+      # a delivery arrives, not when nginx starts, so a lab outage fails only
+      # this path. n8n's server block lets this host reach /webhook/github and
+      # nothing else.
+      locations."= /github".extraConfig = ''
+        limit_except POST { deny all; }
+        limit_req zone=intake burst=30 nodelay;
+        client_max_body_size 5m;
+        resolver 127.0.0.53 valid=60s ipv6=off;
+        set $automation ${automation};
+        proxy_pass https://$automation/webhook/github;
+        # GitHub's own headers, its signature among them, pass through as sent.
+        proxy_set_header Host ${automation};
+        proxy_ssl_server_name on;
+        proxy_ssl_name ${automation};
+        proxy_ssl_verify on;
+        # nginx checks one level above the certificate by default, and Let's
+        # Encrypt's chain (YE1, then Root YE, cross-signed by ISRG Root X2) is
+        # longer, so every delivery would fail with a 502.
+        proxy_ssl_verify_depth 3;
+        proxy_ssl_trusted_certificate /etc/ssl/certs/ca-certificates.crt;
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 30s;
+      '';
       locations."/".return = "404";
     };
 
@@ -97,6 +126,15 @@ in
       locations."/".return = "403";
     };
   };
+
+  assertions = [
+    {
+      assertion = lib.hasInfix "limit_except POST { deny all; }" github.extraConfig
+        && lib.hasInfix "proxy_pass https://$automation/webhook/github;" github.extraConfig
+        && lib.hasInfix "proxy_ssl_verify on;" github.extraConfig;
+      message = "lab118-services: intake's /github takes POST only and passes it to n8n's /webhook/github alone, checking n8n's certificate.";
+    }
+  ];
 
   networking.firewall.allowedTCPPorts = [ 80 443 ];
 }

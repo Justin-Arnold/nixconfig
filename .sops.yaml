@@ -33,6 +33,11 @@ inference_recipients: &inference_recipients
   - age1lkg6gqckpdjdgkdsuch87c69yg37ewuhh9rkdt3zdfp0u5xkgqjqyrck3x # inference host
   - age1ljfvx33psxcat4wwjpq6u26f5fv9jzntg8z266mhykpxh78upalqxfflz3 # operator
 
+# Same arrangement for automation.
+automation_recipients: &automation_recipients
+  - age1kd98t726mqm94n5v8j43y5ryt2p32t7sf3hphsz8cze3c5puhutqn49jtn # automation host
+  - age1ljfvx33psxcat4wwjpq6u26f5fv9jzntg8z266mhykpxh78upalqxfflz3 # operator
+
 creation_rules:
   - path_regex: ^secrets/hosts/lab118-services\.ya?ml$
     key_groups:
@@ -52,6 +57,9 @@ creation_rules:
   - path_regex: ^secrets/hosts/inference\.ya?ml$
     key_groups:
       - age: *inference_recipients
+  - path_regex: ^secrets/hosts/automation\.ya?ml$
+    key_groups:
+      - age: *automation_recipients
   - path_regex: ^secrets/.*\.ya?ml$
     key_groups:
       - age: *age_recipients

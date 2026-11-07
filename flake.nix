@@ -176,6 +176,7 @@
         workbench            = mkNixos ./hosts/workbench/configuration.nix;
         openclaw             = mkNixos ./hosts/openclaw/configuration.nix;
         inference            = mkNixos ./hosts/inference/configuration.nix;
+        automation           = mkNixos ./hosts/automation/configuration.nix;
       };
       darwinConfigurations = {
         macmini              = mkDarwin ./hosts/macmini/configuration.nix;
@@ -211,6 +212,10 @@
           inferenceExample = self.nixosConfigurations.inference.extendModules {
             modules = [ ./hosts/inference/eval-test.nix ];
           };
+          # And for automation.
+          automationExample = self.nixosConfigurations.automation.extendModules {
+            modules = [ ./hosts/automation/eval-test.nix ];
+          };
         in {
           doppler-secrets = import ./modules/roles/doppler-secrets/check.nix { inherit pkgs lib; };
           sqlite-backup = import ./modules/roles/sqlite-backup/check.nix { inherit pkgs lib; };
@@ -236,6 +241,8 @@
             (builtins.unsafeDiscardStringContext workbenchExample.config.system.build.toplevel.drvPath);
           openclaw-eval = pkgs.writeText "openclaw-eval"
             (builtins.unsafeDiscardStringContext openclawExample.config.system.build.toplevel.drvPath);
+          automation-eval = pkgs.writeText "automation-eval"
+            (builtins.unsafeDiscardStringContext automationExample.config.system.build.toplevel.drvPath);
           # Once with each model in models.nix as the active one.
           inference-eval = pkgs.writeText "inference-eval" (builtins.toJSON (lib.mapAttrs
             (name: _: builtins.unsafeDiscardStringContext (inferenceExample.extendModules {
@@ -540,11 +547,44 @@
                 hawser-agent-enabled = { roles.docker.dockhandManaged.enable = lib.mkForce true; };
                 beszel-agent-listening = { services.beszel.agent.openFirewall = true; };
                 incomplete-facts = { lab118.facts = lib.mkOverride 40 ((import ./hosts/lab118-services/facts.nix) // { diskDevice = null; }); };
+                github-intake-any-method = { services.nginx.virtualHosts."intake.lab118.xyz".locations."= /github".extraConfig = lib.mkForce "proxy_pass https://$automation/webhook/github;\nproxy_ssl_verify on;\n"; };
+                github-intake-unverified = { services.nginx.virtualHosts."intake.lab118.xyz".locations."= /github".extraConfig = lib.mkForce "limit_except POST { deny all; }\nproxy_pass https://$automation/webhook/github;\nproxy_ssl_verify off;\n"; };
               };
             in
             assert lib.assertMsg (lib.all lib.id (lib.attrValues results))
               "exposure guards did not refuse: ${toString (lib.attrNames (lib.filterAttrs (_: ok: !ok) results))}";
             pkgs.writeText "lab118-services-exposure-guards" (builtins.toJSON results);
+          # Each case breaks the automation host's exposure policy; evaluation must refuse all of them.
+          automation-exposure-guards =
+            let
+              refused = module: !(builtins.tryEval
+                (automationExample.extendModules { modules = [ module ]; }).config.system.build.toplevel.drvPath).success;
+              vhost = "automation.servicestack.xyz";
+              results = lib.mapAttrs (_: refused) {
+                extra-public-tcp-port = { networking.firewall.allowedTCPPorts = [ 5678 ]; };
+                extra-public-udp-port = { networking.firewall.allowedUDPPorts = [ 9999 ]; };
+                interface-opening = { networking.firewall.interfaces.ens18.allowedTCPPorts = [ 5678 ]; };
+                trusted-interface = { networking.firewall.trustedInterfaces = [ "ens18" ]; };
+                n8n-open-firewall = { services.n8n.openFirewall = true; };
+                n8n-on-all-interfaces = { services.n8n.environment.N8N_LISTEN_ADDRESS = lib.mkForce "0.0.0.0"; };
+                n8n-reaches-lan = { systemd.services.n8n.serviceConfig.IPAddressAllow = lib.mkForce [ "localhost" "10.0.0.0/24" ]; };
+                n8n-lan-not-denied = { systemd.services.n8n.serviceConfig.IPAddressDeny = lib.mkForce [ "192.168.0.0/16" ]; };
+                n8n-runs-commands = { services.n8n.environment.NODES_EXCLUDE = lib.mkForce "[]"; };
+                n8n-reads-environment = { services.n8n.environment.N8N_BLOCK_ENV_ACCESS_IN_NODE = lib.mkForce false; };
+                n8n-community-packages = { services.n8n.environment.N8N_COMMUNITY_PACKAGES_ENABLED = lib.mkForce true; };
+                key-in-environment = { services.n8n.environment.N8N_ENCRYPTION_KEY = "0000"; };
+                tunnel-reaches-ui = { services.nginx.virtualHosts.${vhost}.locations."/".extraConfig = lib.mkForce "allow 10.118.0.1;\ndeny all;\n"; };
+                tunnel-reaches-other-webhook = { services.nginx.virtualHosts.${vhost}.locations."^~ /webhook/".extraConfig = "allow 10.118.0.1;\ndeny all;\n"; };
+                lan-reaches-github-webhook = { services.nginx.virtualHosts.${vhost}.locations."= /webhook/github".extraConfig = lib.mkForce "allow 10.0.0.0/24;\nallow 10.118.0.1;\ndeny all;\n"; };
+                docker-enabled = { virtualisation.docker.enable = true; };
+                sops-file-missing = { sops.validateSopsFiles = lib.mkOverride 40 true; };
+                backup-target-missing = { automation.backup.nfsDevice = lib.mkOverride 40 null; };
+                beszel-agent-listening = { services.beszel.agent.openFirewall = true; };
+              };
+            in
+            assert lib.assertMsg (lib.all lib.id (lib.attrValues results))
+              "automation exposure guards did not refuse: ${toString (lib.attrNames (lib.filterAttrs (_: ok: !ok) results))}";
+            pkgs.writeText "automation-exposure-guards" (builtins.toJSON results);
         } // lib.optionalAttrs (lib.hasSuffix "-linux" system) {
           # What the agents run, which only ever runs on Linux.
           agents-packages = import ./hosts/agents/packages-check.nix { inherit pkgs; };

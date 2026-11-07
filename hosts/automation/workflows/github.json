@@ -1,0 +1,131 @@
+{
+  "name": "github",
+  "nodes": [
+    {
+      "id": "2acca494-43e4-4859-ae1f-fdeb4f7be93e",
+      "name": "GitHub delivery",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [0, 0],
+      "webhookId": "6a584ec3-6c76-41bf-8e25-8f490dd5f089",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "github",
+        "responseMode": "responseNode",
+        "options": { "rawBody": true }
+      }
+    },
+    {
+      "id": "8acbfb09-d87b-4c8f-8082-cc06662b2308",
+      "name": "Sign the body",
+      "type": "n8n-nodes-base.crypto",
+      "typeVersion": 2,
+      "position": [220, 0],
+      "parameters": {
+        "action": "hmac",
+        "binaryData": true,
+        "binaryPropertyName": "data",
+        "type": "SHA256",
+        "dataPropertyName": "expected",
+        "encoding": "hex"
+      },
+      "credentials": { "crypto": { "name": "GitHub webhook secret" } }
+    },
+    {
+      "id": "9aaf74df-5feb-4441-9dcb-dbe3607640bf",
+      "name": "Signed by GitHub?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [440, 0],
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            {
+              "id": "b7cc897d-ada7-46b8-964c-88d8400c09e7",
+              "leftValue": "={{ $json.headers['x-hub-signature-256'] || '' }}",
+              "rightValue": "=sha256={{ $json.expected }}",
+              "operator": { "type": "string", "operation": "equals" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "da12b7f5-2cc8-44f5-9fa5-b99e4b0d7d00",
+      "name": "Ping?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [660, -100],
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            {
+              "id": "85b15f17-225f-43c7-8257-68302c56c76a",
+              "leftValue": "={{ $json.headers['x-github-event'] || '' }}",
+              "rightValue": "ping",
+              "operator": { "type": "string", "operation": "equals" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "f801b57b-afb9-4731-b7b1-5f95666b3688",
+      "name": "Pong",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [880, -200],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { ok: true, event: 'ping', hook: $json.body.hook_id } }}",
+        "options": { "responseCode": 200 }
+      }
+    },
+    {
+      "id": "1d7f3b52-61d8-4a56-9c43-5b7c8c5fd0a1",
+      "name": "Nothing to do yet",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [880, 0],
+      "parameters": {
+        "respondWith": "noData",
+        "options": { "responseCode": 202 }
+      }
+    },
+    {
+      "id": "4c2e9d18-0b6f-4f0e-a6d3-2f0b9e7c5a44",
+      "name": "Refuse",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [660, 150],
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "signature doesn't match",
+        "options": { "responseCode": 401 }
+      }
+    }
+  ],
+  "connections": {
+    "GitHub delivery": { "main": [[{ "node": "Sign the body", "type": "main", "index": 0 }]] },
+    "Sign the body": { "main": [[{ "node": "Signed by GitHub?", "type": "main", "index": 0 }]] },
+    "Signed by GitHub?": {
+      "main": [
+        [{ "node": "Ping?", "type": "main", "index": 0 }],
+        [{ "node": "Refuse", "type": "main", "index": 0 }]
+      ]
+    },
+    "Ping?": {
+      "main": [
+        [{ "node": "Pong", "type": "main", "index": 0 }],
+        [{ "node": "Nothing to do yet", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "settings": { "executionOrder": "v1" }
+}

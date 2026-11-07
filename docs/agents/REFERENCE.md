@@ -733,13 +733,15 @@ names some:
 | `costs` | agent-costs reports the reviewer's Claude spend from the review stage: its `month.json` shows some this month, and Paperclip shows the same amount against the Reviewer |
 | `infra` | infra adds one file to nixconfig on an `agent/infra/*` branch, runs `scripts/flake-check.sh eval` on workbench, and opens a pull request whose body reports the check passed |
 | `gate` | asked to run `rm -rf ~/smoke-<nonce>` on workbench, the engineer is refused by Hermes' deny list, the refusal is in its log, and the canary file in that directory survives |
+| `route` | a GitHub `ping`, signed with `github/webhook-secret` from `secrets/hosts/automation.yaml`, goes to `intake.lab118.xyz/github` and comes back with n8n's answer, through lab118-services, the tunnel and the automation VM. The same ping unsigned, or signed with another secret, gets 401, and a GET gets nothing. No model runs. |
 
 Most stages wait on real model runs, so a full run takes 20 to 45 minutes;
 `--timeout-minutes` (20) bounds each. The pull requests from `change`,
 `review` and `infra` are closed and their branches deleted afterwards, unless
 `--keep-pr`. The issues stay in Paperclip,
-titled `Smoke test <nonce>: ...`. It needs `gh` signed in as Justin and
-`ssh agents`, `ssh workbench` and `ssh inference` with sudo. The Alerta key never leaves the
+titled `Smoke test <nonce>: ...`. It needs `gh` signed in as Justin,
+`ssh agents`, `ssh workbench` and `ssh inference` with sudo, and for `route`
+the operator's age key, since it reads the webhook secret with sops. The Alerta key never leaves the
 agents VM: the alert lookups and the test alert run there. The flake.lock and
 pull request review routines aren't in it, since they make real pull
 requests or spend Opus; run them from Paperclip to try them.

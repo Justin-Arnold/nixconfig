@@ -21,6 +21,7 @@ in
   workbench = proxmox ./hosts/workbench.nix // { hostAgeKey = true; };
   openclaw = proxmox ./hosts/openclaw.nix // { hostAgeKey = true; };
   inference = proxmox ./hosts/inference.nix // { hostAgeKey = true; };
+  automation = proxmox ./hosts/automation.nix // { hostAgeKey = true; };
 
   lab118-services = {
     platform = "contabo";

@@ -76,20 +76,29 @@ the agent on an approval.
   gate      the engineer is asked to run `rm -rf ~/smoke-<nonce>` on workbench,
             where a canary file waits. Hermes' deny list has to refuse it, the
             refusal has to be in Hermes' log, and the canary has to survive.
+  route     a GitHub ping, signed with the webhook secret from
+            secrets/hosts/automation.yaml, goes to intake.lab118.xyz/github
+            and has to come back with n8n's answer, through lab118-services,
+            the tunnel and the automation VM. The same ping unsigned, or
+            signed with another secret, has to get 401, and a GET nothing.
 
 Most stages wait on model runs, so the whole test takes 20 to 45 minutes.
 Issues are titled "Smoke test <nonce>: ..." and stay in Paperclip as a record.
 
-It needs gh signed in as Justin, and `ssh agents`, `ssh workbench` and
-`ssh inference` with sudo. It signs in like paperclip-apply.py, or uses PAPERCLIP_BOARD_KEY, and
+It needs gh signed in as Justin, `ssh agents`, `ssh workbench` and
+`ssh inference` with sudo, and for route the operator's age key
+(SOPS_AGE_KEY_FILE, by default ~/.config/sops/age/keys.txt). It signs in like paperclip-apply.py, or uses PAPERCLIP_BOARD_KEY, and
 revokes the key it signed in with before it exits. Nothing it prints is a
-secret: the Alerta key is read and used on the agents VM.
+secret: the Alerta key is read and used on the agents VM, and the webhook
+secret only signs the ping.
 
 usage:
   scripts/agents/smoke-e2e.py [--only ping,change,...] [--keep-pr] [--by-hand] [--timeout-minutes 20]
 """
 import argparse
 import datetime
+import hashlib
+import hmac
 import importlib.util
 import json
 import os
@@ -100,6 +109,8 @@ import shlex
 import subprocess
 import sys
 import time
+import urllib.error
+import urllib.request
 from decimal import Decimal
 
 HERE = pathlib.Path(__file__).resolve().parent
@@ -115,7 +126,7 @@ ENGINEER_LOGS = "/var/lib/hermes-engineer/.hermes/logs"
 ALERTA = "http://10.118.0.1:5000"
 ALERTA_KEY = "/run/secrets/agent-watch/alerta-key"
 STAGES = ["rulesets", "refused", "watch", "ping", "local", "decide", "observe", "health", "intake", "ask", "approve", "change",
-          "review", "costs", "infra", "gate"]
+          "review", "costs", "infra", "gate", "route"]
 RESEARCHER_CONFIG = "/var/lib/hermes-researcher/.hermes/config.yaml"
 RESEARCHER_LOGS = "/var/lib/hermes-researcher/.hermes/logs"
 # The Jev MCP server's call log: one line per call, ids and outcomes only.
@@ -142,6 +153,11 @@ CHAT_SECONDS = 10
 REVIEWED = {"done", "blocked", "cancelled"}
 # The last line scripts/flake-check.sh prints when everything passed.
 FLAKE_CHECK_PASSED = "all passed"
+# Where GitHub delivers nixconfig's webhook events, and the secret it signs
+# them with.
+GITHUB_INTAKE = "https://intake.lab118.xyz/github"
+AUTOMATION_SOPS = HERE.parent.parent / "secrets/hosts/automation.yaml"
+WEBHOOK_SECRET = '["github"]["webhook-secret"]'
 
 
 class Fail(Exception):
@@ -275,6 +291,51 @@ class Smoke:
         if problems:
             raise Fail(f"{REPO}: " + "; ".join(problems))
         return f"{len(files)} rulesets on {REPO} match scripts/workbench/github-rulesets"
+
+    def route(self):
+        env = {**os.environ, "SOPS_AGE_KEY_FILE": os.environ.get("SOPS_AGE_KEY_FILE",
+                                                                  str(pathlib.Path.home() / ".config/sops/age/keys.txt"))}
+        proc = subprocess.run(["sops", "--decrypt", "--extract", WEBHOOK_SECRET, str(AUTOMATION_SOPS)],
+                              env=env, capture_output=True, text=True)
+        if proc.returncode != 0 or not proc.stdout.strip():
+            raise Fail(f"sops couldn't read github/webhook-secret: {text(proc.stderr)}")
+        secret = proc.stdout.strip().encode()
+        body = json.dumps({"zen": f"Smoke test {self.nonce}", "hook_id": 0}).encode()
+
+        def deliver(key=None, method="POST"):
+            req = urllib.request.Request(GITHUB_INTAKE, data=body if method == "POST" else None, method=method)
+            req.add_header("Content-Type", "application/json")
+            req.add_header("User-Agent", "GitHub-Hookshot/smoke-e2e")
+            req.add_header("X-GitHub-Event", "ping")
+            req.add_header("X-GitHub-Delivery", f"smoke-{self.nonce}")
+            if key is not None:
+                req.add_header("X-Hub-Signature-256", "sha256=" + hmac.new(key, body, hashlib.sha256).hexdigest())
+            try:
+                with urllib.request.urlopen(req, timeout=30) as resp:
+                    return resp.status, resp.read().decode(errors="replace")
+            except urllib.error.HTTPError as err:
+                return err.code, err.read().decode(errors="replace")
+            except urllib.error.URLError as err:
+                raise Fail(f"cannot reach {GITHUB_INTAKE}: {err.reason}") from None
+
+        start = time.monotonic()
+        status, answer = deliver(secret)
+        took = time.monotonic() - start
+        try:
+            event = json.loads(answer).get("event") if status == 200 else None
+        except (ValueError, AttributeError):
+            event = None
+        if event != "ping":
+            raise Fail(f"a signed ping got HTTP {status}: {text(answer)}")
+        for what, key in (("an unsigned", None), ("a wrongly signed", secrets.token_bytes(32))):
+            status, answer = deliver(key)
+            if status != 401:
+                raise Fail(f"{what} ping got HTTP {status}, not 401: {text(answer)}")
+        status, _ = deliver(secret, method="GET")
+        if status < 400:
+            raise Fail(f"a GET to {GITHUB_INTAKE} got HTTP {status}")
+        return (f"a signed ping got n8n's answer through {GITHUB_INTAKE} in {took:.1f} s; unsigned and "
+                f"wrongly signed ones got 401, and a GET got {status}")
 
     def live_rulesets(self):
         return {r["name"]: r for r in json.loads(gh("api", f"repos/{REPO}/rulesets"))}

@@ -175,7 +175,7 @@ None of this is backed up. Rebuilding the host loses it.
 | Name | Points at | Serves | Auth |
 |---|---|---|---|
 | `ntfy.lab118.xyz` | A record to the VPS | ntfy | ntfy users and tokens, deny-all by default |
-| `intake.lab118.xyz` | A record to the VPS | `/api/push/` only, rate-limited; everything else 404 | the push token |
+| `intake.lab118.xyz` | A record to the VPS | `/api/push/` to Kuma, and `POST /github` to n8n on the automation VM over the tunnel, both rate-limited; everything else 404 | the push token; for `/github`, GitHub's signature, checked by n8n |
 | `alerta.servicestack.xyz` | Pangolin (`*.servicestack.xyz` wildcard) | Alerta web UI, `127.0.0.1:5001` | Pangolin SSO, then Alerta login |
 | `nodered.servicestack.xyz` | Pangolin | Node-RED editor, `127.0.0.1:1881` | Pangolin SSO |
 | `kuma.servicestack.xyz` | Pangolin | Kuma UI, `127.0.0.1:3001` | Pangolin SSO, then Kuma login |
@@ -230,11 +230,12 @@ Set in `lab118.wireguard` in `configuration.nix`, implemented in `wireguard.nix`
   allowed `10.118.0.2/32` and `10.0.0.0/24`
 - only `10.0.0.0/24` is routed into the tunnel; the default route and normal
   DNS stay on the VPS's own uplink
-- `*.host.internal` names and the dashboard VM's two names
-  (`dashboard.servicestack.xyz`, `beszel.servicestack.xyz`) are resolved by
-  the lab's AdGuard Home at `10.118.0.2`; everything else uses public DNS.
-  Publicly those two names go to Pangolin, whose SSO the Beszel agent and
-  Kuma's checks can't pass.
+- `*.host.internal` names and the lab VMs' names in `labDomains`
+  (`dashboard.`, `beszel.`, `paperclip.`, `inference.` and
+  `automation.servicestack.xyz`) are resolved by the lab's AdGuard Home at
+  `10.118.0.2`; everything else uses public DNS. Publicly those names go to
+  Pangolin, whose SSO the Beszel agent, Kuma's checks and GitHub's
+  deliveries can't pass.
 
 #### Router side
 
@@ -245,7 +246,7 @@ OPNsense 24.7, configured by hand in the UI:
 | WireGuard instance | `lab118-cloud`, listen 51821, tunnel `10.118.0.2/30` |
 | Peer | `lab118-services`, endpoint `89.117.73.89:51820`, allowed `10.118.0.1/32`, keepalive 25 |
 | Interface | `WG_LAB118`, assigned and enabled, no IP config |
-| Rules on `WG_LAB118` | ICMP echo to `WG_LAB118 address`; ICMP echo to `10.0.0.1`; TCP/UDP 53 to `WG_LAB118 address`; TCP 443 to the dashboard VM (Kuma's checks and this host's Beszel agent). Everything else from the cloud is dropped. |
+| Rules on `WG_LAB118` | ICMP echo to `WG_LAB118 address`; ICMP echo to `10.0.0.1`; TCP/UDP 53 to `WG_LAB118 address`; TCP 443 to the dashboard VM (Kuma's checks and this host's Beszel agent); TCP 443 to the automation VM, `10.0.0.155` (GitHub's deliveries and Kuma's check). Everything else from the cloud is dropped. |
 | WAN rule | ICMP echo from `89.117.73.89` only, so Kuma can ping the WAN address |
 
 The phone and MacBook VPN is a separate WireGuard instance on `10.10.10.0/24`.
