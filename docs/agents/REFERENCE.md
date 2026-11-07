@@ -750,7 +750,7 @@ names some:
 
 | Stage | Passes when |
 |---|---|
-| `rulesets` | agent-scratch has both rulesets from `scripts/workbench/github-rulesets/`, active |
+| `rulesets` | agent-scratch has both rulesets from `scripts/workbench/github-rulesets/`, active, and the machine account's token has no `workflow` scope, so the agents can't change CI |
 | `refused` | a push to agent-scratch's default branch, as `agent-engineer` on workbench with the machine account's token, is refused by the ruleset. It isn't tried while the branch ruleset is missing, because it would land. |
 | `watch` | an issue labelled `change` raises a `MarkedChange` alert in Alerta on the next agent-watch pass, and cancelling the issue clears it. The phone gets both. |
 | `ping` | the researcher comments the word it was asked for and closes the issue |

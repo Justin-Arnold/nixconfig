@@ -5,7 +5,8 @@ It files real issues in Paperclip as the board, waits for the agents to work
 them, and checks what came back:
 
   rulesets  agent-scratch has both rulesets in scripts/workbench/github-rulesets,
-            active
+            active, and the machine account's token has no workflow scope, so
+            the agents can't change CI
   refused   on workbench, as agent-engineer with the machine account's token,
             a push to agent-scratch's default branch is refused
   watch     an issue labelled change raises a MarkedChange alert in Alerta on
@@ -288,9 +289,18 @@ class Smoke:
                     problems.append(f"{name!r} has {key} {json.dumps(live.get(key))}, the file says {json.dumps(want[key])}")
             if sorted(r["type"] for r in live.get("rules", [])) != sorted(r["type"] for r in want["rules"]):
                 problems.append(f"{name!r} has different rules from the file")
+        # GitHub lists a classic token's scopes in a header; only that line comes back.
+        header = remote("workbench", "gh api -i /user 2>/dev/null | grep -i '^x-oauth-scopes:' || true\n",
+                        user=ENGINEER_USER).stdout.strip()
+        scopes = sorted(s.strip() for s in header.split(":", 1)[1].split(",") if s.strip()) if header else None
+        if scopes is None:
+            problems.append(f"couldn't read the machine account's token scopes as {ENGINEER_USER}")
+        elif "workflow" in scopes:
+            problems.append("the machine account's token has the workflow scope, so the agents could change CI")
         if problems:
             raise Fail(f"{REPO}: " + "; ".join(problems))
-        return f"{len(files)} rulesets on {REPO} match scripts/workbench/github-rulesets"
+        return (f"{len(files)} rulesets on {REPO} match scripts/workbench/github-rulesets, and the machine "
+                f"account's token has {', '.join(scopes) or 'no scopes'}, no workflow")
 
     def route(self):
         env = {**os.environ, "SOPS_AGE_KEY_FILE": os.environ.get("SOPS_AGE_KEY_FILE",
