@@ -42,6 +42,7 @@ in
       ./backup.nix
       ./agent-watch.nix
       ./agent-costs.nix
+      ./lab-health.nix
       ./board-bridge.nix
       ./paperclip-events.nix
       ../../modules/common
@@ -137,6 +138,12 @@ in
   # Alerts from Paperclip's state (./agent-watch.nix). Its three secrets are
   # in SOPS (docs/agents/REFERENCE.md, "Monitoring").
   agents.watch.enable = true;
+
+  # The 07:00 check of the lab in code (./lab-health.nix). proxmox9 is a new
+  # node that's been unstable: it's off, runs nothing and is a known issue
+  # for later, so its being offline isn't news. Take it out of this list
+  # once it's back in use.
+  agents.labHealth.expectedOffline = [ "proxmox9" ];
 
   # Paperclip's live events start agent-watch, board-bridge and agent-costs
   # within seconds of a change, instead of on their timers

@@ -18,7 +18,7 @@ systemctl --failed --no-legend --no-pager || true
 
 section "services"
 for unit in postgresql paperclip-db-password podman-paperclip hermes-coordinator hermes-engineer hermes-researcher hermes-reviewer hermes-infra hermes-monitor beszel-agent nginx \
-  sqlite-backup.timer paperclip-health-watch.timer mnt-agents\\x2dbackups.automount; do
+  sqlite-backup.timer paperclip-health-watch.timer lab-health.timer mnt-agents\\x2dbackups.automount; do
   printf '%-36s %s\n' "$unit" "$(systemctl is-active "$unit" 2>/dev/null)"
 done
 printf 'docker installed: %s (expect no)\n' "$(command -v docker >/dev/null && echo yes || echo no)"

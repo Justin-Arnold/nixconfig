@@ -141,20 +141,25 @@
   ],
   "routines": [
     {
-      "title": "Lab health review {{date}}",
+      "title": "Look into {{count}} lab finding(s)",
       "assignee": "Monitor",
-      "descriptionFile": "routines/lab-health-review.md",
+      "descriptionFile": "routines/lab-findings.md",
       "priority": "medium",
       "concurrencyPolicy": "skip_if_active",
       "catchUpPolicy": "skip_missed",
-      "triggers": [
+      "variables": [
         {
-          "label": "every morning",
-          "kind": "schedule",
-          "cronExpression": "0 7 * * *",
-          "timezone": "America/New_York"
+          "name": "count",
+          "label": "How many findings",
+          "type": "number"
+        },
+        {
+          "name": "findings",
+          "label": "Finding codes",
+          "type": "text"
         }
-      ]
+      ],
+      "triggers": []
     },
     {
       "title": "Triage {{count}} lab alert(s)",

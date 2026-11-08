@@ -5,7 +5,7 @@
 # issues labelled change or sensitive, and budgets past their warning level,
 # and, from what agent-costs writes, Claude spend nearing the month's credit
 # and Claude or Jev refusing an agent for credits, from their status files,
-# board-bridge or paperclip-events stalling, and from Alerta itself, alerts
+# board-bridge, paperclip-events or lab-health stalling, and from Alerta itself, alerts
 # n8n should have handed to the monitor's triage and hasn't. Alerta's forwarder on
 # lab118-services sends them to the phone, with a link to the issue or
 # approval where there is one. See agent-watch/agent-watch.py for what each
@@ -136,6 +136,11 @@ in
           INTAKE_HARMLESS = lib.concatStringsSep "," cfg.intake.harmless;
           INTAKE_ROUTINE = cfg.intake.routineTitle;
           INTAKE_STALE_MINUTES = toString cfg.intake.staleMinutes;
+        } // lib.optionalAttrs config.agents.labHealth.active {
+          # Whether the morning check still runs (./lab-health.nix), once a
+          # day, so a day and two hours.
+          HEALTH_STATUS = config.agents.labHealth.statusFile;
+          HEALTH_STALE_MINUTES = toString (26 * 60);
         } // lib.optionalAttrs config.agents.boardBridge.enable {
           # Whether the board's questions still reach the chat channels
           # (./board-bridge.nix).

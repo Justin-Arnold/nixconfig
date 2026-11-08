@@ -24,7 +24,7 @@ separate execution host.
 | Login | `ssh agents` as `justin`, key only (the Mac Mini key). Root has no SSH. |
 | Console | Proxmox console, root password from SOPS (`root/console-password-hash`) |
 | Secrets | `secrets/hosts/agents.yaml`, host-scoped age key at `/var/lib/sops-nix/key.txt` |
-| Routines | A lab health review every morning and alert triage, for the monitor; a flake.lock pull request every Monday, for infra; a pull request review when you ask, for the reviewer |
+| Routines | Alert triage, and what the morning check finds, for the monitor; Fix CI when a pull request goes red, for infra and the engineer; a pull request review when you ask, for the reviewer |
 | Backups | Nightly at 03:15, NFS share on the NAS, age-encrypted, Kuma push monitor |
 
 ## Where things live in the repo
@@ -37,6 +37,7 @@ separate execution host.
 | `hosts/agents/backup.nix` | The NFS mount and what gets backed up. |
 | `hosts/agents/agent-watch.nix`, `hosts/agents/agent-watch/` | The timer that turns Paperclip's state into Alerta alerts, and its test against fakes. |
 | `hosts/agents/agent-costs.nix`, `hosts/agents/agent-costs/` | Each agent's Claude and Jev spend, reported to Paperclip and summed for agent-watch's credit alerts, and its test. |
+| `hosts/agents/lab-health.nix`, `hosts/agents/lab-health/` | The 07:00 check of the lab in code, which wakes the monitor only with what it finds, and its test against fakes. |
 | `hosts/agents/board-bridge.nix`, `hosts/agents/board-bridge/` | The service that sends what waits on the board to Telegram and Discord and answers it from a tap, and its test against fakes. |
 | `hosts/agents/paperclip-events.nix`, `hosts/agents/paperclip-events/` | The relay that turns Paperclip's live events into nudges for agent-watch, board-bridge and agent-costs, and its test against a fake Paperclip. |
 | `hosts/agents/packages-check.nix` | The `agents-packages` check: builds the MCP servers, the services' Python and workbench's scripts as they're deployed. |
@@ -512,9 +513,10 @@ It reaches you three ways, and any of them answers it:
 Your answer wakes the agent on the same issue, it carries on from where it
 stopped, and the alert clears on the next pass.
 
-The monitor only reads, so it never asks: when its review or triage finds
-something that needs you, it leaves the issue blocked with what to do, and
-you close it when it's done.
+The monitor only reads, so what it asks of you is to do something yourself:
+when a triage or a finding needs you, it says what in a comment, asks you to
+confirm when it's done, and leaves the issue blocked. Your answer wakes it,
+and it closes the issue.
 
 ### Telegram and Discord
 
@@ -618,21 +620,41 @@ line with it, and what each asks its agent is in `scripts/agents/routines/`.
 
 | Routine | Agent | Starts | What it does |
 |---|---|---|---|
-| Lab health review | monitor | every day at 07:00 New York time | Reads every lab source and says what's down, degraded or heading the wrong way, leading with whether anything needs you; if something does, the issue stays blocked on you |
+| Look into lab findings | monitor | lab-health, at 07:00 New York time, only when it finds something | Reads what each finding code names and says whether it's real, the likely cause and the next step, leading with whether anything needs you; if something does, it asks you and the issue stays blocked |
 | Triage lab alerts | monitor | n8n, when alerts open in Alerta | Reads each new alert and what it's about, and gives the likely cause and the next step; blocked on you the same way when one needs you |
 | Fix CI on a pull request | infra | n8n, when `check.yml` finishes red on an `agent/ci/*` or `agent/infra/*` branch | Reads what failed, reproduces only that, fixes what it may and asks you about the rest, and pushes to the same branch |
 | Fix CI on a pull request (engineer) | engineer | n8n, the same way for an `agent/engineer/*` branch | The same instructions, for the engineer's own branch |
 | Review a pull request | reviewer | when you run it in Paperclip, with a repository and a number | Reviews that pull request the way it reviews a review stage, and comments on it |
 
-The scheduled ones skip a tick while the last one's run is still going, and
-after downtime fire one late run at most. Paperclip's cron reads the day of
-the week as 0 to 6, Sunday first, and when a day of the month and a day of
-the week are both set, both have to match. `{{date}}` in a title is the UTC
-date. The review's repository is a choice between nixconfig and
+The monitor's two routines skip a run whose variables match one still open,
+so the same batch or the same findings never make a second issue. The
+review's repository is a choice between nixconfig and
 agent-scratch, the two the machine account can reach, and its number is a
 number, so nothing typed into a run reaches a prompt as free text. Fix CI
 takes the same two, with nixconfig the only choice, and n8n sends nothing
 else.
+
+lab-health (`lab-health.nix`) is the morning check, and it has no model in
+it. At 07:00 New York time it reads Proxmox, Beszel, Kuma and Alerta with the
+lab MCP server's own functions and the agents' read-only credentials, and
+turns what's wrong into fixed codes: quorum lost, a node offline, an HA
+resource meant to run that isn't, storage at 85% or more or unavailable, a
+Proxmox task failed in the last day, a system down, a disk at 85%, memory at
+90%, systemd units failed, a Kuma monitor down, an alert the triage would
+take that's been open a day, or a source it couldn't read. The thresholds
+are `agents.labHealth`, and `expectedOffline` names nodes that are meant to
+be off. Only when it finds something does it run the monitor's findings
+routine, with the monitor's key, the codes and how many, once a day; a quiet
+morning runs no model. A code holds only letters, digits and `._:/@-` and
+spaces, so nothing a source says reaches the monitor as text. It runs as its
+own user and reaches only Paperclip and those sources.
+`/var/lib/lab-health/status.json` says when a pass last worked and what it
+found, and agent-watch raises HealthStale after 26 hours without a good one.
+`lab-health-dry-run` prints the codes and starts nothing:
+
+```sh
+ssh agents 'sudo systemctl start lab-health-dry-run; journalctl -u lab-health-dry-run -n 4 -o cat --no-pager'
+```
 
 The weekly flake update has no model in it any more. A GitHub Actions
 workflow, `update-flake-lock.yml`, opens the pull request every Monday and
@@ -756,7 +778,7 @@ names some:
 | `local` | the same, through the lab's local model: the researcher's main model is `lab-gpu`, Hermes logs no fallback while it works, and inference's nginx logs at least one successful request from the `agents` key |
 | `decide` | the researcher asks Jev one fixed question and comments the call id it got back, which is in the Jev server's call log as a successful call |
 | `observe` | the researcher reads each lab source it has once and comments the call ids, each a successful call of that source in the lab server's log; with GitHub on, it quotes nixconfig pull request #1's title, which matches GitHub's |
-| `health` | the board runs the monitor's health review; the monitor comments and sets the issue done, and its lab log shows a successful call to every source it has during the run |
+| `health` | lab-health's dry run reads every source the monitor has and starts nothing; then the board runs the findings routine with one planted code, `storage-full:<node>/local:1` on an online node, and the monitor comments naming that node and sets the issue done, with a successful Proxmox call in its lab log |
 | `intake` | a minor test alert, `smoke/<nonce>`, goes into Alerta and nothing else is done: n8n has to start a triage naming it within 12 minutes and mark the alert's `n8nTriagedAt`, and the monitor's triage of it ends done with a comment naming `smoke/<nonce>`, which it can only learn by reading the alert, and an `alerta_alert` call in its log. The alert is cleared afterwards, and the phone gets both. |
 | `ask` | the researcher asks the board a two-option question on an issue and leaves the issue blocked; agent-watch raises `WaitingOnYou` linking to the issue; the test answers as the board with the second option, and the researcher wakes, comments that option and closes the issue, after which the alert clears. The phone gets both. With board-bridge on, the question reaches every chat channel, and every copy ends up answered in Paperclip. With paperclip-events connected nothing is forced: the alert has to come within 20 s of the question, the DMs within 10 s, and the alert has to clear on its own. |
 | `approve` | the same for an approval: the researcher asks for one, linked to its issue, and leaves the issue blocked; `ApprovalWaiting` links to it, and board-bridge sends it to every chat channel; the test approves it as the board, and the researcher wakes, comments the decision and closes the issue |
@@ -822,6 +844,7 @@ alerts in Alerta on lab118-services, environment `Homelab`, origin
 | `ClaudeSpend` | `anthropic/credits` | this month's estimated Claude spend across the agents has passed 80% of the month's credit, or all of it (major) | warning |
 | `ClaudeCreditsOut` | `anthropic/credits` | Claude refused an agent for credits and hasn't worked for it since; the agent is on its fallback | major |
 | `JevCreditsOut` | `typesafe/credits` | the same for Jev; agents carry on without it | major |
+| `HealthStale` | `agents/lab-health` | the morning check hasn't had a good pass, every source read and what it found handed over, for 26 hours, with the reason it last gave | warning |
 | `IntakeStale` | `n8n/intake` | an alert n8n should have handed to the monitor's triage has been open 15 minutes without it, and isn't waiting behind a triage open less than an hour; it names the alerts, and the triage it waits behind if that's been open an hour | warning |
 | `BridgeStale` | `agents/board-bridge` | board-bridge hasn't read Paperclip and reached every chat channel that's on for 15 minutes, with the reason it last gave | warning |
 | `EventsStale` | `agents/paperclip-events` | paperclip-events has been disconnected from Paperclip's live events for 5 minutes, so everything above waits for its timer, with the reason it last gave | warning |
@@ -864,13 +887,13 @@ operator key, nothing else. On macOS, edit it with
 | `agent-watch/kuma-push-url` | the `JOB / agent-watch` push monitor's URL |
 | `root/console-password-hash` | `mkpasswd -m yescrypt` |
 | `hermes/<name>/api-server-key` | `openssl rand -hex 32`, one per agent. Also goes into Paperclip as that agent's adapter `apiKey`. |
-| `hermes/<name>/paperclip-key` | the agent's Paperclip key, only for agents listed in `withPaperclipKey`. |
+| `hermes/<name>/paperclip-key` | the agent's Paperclip key, only for agents listed in `withPaperclipKey`. lab-health uses the monitor's too. |
 | `inference/agents-key` | the agents' key for inference, the same value as `inference/keys/agents` in `secrets/hosts/inference.yaml` |
 | `anthropic/api-key` | an Anthropic API key from the Console's Default workspace, capped only by the organization's limit and credits. Never an OAuth token. |
 | `jev/api-key` | a TypeSafe API key, from console.typesafe.ai |
-| `observe/proxmox-token` | the agents' Proxmox API token, `agents@pve!observe=<secret>`, audit-only |
-| `observe/beszel-password` | the password of Beszel's readonly user for the agents |
-| `observe/alerta-key` | an Alerta key with `read:alerts` only |
+| `observe/proxmox-token` | the agents' Proxmox API token, `agents@pve!observe=<secret>`, audit-only, also lab-health's |
+| `observe/beszel-password` | the password of Beszel's readonly user for the agents, also lab-health's |
+| `observe/alerta-key` | an Alerta key with `read:alerts` only, also lab-health's |
 | `paperclip/board-bridge-key` | board-bridge's board key, named `board-bridge`, with no expiry. `scripts/agents/paperclip-board-key.py` makes it and writes it here. |
 | `board-bridge/telegram-token` | the Telegram bot's token, from BotFather |
 | `board-bridge/discord-token` | the Discord bot's token, from its application's Bot page. It needs no privileged intents. |

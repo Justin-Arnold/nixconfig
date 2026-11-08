@@ -25,10 +25,12 @@ them, and checks what came back:
             be a successful call of that source in the lab server's call log.
             With GitHub on, it also quotes nixconfig pull request #1's title,
             which has to match GitHub's.
-  health    the board runs the monitor's "Lab health review" routine; the
-            monitor comments on the issue it makes and sets it done, and the
-            lab server's call log shows it read every source it has during
-            the run
+  health    lab-health's dry run reads every source the monitor has and
+            starts nothing; then the board runs the monitor's "Look into
+            {{count}} lab finding(s)" routine with one planted finding,
+            storage-full:<node>/local:1 on an online node, and the monitor
+            has to comment naming that node and set the issue done, with a
+            successful proxmox call in its lab log during the run
   intake    a minor test alert (resource smoke/<nonce>) goes into Alerta,
             and nothing more is done: Alerta's plugin tells n8n, which hands
             it to the monitor's triage after its 3-minute settle and marks
@@ -140,7 +142,7 @@ LAB_LOG = "/var/lib/hermes-researcher/.hermes/logs/lab.log"
 MONITOR_CONFIG = "/var/lib/hermes-monitor/.hermes/config.yaml"
 MONITOR_LAB_LOG = "/var/lib/hermes-monitor/.hermes/logs/lab.log"
 # The monitor's routines, by title in paperclip-spec.json.
-HEALTH_ROUTINE = "Lab health review {{date}}"
+FINDINGS_ROUTINE = "Look into {{count}} lab finding(s)"
 TRIAGE_ROUTINE = "Triage {{count}} lab alert(s)"
 # Hermes logs this line, at INFO in agent.log, when a run moves to a fallback model.
 FALLBACKS = 'cat "$logs"/agent.log* 2>/dev/null | grep -c "Fallback activated" || true'
@@ -622,25 +624,43 @@ awk -v since="$since" '$1 >= since && $3 == "client=agents" && $5 == "/v1/chat/c
     def health(self):
         monitor = self.agent("Monitor")
         sources = self.monitor_sources()
-        routine = self.routine(HEALTH_ROUTINE)
+        proc = remote("agents", "start=$(date +%s); systemctl start lab-health-dry-run; code=$?; "
+                      "journalctl -u lab-health-dry-run --since \"@$start\" -o cat --no-pager | grep '^lab-health: '; "
+                      "exit $code")
+        out = proc.stdout.strip()
+        for line in out.splitlines():
+            print(f"    {text(line, 200)}")
+        if proc.returncode != 0:
+            raise Fail(f"lab-health's dry run failed: {text(out + ' ' + proc.stderr)}")
+        read = re.search(r"^lab-health: read (.+)$", out, re.M)
+        missing = [s for s in sources if not read or s not in read.group(1).split(", ")]
+        if missing:
+            raise Fail(f"lab-health's dry run didn't read {', '.join(missing)}")
+        nodes = re.search(r"^lab-health: online nodes (\S+)", out, re.M)
+        if not nodes:
+            raise Fail("not tried: lab-health named no online Proxmox node to plant a finding on")
+        node = nodes.group(1)
+        planted = f"storage-full:{node}/local:1"
+        routine = self.routine(FINDINGS_ROUTINE)
         since = self.vm_now()
-        started = self.pc.call("post", f"/api/routines/{routine['id']}/run", {"source": "manual"})
+        started = self.pc.call("post", f"/api/routines/{routine['id']}/run",
+                               {"source": "manual", "variables": {"count": 1, "findings": planted}})
         if started.get("status") != "issue_created" or not started.get("linkedIssueId"):
-            raise Fail(f"running the health review came back {started.get('status')}: "
-                       f"{started.get('failureReason') or 'is one already running?'}")
+            raise Fail(f"running the findings routine came back {started.get('status')}: "
+                       f"{started.get('failureReason') or 'is one with the same finding still open?'}")
         issue = self.pc.call("get", f"/api/issues/{started['linkedIssueId']}")
-        print(f"    the routine made {issue['identifier']}: {issue['title']}")
+        print(f"    the routine made {issue['identifier']} for {planted}: {issue['title']}")
         done = self.wait(issue)
         if done["status"] != "done":
             raise self.ended(issue, done["status"], monitor)
-        if not self.comments(issue, monitor):
-            raise Fail(f"the monitor set {issue['identifier']} done without a comment")
-        calls = self.lab_calls_since(since)
-        missing = [s for s in sources if not any(t.startswith(s + "_") and st == "ok" for t, st in calls)]
-        if missing:
-            raise Fail(f"{issue['identifier']} is done, but the monitor's lab log has no successful "
-                       f"{', '.join(missing)} call during the run")
-        return f"the monitor reviewed the lab on {issue['identifier']}, reading {', '.join(sources)}"
+        said = " ".join(self.comments(issue, monitor))
+        if node not in said:
+            raise Fail(f"the monitor's comment on {issue['identifier']} doesn't name {node}: {text(said, 300)}")
+        if not any(t.startswith("proxmox_") and st == "ok" for t, st in self.lab_calls_since(since)):
+            raise Fail(f"{issue['identifier']} is done, but the monitor's lab log has no successful proxmox call "
+                       "during the run")
+        return (f"lab-health read {', '.join(sources)}, and the monitor checked {planted} against Proxmox "
+                f"on {issue['identifier']}")
 
     def intake(self):
         monitor = self.agent("Monitor")

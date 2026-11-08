@@ -396,6 +396,25 @@ check("with no triage routine, it says so",
 fake.routines = [{"id": "rt1", "title": "Triage {{count}} lab alert(s)"}]
 intake()
 
+# HealthStale, from lab-health's status.json, after a day and two hours.
+health_dir = pathlib.Path(tempfile.mkdtemp())
+health_file = health_dir / "status.json"
+env.update({"HEALTH_STATUS": str(health_file), "HEALTH_STALE_MINUTES": "1560"})
+HEALTH = ("agents/lab-health", "HealthStale")
+health_file.write_text(json.dumps({"started": ago(3000), "last_ok": ago(20 * 60)}))
+code, sent = watch()
+check("a morning check that passed 20 hours ago raises nothing", code == 0 and HEALTH not in sent)
+health_file.write_text(json.dumps({"started": ago(3000), "last_ok": ago(30 * 60), "last_error_at": ago(6 * 60),
+                                   "last_error": "couldn't read beszel: HTTP 502 from beszel.servicestack.xyz"}))
+code, sent = watch()
+check("one with no good pass for 30 hours raises HealthStale with the reason",
+      sent.get(HEALTH, {}).get("severity") == "warning"
+      and sent[HEALTH]["text"].startswith("lab-health hasn't had a good pass since ")
+      and sent[HEALTH]["text"].endswith(": couldn't read beszel: HTTP 502 from beszel.servicestack.xyz"))
+health_file.write_text(json.dumps({"started": ago(3000), "last_ok": ago(1)}))
+code, sent = watch()
+check("  ...and a good pass clears it", sent.get(HEALTH, {}).get("severity") == "cleared")
+
 # BridgeStale, from board-bridge's status.json, the same way.
 bridge_dir = pathlib.Path(tempfile.mkdtemp())
 bridge_file = bridge_dir / "status.json"

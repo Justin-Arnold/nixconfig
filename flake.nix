@@ -221,6 +221,7 @@
           sqlite-backup = import ./modules/roles/sqlite-backup/check.nix { inherit pkgs lib; };
           agent-watch = import ./hosts/agents/agent-watch/check.nix { inherit pkgs; };
           agent-costs = import ./hosts/agents/agent-costs/check.nix { inherit pkgs; };
+          lab-health = import ./hosts/agents/lab-health/check.nix { inherit pkgs; };
           board-bridge = import ./hosts/agents/board-bridge/check.nix { inherit pkgs; };
           paperclip-events = import ./hosts/agents/paperclip-events/check.nix { inherit pkgs; };
           jev-mcp = import ./modules/roles/hermes-agents/jev-mcp/check.nix { inherit pkgs; };
@@ -263,6 +264,8 @@
                 || !(builtins.pathExists (./scripts/agents + "/${routine.descriptionFile}"))) (spec.routines or [ ]);
               watch = agentsConfig.agents.watch;
               triage = lib.findFirst (routine: routine.title == watch.intake.routineTitle) null (spec.routines or [ ]);
+              health = agentsConfig.agents.labHealth;
+              findings = lib.findFirst (routine: routine.title == health.routineTitle) null (spec.routines or [ ]);
             in
             assert lib.assertMsg (onHost == inSpec)
               "scripts/agents/paperclip-spec.json doesn't match hosts/agents/agents.nix: ${builtins.toJSON { inherit onHost inSpec; }}";
@@ -273,6 +276,9 @@
             assert lib.assertMsg (!(watch.enable && watch.intake.enable) || (triage != null && triage.assignee == "Monitor"
               && lib.any (trigger: trigger.kind == "webhook" && (trigger.watchOpen or false)) (triage.triggers or [ ])))
               "scripts/agents/paperclip-spec.json has no routine for the monitor titled ${builtins.toJSON watch.intake.routineTitle} with a webhook trigger that has watchOpen (agents.watch.intake.routineTitle)";
+            # lab-health runs this routine by its title with the monitor's key, which runs only the monitor's own.
+            assert lib.assertMsg (!health.active || (findings != null && findings.assignee == "Monitor"))
+              "scripts/agents/paperclip-spec.json has no routine for the monitor titled ${builtins.toJSON health.routineTitle} (agents.labHealth.routineTitle)";
             pkgs.writeText "paperclip-spec" (builtins.toJSON inSpec);
           # Each case breaks the dashboard's exposure policy; evaluation must refuse all of them.
           dashboard-exposure-guards =
@@ -342,6 +348,9 @@
                 bridge-allows-lan = { systemd.services.board-bridge.serviceConfig.IPAddressAllow = lib.mkForce [ "localhost" "10.0.0.0/24" ]; };
                 events-allows-lan = { systemd.services.paperclip-events.serviceConfig.IPAddressAllow = lib.mkForce [ "localhost" "10.0.0.0/24" ]; };
                 events-reaches-internet = { systemd.services.paperclip-events.serviceConfig.IPAddressDeny = lib.mkForce [ "10.0.0.0/8" ]; };
+                lab-health-allows-lan = { systemd.services.lab-health.serviceConfig.IPAddressAllow = lib.mkForce [ "localhost" "10.0.0.0/24" ]; };
+                lab-health-reaches-internet = { systemd.services.lab-health.serviceConfig.IPAddressDeny = lib.mkForce [ "10.0.0.0/8" ]; };
+                lab-health-dry-run-allows-lan = { systemd.services.lab-health-dry-run.serviceConfig.IPAddressAllow = lib.mkForce [ "localhost" "10.0.0.0/24" ]; };
                 hermes-api-on-all-interfaces = { roles.hermesAgents.instances.coordinator.environment.API_SERVER_HOST = lib.mkForce "0.0.0.0"; };
                 hermes-duplicate-port = { roles.hermesAgents.instances.engineer.port = lib.mkForce 8642; };
                 hermes-machine-tools-here = { roles.hermesAgents.instances.coordinator.toolsets = [ "terminal" ]; };

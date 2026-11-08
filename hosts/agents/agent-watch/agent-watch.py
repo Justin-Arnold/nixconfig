@@ -40,6 +40,13 @@ and, from Alerta's own open alerts (resource n8n/intake):
                    INTAKE_HARMLESS say the same here, and n8n's mark is the
                    alert's n8nTriagedAt attribute
 
+and, from lab-health's HEALTH_STATUS file (resource agents/lab-health):
+
+  HealthStale      the morning check hasn't had a good pass, every source
+                   read and its findings handed over, for
+                   HEALTH_STALE_MINUTES, with the reason it last gave
+                   (warning)
+
 and, from board-bridge's BRIDGE_STATUS file (resource agents/board-bridge):
 
   BridgeStale      board-bridge hasn't read Paperclip and reached every chat
@@ -69,7 +76,8 @@ Environment: PAPERCLIP_URL, PAPERCLIP_LINK (the board's public URL and the
 company's prefix, as https://<host>/LAB), ALERTA_URL, STUCK_AFTER_MINUTES
 (60), COSTS_DIR, CLAUDE_MONTHLY_CREDITS (100), CLAUDE_WARN_PERCENT (80),
 INTAKE_SEVERITIES, INTAKE_IGNORE_ORIGINS, INTAKE_HARMLESS (origin/event,
-comma separated), INTAKE_ROUTINE, INTAKE_STALE_MINUTES (15), BRIDGE_STATUS,
+comma separated), INTAKE_ROUTINE, INTAKE_STALE_MINUTES (15), HEALTH_STATUS,
+HEALTH_STALE_MINUTES (1560), BRIDGE_STATUS,
 BRIDGE_STALE_MINUTES (15), EVENTS_STATUS, EVENTS_STALE_MINUTES (5), and
 CREDENTIALS_DIRECTORY holding paperclip-key, alerta-key and kuma-push-url.
 """
@@ -368,6 +376,11 @@ def main():
             "severities": split("INTAKE_SEVERITIES"), "ignore": split("INTAKE_IGNORE_ORIGINS"),
             "harmless": split("INTAKE_HARMLESS"), "routine": os.environ["INTAKE_ROUTINE"],
             "stale_after": datetime.timedelta(minutes=int(os.environ.get("INTAKE_STALE_MINUTES", "15")))}, now)
+    if os.environ.get("HEALTH_STATUS"):
+        alerts += stale(os.environ["HEALTH_STATUS"],
+                        datetime.timedelta(minutes=int(os.environ.get("HEALTH_STALE_MINUTES", "1560"))), now,
+                        "agents/lab-health", "HealthStale", "Lab health check stalled",
+                        "lab-health hasn't had a good pass")
     if os.environ.get("BRIDGE_STATUS"):
         alerts += stale(os.environ["BRIDGE_STATUS"],
                         datetime.timedelta(minutes=int(os.environ.get("BRIDGE_STALE_MINUTES", "15"))), now,
