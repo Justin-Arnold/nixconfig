@@ -386,6 +386,7 @@ workflows still match.
 
 ## Related
 
+- `docs/FLOWS.md`: diagrams of n8n's routing among the agents and the alerts.
 - `docs/lab118-services/REFERENCE.md`: the intake host and the tunnel.
 - `docs/agents/REFERENCE.md`: Paperclip, its routines, and the smoke test's
   `route` stage.

@@ -504,7 +504,8 @@ same section on this (`souls/asking-justin.md`):
   that names the board as the unblock owner, so agents give the status
   alone.
 
-It reaches you three ways, and any of them answers it:
+It reaches you on three channels, ntfy, Telegram and Discord, and you can
+answer on any of them or in Paperclip itself:
 
 - agent-watch raises `WaitingOnYou` for an open issue with an unanswered
   question, and ntfy shows it with a link to the
@@ -1040,6 +1041,8 @@ host key and the same master key in SOPS, the stored secrets stay readable.
 
 ## Related
 
+- `docs/FLOWS.md`: diagrams of how the agents, n8n and the alerts fit
+  together.
 - `docs/workbench/REFERENCE.md`: where the engineer's terminal and file
   tools act.
 - `docs/openclaw/REFERENCE.md`: the concierge, which files work in Paperclip

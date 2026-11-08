@@ -590,6 +590,9 @@ Upgrades are manual. There's no auto-upgrade on this host. The flow:
 
 ## Related
 
+`docs/FLOWS.md` draws an alert's path from its producer to the phone and to
+the monitor's triage, alongside the agents.
+
 `hosts/notifications` and `hosts/uptime-kuma` are the old lab VMs this host
 replaced. They're powered off and due for deletion. Don't use them as
 examples; the roles in `modules/roles/` are the maintained version.
