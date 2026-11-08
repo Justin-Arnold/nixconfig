@@ -42,7 +42,6 @@ in
       ./backup.nix
       ./agent-watch.nix
       ./agent-costs.nix
-      ./monitor-intake.nix
       ./board-bridge.nix
       ./paperclip-events.nix
       ../../modules/common
@@ -139,8 +138,8 @@ in
   # in SOPS (docs/agents/REFERENCE.md, "Monitoring").
   agents.watch.enable = true;
 
-  # Paperclip's live events start agent-watch, board-bridge, monitor-intake
-  # and agent-costs within seconds of a change, instead of on their timers
+  # Paperclip's live events start agent-watch, board-bridge and agent-costs
+  # within seconds of a change, instead of on their timers
   # (./paperclip-events.nix). Its key on the researcher is in SOPS.
   agents.events.enable = true;
 

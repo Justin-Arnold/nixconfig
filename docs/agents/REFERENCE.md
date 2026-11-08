@@ -37,9 +37,8 @@ separate execution host.
 | `hosts/agents/backup.nix` | The NFS mount and what gets backed up. |
 | `hosts/agents/agent-watch.nix`, `hosts/agents/agent-watch/` | The timer that turns Paperclip's state into Alerta alerts, and its test against fakes. |
 | `hosts/agents/agent-costs.nix`, `hosts/agents/agent-costs/` | Each agent's Claude and Jev spend, reported to Paperclip and summed for agent-watch's credit alerts, and its test. |
-| `hosts/agents/monitor-intake.nix`, `hosts/agents/monitor-intake/` | The timer that hands new Alerta alerts to the monitor, and its test against fakes. |
 | `hosts/agents/board-bridge.nix`, `hosts/agents/board-bridge/` | The service that sends what waits on the board to Telegram and Discord and answers it from a tap, and its test against fakes. |
-| `hosts/agents/paperclip-events.nix`, `hosts/agents/paperclip-events/` | The relay that turns Paperclip's live events into nudges for agent-watch, board-bridge, monitor-intake and agent-costs, and its test against a fake Paperclip. |
+| `hosts/agents/paperclip-events.nix`, `hosts/agents/paperclip-events/` | The relay that turns Paperclip's live events into nudges for agent-watch, board-bridge and agent-costs, and its test against a fake Paperclip. |
 | `hosts/agents/packages-check.nix` | The `agents-packages` check: builds the MCP servers, the services' Python and workbench's scripts as they're deployed. |
 | `hosts/agents/eval-test.nix` | Example values for the flake checks, not used by the real host. |
 | `infra/terranix/hosts/agents.nix` | The VM, its storage, CPU type and HA resource. |
@@ -585,7 +584,6 @@ on it, so they react within seconds instead of on their timers:
 |---|---|---|
 | agent-watch | questions, confirmations and approvals coming and going, issues made or changed, finished runs, an agent's status | every 5 minutes, which also covers what's about time passing, like a stuck issue |
 | board-bridge | questions, confirmations and approvals coming and going, and Discord connecting | every 5 minutes, or 20 seconds after a pass that couldn't read Paperclip or reach a channel |
-| monitor-intake | issues made or changed, so a finished triage lets the alerts waiting behind it go at once | every 2 minutes, since new alerts don't come as events yet |
 | `agent-costs-<name>` | each of that agent's finished runs | hourly |
 
 An event only says that something changed (an action and an id, or a
@@ -621,7 +619,7 @@ line with it, and what each asks its agent is in `scripts/agents/routines/`.
 | Routine | Agent | Starts | What it does |
 |---|---|---|---|
 | Lab health review | monitor | every day at 07:00 New York time | Reads every lab source and says what's down, degraded or heading the wrong way, leading with whether anything needs you; if something does, the issue stays blocked on you |
-| Triage lab alerts | monitor | monitor-intake, when alerts open in Alerta | Reads each new alert and what it's about, and gives the likely cause and the next step; blocked on you the same way when one needs you |
+| Triage lab alerts | monitor | n8n, when alerts open in Alerta | Reads each new alert and what it's about, and gives the likely cause and the next step; blocked on you the same way when one needs you |
 | Fix CI on a pull request | infra | n8n, when `check.yml` finishes red on an `agent/ci/*` or `agent/infra/*` branch | Reads what failed, reproduces only that, fixes what it may and asks you about the rest, and pushes to the same branch |
 | Fix CI on a pull request (engineer) | engineer | n8n, the same way for an `agent/engineer/*` branch | The same instructions, for the engineer's own branch |
 | Review a pull request | reviewer | when you run it in Paperclip, with a repository and a number | Reviews that pull request the way it reviews a review stage, and comments on it |
@@ -658,27 +656,25 @@ only reads, infra stops at a pull request you land with `land-pr.sh`, and the
 reviewer only comments. A routine can't carry a review stage, so the
 flake.lock pull request has no reviewer but you.
 
-monitor-intake (`monitor-intake.nix`) is what starts a triage. Every 2
-minutes it reads Alerta's open alerts with the lab tools' read-only key,
-skips agent-watch's own, so the agents' trouble can't loop back to them, and
-anything below `warning`, and runs the triage routine with the ids of the
-alerts it hasn't handed over yet. Only ids go to Paperclip; the monitor reads
-each alert itself. While the monitor is still on a triage, new alerts wait
-and go in the next one, so a burst becomes one issue, and there are at most
-24 a UTC day (`agents.monitorIntake.dailyLimit`). An alert that closes and
-opens again is new again; an acknowledged one isn't open, so it isn't
-triaged. The intake runs as its own user, with the monitor's Paperclip key,
-which can run only the monitor's routines, and reaches only Paperclip and
-Alerta. `/var/lib/monitor-intake/status.json` says when it last worked and
-why it last didn't, and agent-watch raises IntakeStale after 15 minutes
-without a good pass.
+n8n on the automation VM is what starts a triage (`docs/automation/REFERENCE.md`,
+"Alerts from Alerta"). Alerta's plugin tells it when an alert opens, and it
+waits 3 minutes so a burst becomes one issue. While the monitor is still on
+an earlier triage, it waits for that to end. Then it runs the triage
+routine's webhook with the ids of the alerts it hasn't handed over yet. Only
+ids go to Paperclip; the monitor reads each alert itself. It skips the
+agents' own alerts, n8n's and the end-to-end test script's, so nothing loops
+back, as well as anything below `warning` and Kuma's test notification. Each
+alert it hands over gets an `n8nTriagedAt` attribute in Alerta, so one that
+reopens or changes severity is new again; an acknowledged one isn't open, so
+it isn't triaged. The webhook can only start this routine, and n8n's key on
+the researcher is fenced to one GET of the routine's open issues. The
+monitor's `maxDailyRuns` of 30 caps how many triages a day can start.
 
-```sh
-ssh agents 'cat /var/lib/monitor-intake/status.json; journalctl -u monitor-intake -n 5 -o cat --no-pager'
-```
-
-Nothing comes in from lab118 for this. Node-RED there has no flows, and the
-triage doesn't use a webhook.
+agent-watch raises IntakeStale when an alert that n8n should have handed
+over has been open 15 minutes without it, unless it's waiting behind a triage
+open less than an hour. It reads Alerta and that routine's open issues
+itself, with the same rules as n8n (`agents.watch.intake`, which an
+assertion keeps the same as the workflow).
 
 ## How agents and tasks are meant to be set up
 
@@ -761,7 +757,7 @@ names some:
 | `decide` | the researcher asks Jev one fixed question and comments the call id it got back, which is in the Jev server's call log as a successful call |
 | `observe` | the researcher reads each lab source it has once and comments the call ids, each a successful call of that source in the lab server's log; with GitHub on, it quotes nixconfig pull request #1's title, which matches GitHub's |
 | `health` | the board runs the monitor's health review; the monitor comments and sets the issue done, and its lab log shows a successful call to every source it has during the run |
-| `intake` | a minor test alert, `smoke/<nonce>`, goes into Alerta and monitor-intake runs; the monitor's triage of it ends done with a comment naming `smoke/<nonce>`, which it can only learn by reading the alert, and an `alerta_alert` call in its log. The alert is cleared afterwards, and the phone gets both. |
+| `intake` | a minor test alert, `smoke/<nonce>`, goes into Alerta and nothing else is done: n8n has to start a triage naming it within 12 minutes and mark the alert's `n8nTriagedAt`, and the monitor's triage of it ends done with a comment naming `smoke/<nonce>`, which it can only learn by reading the alert, and an `alerta_alert` call in its log. The alert is cleared afterwards, and the phone gets both. |
 | `ask` | the researcher asks the board a two-option question on an issue and leaves the issue blocked; agent-watch raises `WaitingOnYou` linking to the issue; the test answers as the board with the second option, and the researcher wakes, comments that option and closes the issue, after which the alert clears. The phone gets both. With board-bridge on, the question reaches every chat channel, and every copy ends up answered in Paperclip. With paperclip-events connected nothing is forced: the alert has to come within 20 s of the question, the DMs within 10 s, and the alert has to clear on its own. |
 | `approve` | the same for an approval: the researcher asks for one, linked to its issue, and leaves the issue blocked; `ApprovalWaiting` links to it, and board-bridge sends it to every chat channel; the test approves it as the board, and the researcher wakes, comments the decision and closes the issue |
 | `change` | the engineer pushes an `agent/engineer/*` branch to agent-scratch with exactly the file it was asked for, opens a pull request as the machine account, and comments its URL. The pull request is then closed and its branch deleted, unless `--keep-pr`. |
@@ -826,7 +822,7 @@ alerts in Alerta on lab118-services, environment `Homelab`, origin
 | `ClaudeSpend` | `anthropic/credits` | this month's estimated Claude spend across the agents has passed 80% of the month's credit, or all of it (major) | warning |
 | `ClaudeCreditsOut` | `anthropic/credits` | Claude refused an agent for credits and hasn't worked for it since; the agent is on its fallback | major |
 | `JevCreditsOut` | `typesafe/credits` | the same for Jev; agents carry on without it | major |
-| `IntakeStale` | `agents/monitor-intake` | monitor-intake hasn't had a good pass for 15 minutes, with the reason it last gave: Paperclip or Alerta unreachable, the triage routine missing, the monitor at its daily cap | warning |
+| `IntakeStale` | `n8n/intake` | an alert n8n should have handed to the monitor's triage has been open 15 minutes without it, and isn't waiting behind a triage open less than an hour; it names the alerts, and the triage it waits behind if that's been open an hour | warning |
 | `BridgeStale` | `agents/board-bridge` | board-bridge hasn't read Paperclip and reached every chat channel that's on for 15 minutes, with the reason it last gave | warning |
 | `EventsStale` | `agents/paperclip-events` | paperclip-events has been disconnected from Paperclip's live events for 5 minutes, so everything above waits for its timer, with the reason it last gave | warning |
 
@@ -868,13 +864,13 @@ operator key, nothing else. On macOS, edit it with
 | `agent-watch/kuma-push-url` | the `JOB / agent-watch` push monitor's URL |
 | `root/console-password-hash` | `mkpasswd -m yescrypt` |
 | `hermes/<name>/api-server-key` | `openssl rand -hex 32`, one per agent. Also goes into Paperclip as that agent's adapter `apiKey`. |
-| `hermes/<name>/paperclip-key` | the agent's Paperclip key, only for agents listed in `withPaperclipKey`. monitor-intake uses the monitor's too. |
+| `hermes/<name>/paperclip-key` | the agent's Paperclip key, only for agents listed in `withPaperclipKey`. |
 | `inference/agents-key` | the agents' key for inference, the same value as `inference/keys/agents` in `secrets/hosts/inference.yaml` |
 | `anthropic/api-key` | an Anthropic API key from the Console's Default workspace, capped only by the organization's limit and credits. Never an OAuth token. |
 | `jev/api-key` | a TypeSafe API key, from console.typesafe.ai |
 | `observe/proxmox-token` | the agents' Proxmox API token, `agents@pve!observe=<secret>`, audit-only |
 | `observe/beszel-password` | the password of Beszel's readonly user for the agents |
-| `observe/alerta-key` | an Alerta key with `read:alerts` only, also monitor-intake's |
+| `observe/alerta-key` | an Alerta key with `read:alerts` only |
 | `paperclip/board-bridge-key` | board-bridge's board key, named `board-bridge`, with no expiry. `scripts/agents/paperclip-board-key.py` makes it and writes it here. |
 | `board-bridge/telegram-token` | the Telegram bot's token, from BotFather |
 | `board-bridge/discord-token` | the Discord bot's token, from its application's Bot page. It needs no privileged intents. |
@@ -971,8 +967,8 @@ host key and the same master key in SOPS, the stored secrets stay readable.
   `go.mod` is edited to build with nixpkgs' Go until that catches up.
 - Kuma's status page and Alerta go over plain HTTP on the LAN as far as the
   router, then over the tunnel, like agent-watch's alerts.
-- An alert waits up to 2 minutes for monitor-intake, and longer while the
-  monitor is on an earlier triage. The monitor and the researcher share the
+- An alert waits 3 minutes for n8n's settle, and up to 5 minutes more after
+  an earlier triage ends. The monitor and the researcher share the
   `agents` key's two requests at a time on inference with every agent's side
   tasks.
 - board-bridge holds a board key, the most powerful kind there is; its

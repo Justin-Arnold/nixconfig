@@ -175,7 +175,15 @@
           "type": "text"
         }
       ],
-      "triggers": []
+      "triggers": [
+        {
+          "label": "n8n",
+          "kind": "webhook",
+          "signingMode": "bearer",
+          "secretsTo": "paperclip-triggers/triage",
+          "watchOpen": true
+        }
+      ]
     },
     {
       "title": "Fix CI on {{repo}}#{{number}}",

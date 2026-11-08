@@ -95,6 +95,10 @@ class Fake:
             ("SVC / gitea", "http"): {"resource": "SVC / gitea", "event": "http", "origin": "uptimekuma",
                                       "environment": "Homelab", "status": "open", "severity": "critical"},
         }
+        # Every open alert, for IntakeStale, and the monitor's triage routine and its open issues.
+        self.intake = []
+        self.routines = [{"id": "rt1", "title": "Triage {{count}} lab alert(s)"}, {"id": "rt2", "title": "Other"}]
+        self.triages = []
         self.posts = []
         self.pushes = []
         self.requests = []
@@ -113,8 +117,14 @@ class Fake:
         if path == f"{base}/heartbeat-runs":
             assert "limit" in query, "heartbeat-runs without a limit returns every run"
             return 200, self.runs[query["agentId"][0]]
+        if path == f"{base}/routines":
+            return 200, self.routines
         if path == f"{base}/issues":
             assert "limit" in query, query
+            if "originKind" in query:
+                assert query["originKind"] == ["routine_execution"] and query["originId"] == ["rt1"] \
+                    and query["status"] == ["todo,in_progress"], query
+                return 200, self.triages
             if "labelId" in query:
                 assert query["status"] == ["backlog,todo,in_progress,in_review,blocked"], query
                 return 200, self.labelled[query["labelId"][0]]
@@ -141,6 +151,10 @@ class Fake:
         if path.startswith("/alerta/"):
             if auth != "Key alerta-key":
                 return 401, {"status": "error"}
+            if method == "GET" and path == "/alerta/alerts" and "origin" not in query:
+                assert query["environment"] == ["Homelab"] and query["status"] == ["open"] \
+                    and query["show-history"] == ["true"], query
+                return 200, {"alerts": self.intake}
             if method == "GET" and path == "/alerta/alerts":
                 assert query["environment"] == ["Homelab"] and query["origin"] == ["agent-watch"], query
                 statuses = set(query["status"])
@@ -320,49 +334,67 @@ check("spend past the whole $100 makes ClaudeSpend major",
 check("Jev refusing the reviewer since it last worked raises JevCreditsOut",
       "refused reviewer for credits" in sent.get(("typesafe/credits", "JevCreditsOut"), {}).get("text", ""))
 
-# IntakeStale, from monitor-intake's status.json.
-intake_dir = pathlib.Path(tempfile.mkdtemp())
-status_file = intake_dir / "status.json"
-env.update({"INTAKE_STATUS": str(status_file), "INTAKE_STALE_MINUTES": "15"})
-STALE = ("agents/monitor-intake", "IntakeStale")
+# IntakeStale, from the open alerts in Alerta and n8n's mark on them.
+env.update({"INTAKE_SEVERITIES": "critical,major,minor,warning", "INTAKE_IGNORE_ORIGINS": "agent-watch,n8n,send-test-alert.sh",
+            "INTAKE_HARMLESS": "uptimekuma/msg", "INTAKE_ROUTINE": "Triage {{count}} lab alert(s)",
+            "INTAKE_STALE_MINUTES": "15"})
+STALE = ("n8n/intake", "IntakeStale")
+serial = iter(range(10**6))
 
 
-def intake_status(**values):
-    status_file.write_text(json.dumps({"started": ago(600), "last_ok": None, "last_error": None,
-                                       "last_error_at": None, **values}))
+def lab_alert(opened, triaged=None, severity="major", origin="uptimekuma", event="Down", history=(), uuid=True):
+    n = next(serial)
+    return {"id": f"{n:08x}-0000-4000-8000-000000000000" if uuid else f"alert-{n}", "resource": f"SVC / thing{n}",
+            "event": event, "severity": severity, "status": "open", "origin": origin, "receiveTime": ago(opened),
+            "attributes": {"n8nTriagedAt": ago(triaged)} if triaged is not None else {},
+            "history": [{"type": t, "status": status, "updateTime": ago(m)} for t, status, m in history]}
 
 
-code, sent = watch()
-check("no status yet, from a folder made just now, raises nothing", code == 0 and STALE not in sent)
-old = (NOW - datetime.timedelta(minutes=30)).timestamp()
-os.utime(intake_dir, (old, old))
-code, sent = watch()
-check("no status from a folder made 30 minutes ago raises IntakeStale",
-      sent.get(STALE, {}).get("text") == "monitor-intake hasn't handed new alerts to the monitor since it was set up.")
-intake_status(last_ok=ago(5))
-code, sent = watch()
-check("a good pass 5 minutes ago clears it", sent.get(STALE, {}).get("severity") == "cleared")
-intake_status(last_ok=ago(30), last_error="the triage run came back failed: daily run limit reached",
-              last_error_at=ago(1), waiting=3)
-code, sent = watch()
+def intake(*alerts, triages=()):
+    fake.intake = list(alerts)
+    fake.triages = list(triages)
+    return watch()
+
+
+code, sent = intake()
+check("no open alerts raise nothing", code == 0 and STALE not in sent)
+late = lab_alert(30)
+code, sent = intake(late)
 stale = sent.get(STALE, {})
-check("no good pass for 30 minutes raises IntakeStale with the reason",
+check("an alert open 30 minutes that n8n never handed over raises IntakeStale naming it",
       stale.get("severity") == "warning" and stale.get("service") == ["Agents"]
-      and stale.get("text", "").startswith("monitor-intake hasn't handed new alerts to the monitor since ")
-      and stale.get("text", "").endswith(": the triage run came back failed: daily run limit reached"))
-intake_status(last_ok=ago(30), last_error="the triage run came back failed: daily run limit reached",
-              last_error_at=ago(0), waiting=4)
-code, sent = watch()
-check("its text doesn't change while the cause doesn't", sent.get(STALE, {}).get("text") == stale.get("text"))
-intake_status(last_ok=ago(30), last_error="cannot reach Alerta", last_error_at=ago(60))
-code, sent = watch()
-check("an error older than the last good pass isn't given as the reason",
-      sent.get(STALE, {}).get("text", "").endswith(" UTC."))
-status_file.write_text("{not json")
-os.utime(intake_dir, (old, old))
-code, sent = watch()
-check("a status it can't read raises IntakeStale saying so",
-      sent.get(STALE, {}).get("text", "").endswith(": its status file can't be read"))
+      and stale.get("text") == f"1 alert(s) open over 15 minutes haven't gone to the monitor's triage: {late['resource']} Down.")
+code, again = intake(late)
+check("  ...and says the same next pass", again.get(STALE, {}).get("text") == stale.get("text"))
+code, sent = intake(lab_alert(30, triaged=27))
+check("one n8n marked after it opened clears it", sent.get(STALE, {}).get("severity") == "cleared")
+code, sent = intake(lab_alert(30, triaged=45))
+check("one marked before it reopened raises it", sent.get(STALE, {}).get("severity") == "warning")
+code, sent = intake(lab_alert(5))
+check("one open 5 minutes is still n8n's to hand over", sent.get(STALE, {}).get("severity") == "cleared")
+code, sent = intake(lab_alert(30, severity="informational"), lab_alert(30, origin="n8n"),
+                    lab_alert(30, origin="agent-watch"), lab_alert(30, origin="send-test-alert.sh"),
+                    lab_alert(30, event="msg"), lab_alert(30, uuid=False))
+check("ones n8n leaves out raise nothing", STALE not in sent)
+flaps = [("new", "open", 50), ("severity", "closed", 40), ("severity", "open", 30), ("severity", "closed", 25),
+         ("severity", "open", 20)]
+code, sent = intake(lab_alert(20, triaged=35, history=flaps))
+check("nor does one flapping that was triaged within the hour", STALE not in sent)
+code, sent = intake(lab_alert(20, triaged=35, history=[(t, s, m) for t, s, m in flaps if t == "new"]
+                              + [("note", "open", 45), ("note", "open", 40), ("note", "open", 30)]))
+check("but notes don't make it flap", sent.get(STALE, {}).get("severity") == "warning")
+code, sent = intake(late, triages=[{"id": "t1", "identifier": "LAB-50", "createdAt": ago(20)}])
+check("alerts waiting behind a triage open 20 minutes raise nothing", sent.get(STALE, {}).get("severity") == "cleared")
+code, sent = intake(late, triages=[{"id": "t1", "identifier": "LAB-50", "createdAt": ago(90)},
+                                   {"id": "t2", "identifier": "LAB-51", "createdAt": ago(10)}])
+check("behind one open over an hour, they raise it, naming it",
+      sent.get(STALE, {}).get("text", "").endswith("; they wait behind LAB-50, open over an hour."))
+fake.routines = [{"id": "rt2", "title": "Other"}]
+code, sent = intake(late)
+check("with no triage routine, it says so",
+      sent.get(STALE, {}).get("text", "").endswith("; Paperclip has no routine titled 'Triage {{count}} lab alert(s)'."))
+fake.routines = [{"id": "rt1", "title": "Triage {{count}} lab alert(s)"}]
+intake()
 
 # BridgeStale, from board-bridge's status.json, the same way.
 bridge_dir = pathlib.Path(tempfile.mkdtemp())

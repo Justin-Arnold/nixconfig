@@ -24,7 +24,9 @@ what the spec names:
   can reach) and secret straight into the SOPS file the spec names, at the
   trigger's secretsTo, without printing either. A trigger whose URL or
   secret isn't there gets a new secret the same way; n8n's credential for it
-  then has to be made again (n8n-apply.py says how).
+  then has to be made again (n8n-apply.py says how). A trigger marked
+  watchOpen also gets its routine's open-issues query written beside them,
+  at <secretsTo>/open/url, for n8n to wait on before it fires again.
 - never deletes anything, and reads or writes no secret except a webhook
   trigger's, as above. An agent's API key is only checked to come from a
   company secret.
@@ -170,6 +172,8 @@ def check_routines(spec, spec_dir):
             if trigger["kind"] not in TRIGGER_KINDS:
                 sys.exit(f"routine {title}: trigger {label} is a {trigger['kind']} trigger; only "
                          f"{', '.join(sorted(TRIGGER_KINDS))} are allowed")
+            if "watchOpen" in trigger and (trigger["kind"] != "webhook" or not isinstance(trigger["watchOpen"], bool)):
+                sys.exit(f"routine {title}: trigger {label}'s watchOpen is true or false, on a webhook trigger")
             if trigger["kind"] != "webhook":
                 continue
             if trigger.get("signingMode") != "bearer":
@@ -193,7 +197,8 @@ def sops_path(path):
 class TriggerSecrets:
     """Webhook triggers' URLs and secrets, in one SOPS file. Neither is ever printed."""
 
-    def __init__(self, spec, spec_dir):
+    def __init__(self, spec, spec_dir, board):
+        self.board = board.rstrip("/")
         hooks = spec.get("webhookTriggers") or {}
         self.file = (spec_dir / hooks["sopsFile"]).resolve() if hooks.get("sopsFile") else None
         self.base = hooks.get("baseUrl", "").rstrip("/")
@@ -215,6 +220,11 @@ class TriggerSecrets:
     def url(self, public_id):
         return f"{self.base}/api/routine-triggers/public/{public_id}/fire"
 
+    def open_url(self, cid, routine_id):
+        """The routine's issues that are still to do or in progress: what n8n waits on before it fires again."""
+        return (f"{self.board}/api/companies/{cid}/issues?originKind=routine_execution&originId={routine_id}"
+                "&status=todo,in_progress")
+
     def _get(self, path):
         done = subprocess.run(["sops", "decrypt", "--extract", sops_path(path), str(self.file)],
                               env=self.env, capture_output=True, text=True)
@@ -225,13 +235,25 @@ class TriggerSecrets:
         self.readable()
         return self._get(f"{path}/url") == self.url(public_id) and bool(self._get(f"{path}/secret"))
 
-    def write(self, path, material, public_id):
+    def holds_open(self, path, open_url):
+        self.readable()
+        return self._get(f"{path}/open/url") == open_url
+
+    def write(self, path, material, public_id, open_url=None):
+        value = {"url": self.url(public_id), "secret": material["webhookSecret"]}
+        if open_url:
+            value["open"] = {"url": open_url}
         done = subprocess.run(["sops", "set", "--value-stdin", str(self.file), sops_path(path)],
-                              input=json.dumps({"url": self.url(public_id), "secret": material["webhookSecret"]}),
-                              env=self.env, capture_output=True, text=True)
+                              input=json.dumps(value), env=self.env, capture_output=True, text=True)
         if done.returncode != 0:
             sys.exit(f"sops couldn't set {path} in {self.file.name}: {done.stderr.strip()[:300]}\n"
                      "Run this again: the trigger gets a new secret, written the same way.")
+
+    def write_open(self, path, open_url):
+        done = subprocess.run(["sops", "set", "--value-stdin", str(self.file), sops_path(f"{path}/open")],
+                              input=json.dumps({"url": open_url}), env=self.env, capture_output=True, text=True)
+        if done.returncode != 0:
+            sys.exit(f"sops couldn't set {path}/open in {self.file.name}: {done.stderr.strip()[:300]}")
 
 
 def variables(declared):
@@ -250,17 +272,19 @@ def trigger_body(trigger):
 
 def describe_trigger(trigger):
     if trigger["kind"] == "webhook":
-        return f"{trigger['label']}: webhook, its URL and secret to SOPS at {trigger['secretsTo']}"
+        what = "its URL, secret and routine's open-issues url" if trigger.get("watchOpen") else "its URL and secret"
+        return f"{trigger['label']}: webhook, {what} to SOPS at {trigger['secretsTo']}"
     return f"{trigger['label']}: {trigger.get('cronExpression', trigger['kind'])}"
 
 
-def add_trigger(pc, routine_id, trigger, secrets):
+def add_trigger(pc, cid, routine_id, trigger, secrets):
     if trigger["kind"] == "webhook":
         # Paperclip shows the secret only now, so make sure it can be kept first.
         secrets.readable()
     made = pc.call("post", f"/api/routines/{routine_id}/triggers", trigger_body(trigger))
     if trigger["kind"] == "webhook":
-        secrets.write(trigger["secretsTo"], made["secretMaterial"], made["trigger"]["publicId"])
+        open_url = secrets.open_url(cid, routine_id) if trigger.get("watchOpen") else None
+        secrets.write(trigger["secretsTo"], made["secretMaterial"], made["trigger"]["publicId"], open_url)
         print(f"    wrote its URL and secret to SOPS at {trigger['secretsTo']}; scripts/automation/n8n-apply.py "
               "--apply makes n8n's credential for it (delete an older one in n8n first)")
 
@@ -268,7 +292,7 @@ def add_trigger(pc, routine_id, trigger, secrets):
 def apply_routines(pc, cid, spec, spec_dir, agents, write):
     if "routines" not in spec:
         return 0
-    secrets = TriggerSecrets(spec, spec_dir)
+    secrets = TriggerSecrets(spec, spec_dir, pc.base)
     changes = 0
     have = {}
     for routine in pc.call("get", f"/api/companies/{cid}/routines"):
@@ -295,7 +319,7 @@ def apply_routines(pc, cid, spec, spec_dir, agents, write):
                     "title": title, "description": description, "assigneeAgentId": assignee_id,
                     "status": "active", "variables": routine.get("variables", []), **settings})
                 for trigger in triggers:
-                    add_trigger(pc, created["id"], trigger, secrets)
+                    add_trigger(pc, cid, created["id"], trigger, secrets)
             continue
         if cur.get("status") == "archived":
             print(f"  ! routine {title} is archived in Paperclip (left alone)")
@@ -329,6 +353,7 @@ def apply_routines(pc, cid, spec, spec_dir, agents, write):
         new_triggers = []
         trigger_patches = []
         rotations = []
+        open_urls = []
         for trigger in triggers:
             old = by_label.get(trigger["label"])
             if old is None:
@@ -351,9 +376,14 @@ def apply_routines(pc, cid, spec, spec_dir, agents, write):
                       f"{old.get('signingMode')}, the spec says {trigger['signingMode']} (not changed: delete it "
                       "in Paperclip and run this again)")
             elif not secrets.holds(trigger["secretsTo"], old["publicId"]):
-                rotations.append((old["id"], trigger["secretsTo"]))
+                open_url = secrets.open_url(cid, cur["id"]) if trigger.get("watchOpen") else None
+                rotations.append((old["id"], trigger["secretsTo"], open_url))
                 notes.append(f"trigger {trigger['label']}: a new secret, with its URL, to SOPS at {trigger['secretsTo']} "
                              "(SOPS doesn't have this trigger's)")
+            elif trigger.get("watchOpen") and not secrets.holds_open(trigger["secretsTo"], secrets.open_url(cid, cur["id"])):
+                open_urls.append((trigger["secretsTo"], secrets.open_url(cid, cur["id"])))
+                notes.append(f"trigger {trigger['label']}: its routine's open-issues url to SOPS at "
+                             f"{trigger['secretsTo']}/open/url")
         for label, old in by_label.items():
             if label not in {t["label"] for t in triggers}:
                 print(f"  ? routine {title}: {old.get('kind')} trigger {label} exists only in Paperclip (left alone)")
@@ -367,12 +397,14 @@ def apply_routines(pc, cid, spec, spec_dir, agents, write):
                 if patch:
                     pc.call("patch", f"/api/routines/{cur['id']}", patch)
                 for trigger in new_triggers:
-                    add_trigger(pc, cur["id"], trigger, secrets)
+                    add_trigger(pc, cid, cur["id"], trigger, secrets)
                 for trigger_id, drift in trigger_patches:
                     pc.call("patch", f"/api/routine-triggers/{trigger_id}", drift)
-                for trigger_id, path in rotations:
+                for path, open_url in open_urls:
+                    secrets.write_open(path, open_url)
+                for trigger_id, path, open_url in rotations:
                     rotated = pc.call("post", f"/api/routine-triggers/{trigger_id}/rotate-secret", {})
-                    secrets.write(path, rotated["secretMaterial"], rotated["trigger"]["publicId"])
+                    secrets.write(path, rotated["secretMaterial"], rotated["trigger"]["publicId"], open_url)
                     print(f"    n8n's credential for {path} now holds the old secret: delete it in n8n, then run "
                           "scripts/automation/n8n-apply.py --apply")
         else:

@@ -69,9 +69,8 @@ def test_targets():
           "an answered question does too")
     check(t(activity("approval.created"), agents) == {"agent-watch", "board-bridge"}, "a new approval does too")
     check(t(activity("approval.approved"), agents) == {"agent-watch", "board-bridge"}, "an approved one does too")
-    check(t(activity("issue.updated"), agents) == {"agent-watch", "monitor-intake"},
-          "a changed issue nudges agent-watch and monitor-intake")
-    check(t(activity("issue.created"), agents) == {"agent-watch", "monitor-intake"}, "so does a new issue")
+    check(t(activity("issue.updated"), agents) == {"agent-watch"}, "a changed issue nudges agent-watch")
+    check(t(activity("issue.created"), agents) == {"agent-watch"}, "so does a new issue")
     check(t(activity("issue.comment_added"), agents) == set(), "a comment nudges nobody")
     check(t(activity("routine.run_triggered"), agents) == set(), "nor does a routine run")
     check(t(run_status(INFRA, True), agents) == {"agent-watch", "agent-costs-infra"},
@@ -156,13 +155,13 @@ async def test_relay():
         events.mkdir()
         state.mkdir()
         everyone = {"agent-watch", "board-bridge", "agent-costs-infra", "agent-costs-researcher"}
-        # monitor-intake is off here, so it's never nudged.
         relay = relay_mod.Relay(base, KEY, events, state, ["agent-watch", "board-bridge"], ["infra", "Researcher"])
         task = asyncio.create_task(relay.run())
 
         socket, closed = await asyncio.wait_for(fake.sockets.get(), 5)
         await until(lambda: all(pending(events, c) for c in everyone), "a connect nudges every consumer")
-        check(not pending(events, "monitor-intake"), "a consumer that's off isn't nudged")
+        relay.nudge({"not-on-here"})
+        check(not pending(events, "not-on-here"), "a consumer that isn't on isn't nudged")
         check(relay.agents == {INFRA: "infra", RESEARCHER: "researcher"},
               "agents with an agent-costs unit are mapped by name, odd entries skipped")
         status = json.loads((state / "status.json").read_text())

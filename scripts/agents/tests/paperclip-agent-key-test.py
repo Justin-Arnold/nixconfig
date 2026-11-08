@@ -64,7 +64,7 @@ class Fake:
                          for key in self.keys if key["agentId"] == m[1] and not key["revokedAt"]]
         if m and method == "POST":
             assert m[1] == RESEARCHER, m[1]
-            assert body == {"name": "paperclip-events"}, body
+            assert body in ({"name": "paperclip-events"}, {"name": "n8n"}), body
             self.made += 1
             key = {"id": f"k{self.made}", "agentId": m[1], "name": body["name"], "token": "pcp_" + f"{self.made:02d}" * 24,
                    "createdAt": f"2026-11-06T00:00:{self.made:02d}Z", "revokedAt": None}
@@ -184,15 +184,23 @@ check("--revoke-old keeps only the newest and makes no key", code == 0 and fake.
       and sops is None and fake.made == 3)
 check("another agent's key of the same name is never touched", fake.active(MONITOR) == ["m1"])
 
+code, out, sops = run(url, "n8n")
+outputs.append(out)
+check("n8n's key goes to automation.yaml, at paperclip/n8n-key",
+      code == 0 and sops is not None and sops["args"][2].endswith("secrets/hosts/automation.yaml")
+      and sops["args"][3] == '["paperclip"]["n8n-key"]' and "at paperclip/n8n-key" in out
+      and any(k["name"] == "n8n" and not k["revokedAt"] for k in fake.keys))
+made = fake.made
+
 code, out, sops = run(url, "something-else")
 outputs.append(out)
 check("an unknown service is refused before it signs in", code != 0 and "invalid choice" in out
-      and "Approve this sign-in" not in out and fake.made == 3)
+      and "Approve this sign-in" not in out and fake.made == made)
 
 code, out, sops = run(url, "paperclip-events", age=str(tmp / "missing.txt"))
 outputs.append(out)
 check("a missing age key stops the run before it signs in", code != 0 and "no age key" in out
-      and "Approve this sign-in" not in out and fake.made == 3)
+      and "Approve this sign-in" not in out and fake.made == made)
 
 check("no key is ever printed", all(k["token"] not in o and SIGN_IN not in o for k in fake.keys for o in outputs))
 

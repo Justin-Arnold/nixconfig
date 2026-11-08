@@ -218,7 +218,7 @@ in
         github.enable = withGithubToken;
       };
 
-      # Watches the lab: triages the alerts monitor-intake hands it and
+      # Watches the lab: triages the alerts n8n hands it and
       # writes the daily health review (Paperclip routines). It only reads,
       # on the local model with Codex behind it, and has no terminal.
       monitor = {

@@ -1,14 +1,15 @@
 # automation
 
 automation is the lab's router between systems: a NixOS VM on the Proxmox
-cluster that runs n8n. Events come in (GitHub's webhook deliveries today) and
-n8n decides what they mean with plain rules: answer, start a Paperclip
-routine, or raise an alert in Alerta. The point is that the mechanical part of
+cluster that runs n8n. Events come in (GitHub's webhook deliveries, and
+Alerta saying an alert opened) and n8n decides what they mean with plain
+rules: answer, start a Paperclip routine, or raise an alert in Alerta. The point is that the mechanical part of
 a job never costs a model run, and an agent is woken only where judgment adds
 something.
 
 It holds the GitHub webhook secret, the secrets of the Paperclip routines it
-may start, and an Alerta key of its own, and none of the agents' keys.
+may start, an Alerta key of its own, and a Paperclip key of its own on the
+researcher that it uses only to see whether a triage is open.
 
 ## At a glance
 
@@ -17,6 +18,7 @@ may start, and an Alerta key of its own, and none of the agents' keys.
 | VM | Proxmox, 4 vCPU (`x86-64-v2-AES`), 8 GB, 40 GB on `nas-shared`, MAC `02:01:18:00:00:0a`, address `10.0.0.155`, HA resource |
 | n8n | `https://automation.servicestack.xyz` (n8n 2.39.6 from nixpkgs), SQLite in `/var/lib/n8n/.n8n` |
 | GitHub deliveries | `https://intake.lab118.xyz/github`, passed over the tunnel to `/webhook/github` |
+| Alerta's pushes | from Alerta's plugin on lab118-services, over the tunnel to `/webhook/alerta` |
 | Login | `ssh automation` as `justin`, key only (the Mac Mini key). Root has no SSH. |
 | Console | Proxmox console, root password from SOPS (`root/console-password-hash`) |
 | Secrets | `secrets/hosts/automation.yaml`, host-scoped age key at `/var/lib/sops-nix/key.txt` |
@@ -41,6 +43,7 @@ it, and a switch that moves its version builds it on the VM from source.
 | `scripts/automation/post-install-check.sh` | Read-only health report: `ssh automation 'sudo bash -s' < scripts/automation/post-install-check.sh`. |
 | `scripts/automation/tests/` | Its test, against a fake n8n, run by the `provisioning` check. |
 | `hosts/lab118-services/public-endpoints.nix` | Where `intake.lab118.xyz/github` hands deliveries to the tunnel. |
+| `modules/roles/notifications-stack/alerta-push/` | Alerta's plugin, which also tells n8n when an alert opens. |
 
 ## How it's reached
 
@@ -56,6 +59,7 @@ lab118-services resolves the name through lab DNS over the tunnel
 | Path | Who may use it | Goes to |
 |---|---|---|
 | `/webhook/github` | the tunnel (`10.118.0.1`) only, POST only | the `github` workflow |
+| `/webhook/alerta` | the tunnel only, POST only, 16 KB at most | the `alerta` workflow |
 | `/healthz` | LAN, VPN, the tunnel (Kuma) | n8n's health check |
 | everything else | LAN (Pangolin included), VPN | n8n, `127.0.0.1:5678`: the UI, its API, the public API and the editor's test webhooks |
 | unknown names, bare IP | nobody | no certificate, no content |
@@ -94,9 +98,10 @@ n8n runs from nixpkgs' module with these changes:
   or FTP, or drives n8n's own API (`excludedNodes` in `n8n.nix`), so not even
   an edit in the UI can use one.
 
-n8n reaches only loopback, the internet, `10.0.0.152:443` (Paperclip's
-routine triggers on the agents VM, as `paperclip-triggers.servicestack.xyz`,
-which AdGuard rewrites to it) and `10.118.0.1` (Alerta over the tunnel). Every other private range is denied in its unit, so a workflow that
+n8n reaches only loopback, the internet, `10.0.0.152:443` (Paperclip on the
+agents VM: its routine triggers as `paperclip-triggers.servicestack.xyz` and
+its API as `paperclip.servicestack.xyz`, both of which AdGuard rewrites to
+it) and `10.118.0.1` (Alerta over the tunnel). Every other private range is denied in its unit, so a workflow that
 holds a secret can't send it anywhere else in the lab. An assertion keeps
 that list exact.
 
@@ -159,9 +164,12 @@ through. A change to a credential, a url or a webhook path gets the
 
 `scripts/automation/tests/n8n-live-test.py`, run by hand on the Mac, starts a
 scratch n8n with the host's excluded nodes, fakes GitHub, Alerta and
-Paperclip, applies the repo's workflows and sends them deliveries. It also
-checks that the domain fence holds, redirects included, and that a Code node
-can't be published. n8n is unfree, so its build line is at the top of the
+Paperclip, applies the repo's workflows and sends them GitHub's deliveries
+and Alerta's pushes. The alerta workflow's waits are cut to seconds there,
+and then to just over a minute, which n8n parks in its database the way it
+parks the real ones (`--quick` leaves that part out, about three minutes).
+It also checks that the domain fence holds, redirects included, and that a
+Code node can't be published. n8n is unfree, so its build line is at the top of the
 script.
 
 The API key needs only these scopes: `credential:create`, `credential:list`,
@@ -206,8 +214,8 @@ A run is routed like this:
 LandReady, CIStuck and RoutineFailed go to Alerta with the `Alerta key`
 credential (`X-API-Key`), from origin `n8n`, resource `nixconfig#<n>`, with
 the pull request's link in `attributes.url`. LandReady is `informational` and
-the other two `warning`, so they reach the phone with a link, and the
-monitor's intake, which skips origin `n8n`, never hands them to the monitor.
+the other two `warning`, so they reach the phone with a link. The alert
+intake below skips origin `n8n`, so the monitor never sees them.
 
 Each Fix CI is a Paperclip routine webhook on the agents VM
 (`paperclip-triggers.servicestack.xyz`), signed with its own trigger's
@@ -233,6 +241,60 @@ tries again. n8n keeps only the last of two query parameters with one name,
 so a repeated one, like Alerta's `status=open&status=ack`, is a single
 parameter whose value is an array, sent with the HTTP node's "No Brackets"
 array format.
+
+## Alerts from Alerta
+
+When an alert opens in Alerta (a new one, one reopening, or one changing
+severity, but not a repeat), Alerta's plugin on lab118-services posts its id
+to `https://automation.servicestack.xyz/webhook/alerta` over the tunnel. It
+does that in the background with a 3-second timeout and drops any failure,
+like its kick to the forwarder.
+
+The push is only a hint. The `alerta` workflow answers 202, trusts nothing
+in the body, and reads everything from Alerta with its own key:
+
+1. It waits 3 minutes, so a burst becomes one batch, and an alert that clears
+   in that time drops out. n8n parks a wait that long in its database.
+2. It asks Paperclip whether the monitor is still on a triage, with a GET of
+   the triage routine's `todo` and `in_progress` issues (the url
+   `paperclip-apply.py` writes to `paperclip-triggers/triage/open/url`) and
+   the `Paperclip read key`. While one is open, it looks again every 5
+   minutes, six times, and then leaves it to the sweep.
+3. It reads Alerta's open alerts in Homelab with their history, and keeps the
+   ones the monitor should see:
+   - severity critical, major, minor or warning;
+   - not from `agent-watch`, `n8n` or `send-test-alert.sh`: the agents' own
+     alerts, n8n's, and the end-to-end test script's;
+   - not known to be harmless, which today means Kuma's test notification
+     (origin `uptimekuma`, event `msg`);
+   - not handed over since it last opened. A handed alert has an
+     `n8nTriagedAt` attribute at or after its `receiveTime`, which Alerta
+     moves when an alert opens, reopens or changes severity, and never on a
+     repeat;
+   - not flapping: three opens or severity changes in the last hour, with a
+     triage already within that hour.
+4. It starts the monitor's "Triage {{count}} lab alert(s)" routine through its
+   webhook trigger, with the `Paperclip triage trigger` credential, sending
+   the alerts' ids and how many there are and nothing else. The
+   `Idempotency-Key` is a SHA-256 of the batch's `id@receiveTime` list and
+   the UTC hour, so one batch starts once, and one Paperclip failed to start
+   can go again an hour later.
+5. On `issue_created`, `coalesced` or `skipped` (the same batch is already in
+   a triage the monitor left blocked or in review), it sets `n8nTriagedAt`
+   on each alert with one `PUT /_bulk/alerts/attributes`, the ids in the
+   query. Alerta merges that one attribute and runs no plugin, so nothing is
+   pushed back. Anything else raises IntakeFailed (warning, origin `n8n`,
+   resource `n8n/intake`) and marks nothing.
+
+A schedule every 30 minutes runs steps 2 to 5 without the wait, for pushes
+lost while the tunnel or n8n was down.
+
+The attribute in Alerta is all the state the intake keeps, so a rebuilt n8n
+loses nothing. agent-watch on the agents VM raises IntakeStale when an alert
+that should have gone has been open 15 minutes without it
+(`docs/agents/REFERENCE.md`). Its rules are `agents.watch.intake`, and an
+assertion keeps them the same as the workflow's `Eligible?` node, so the two
+change together.
 
 ## Monitoring
 
@@ -261,6 +323,8 @@ operator key, nothing else. On macOS, edit it with
 | `alerta/n8n-key` | an Alerta API key with `read:alerts` and `write:alerts`, made with `alertad key` on lab118-services |
 | `paperclip-triggers/fix-ci/url`, `.../secret` | infra's Fix CI trigger's URL and bearer secret, written by `paperclip-apply.py` when it makes the trigger |
 | `paperclip-triggers/fix-ci-engineer/url`, `.../secret` | the engineer's Fix CI trigger's, the same way |
+| `paperclip-triggers/triage/url`, `.../secret`, `.../open/url` | the monitor's triage trigger's, and the url of that routine's open issues, written by `paperclip-apply.py` |
+| `paperclip/n8n-key` | n8n's own key on the researcher, made by `paperclip-agent-key.py n8n`, fenced to that one GET |
 | `porkbun/api-key`, `porkbun/secret-api-key` | for DNS-01 |
 | `beszel/agent-token` | the hub's universal token |
 | `kuma/backup-push-url` | push monitor for backups |
@@ -315,6 +379,10 @@ workflows still match.
   60 requests an hour from the lab's address. A delivery costs one or two and
   a sweep one plus about three per open agent pull request, far more than CI
   finishes, but a burst of redeliveries could run into it.
+- n8n looks for an open triage every 5 minutes, so an alert that opened
+  behind one goes up to 5 minutes after it ends.
+- Alerta's push doesn't retry. The sweep picks up what it lost within 30
+  minutes, and agent-watch raises IntakeStale after 15.
 
 ## Related
 

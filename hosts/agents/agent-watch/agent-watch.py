@@ -29,12 +29,16 @@ or typesafe/credits):
                    for that agent since (major); the agent is on its fallback
   JevCreditsOut    the same for Jev (major); agents carry on without it
 
-and, from monitor-intake's INTAKE_STATUS file (resource
-agents/monitor-intake):
+and, from Alerta's own open alerts (resource n8n/intake):
 
-  IntakeStale      monitor-intake hasn't handed new alerts to the monitor
-                   for INTAKE_STALE_MINUTES, with the reason it last gave
-                   (warning)
+  IntakeStale      an alert n8n should have handed to the monitor's triage
+                   has been open for INTAKE_STALE_MINUTES without it, and
+                   isn't waiting behind a triage that's been open less than
+                   an hour (warning). Which alerts n8n hands over is the
+                   Eligible? node in hosts/automation/workflows/alerta.json;
+                   INTAKE_SEVERITIES, INTAKE_IGNORE_ORIGINS and
+                   INTAKE_HARMLESS say the same here, and n8n's mark is the
+                   alert's n8nTriagedAt attribute
 
 and, from board-bridge's BRIDGE_STATUS file (resource agents/board-bridge):
 
@@ -64,7 +68,8 @@ push URL, so Kuma notices when it stops.
 Environment: PAPERCLIP_URL, PAPERCLIP_LINK (the board's public URL and the
 company's prefix, as https://<host>/LAB), ALERTA_URL, STUCK_AFTER_MINUTES
 (60), COSTS_DIR, CLAUDE_MONTHLY_CREDITS (100), CLAUDE_WARN_PERCENT (80),
-INTAKE_STATUS, INTAKE_STALE_MINUTES (15), BRIDGE_STATUS,
+INTAKE_SEVERITIES, INTAKE_IGNORE_ORIGINS, INTAKE_HARMLESS (origin/event,
+comma separated), INTAKE_ROUTINE, INTAKE_STALE_MINUTES (15), BRIDGE_STATUS,
 BRIDGE_STALE_MINUTES (15), EVENTS_STATUS, EVENTS_STALE_MINUTES (5), and
 CREDENTIALS_DIRECTORY holding paperclip-key, alerta-key and kuma-push-url.
 """
@@ -73,6 +78,7 @@ import glob
 import json
 import os
 import pathlib
+import re
 import sys
 import urllib.error
 import urllib.parse
@@ -85,6 +91,10 @@ FAILED = {"failed", "timed_out"}
 OPEN_ISSUE = "backlog,todo,in_progress,in_review,blocked"
 # Where a question for the board can be waiting.
 ASKING_ISSUE = "todo,in_progress,in_review,blocked"
+UUID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
+# A triage the monitor is still on, and how long one excuses alerts waiting behind it.
+WORKING = "todo,in_progress"
+TRIAGE_WAIT = datetime.timedelta(hours=1)
 APPROVALS = {
     "hire_agent": "a new agent",
     "approve_ceo_strategy": "the coordinator's strategy",
@@ -284,6 +294,56 @@ def stale(status_file, stale_after, now, resource, event, title, what):
     return [alert(resource, event, "warning", title, text, service="Agents")]
 
 
+def flapping(found, now):
+    """Opened three times in the last hour and triaged within it, which n8n leaves out."""
+    hour = now - datetime.timedelta(hours=1)
+    opens = [h for h in found.get("history") or [] if h.get("type") in ("new", "severity", "status")
+             and h.get("status") == "open" and (when(h.get("updateTime")) or hour) > hour]
+    triaged = when((found.get("attributes") or {}).get("n8nTriagedAt"))
+    return len(opens) >= 3 and triaged is not None and triaged > hour
+
+
+def untriaged(found, rules, now):
+    """The open alerts n8n should have handed to the monitor's triage by now and hasn't. A handed alert's
+    n8nTriagedAt is at or after its receiveTime, which Alerta moves when it opens, reopens or changes
+    severity."""
+    waiting = []
+    for a in found:
+        opened = when(a.get("receiveTime"))
+        triaged = when((a.get("attributes") or {}).get("n8nTriagedAt"))
+        if (UUID.match(str(a.get("id"))) and a.get("severity") in rules["severities"]
+                and a.get("origin") not in rules["ignore"] and f"{a.get('origin')}/{a.get('event')}" not in rules["harmless"]
+                and opened is not None and (triaged is None or triaged < opened) and not flapping(a, now)
+                and now - opened > rules["stale_after"]):
+            waiting.append(a)
+    return waiting
+
+
+def intake(get, alerta_get, rules, now):
+    """IntakeStale, unless every alert that's waiting is waiting behind a triage open less than an hour."""
+    query = urllib.parse.urlencode([("environment", ENVIRONMENT), ("status", "open"), ("show-history", "true"),
+                                    ("page-size", "1000")])
+    waiting = untriaged(alerta_get(f"/alerts?{query}").get("alerts") or [], rules, now)
+    if not waiting:
+        return []
+    cid = get("/api/agents/me")["companyId"]
+    routine = next((r for r in get(f"/api/companies/{cid}/routines") if r.get("title") == rules["routine"]), None)
+    if routine is None:
+        why = f"; Paperclip has no routine titled {rules['routine']!r}"
+    else:
+        triages = get(f"/api/companies/{cid}/issues?" + urllib.parse.urlencode(
+            [("originKind", "routine_execution"), ("originId", routine["id"]), ("status", WORKING), ("limit", "20")]))
+        oldest = min(triages or [], key=lambda i: i.get("createdAt") or "", default=None)
+        if oldest is not None and now - (when(oldest.get("createdAt")) or now) <= TRIAGE_WAIT:
+            return []
+        why = f"; they wait behind {oldest.get('identifier')}, open over an hour" if oldest else ""
+    minutes = int(rules["stale_after"].total_seconds() // 60)
+    names = ", ".join(sorted(f"{a.get('resource')} {a.get('event')}" for a in waiting))
+    return [alert("n8n/intake", "IntakeStale", "warning", "Alert intake stalled",
+                  f"{len(waiting)} alert(s) open over {minutes} minutes haven't gone to the monitor's triage: "
+                  f"{short(names)}{why}.", service="Agents")]
+
+
 def main():
     paperclip = os.environ.get("PAPERCLIP_URL", "http://127.0.0.1:3100").rstrip("/")
     alerta = os.environ["ALERTA_URL"].rstrip("/")
@@ -294,16 +354,20 @@ def main():
     def get(path):
         return request("GET", paperclip + path, paperclip_auth)
 
+    def alerta_get(path):
+        return request("GET", alerta + path, alerta_auth)
+
     now = datetime.datetime.now(datetime.timezone.utc)
     alerts = watch(get, stuck_after, now, os.environ.get("PAPERCLIP_LINK", "").rstrip("/") or None)
     if os.environ.get("COSTS_DIR"):
         alerts += credits(os.environ["COSTS_DIR"], int(os.environ.get("CLAUDE_MONTHLY_CREDITS", "100")),
                           int(os.environ.get("CLAUDE_WARN_PERCENT", "80")), now)
-    if os.environ.get("INTAKE_STATUS"):
-        alerts += stale(os.environ["INTAKE_STATUS"],
-                        datetime.timedelta(minutes=int(os.environ.get("INTAKE_STALE_MINUTES", "15"))), now,
-                        "agents/monitor-intake", "IntakeStale", "Alert intake stalled",
-                        "monitor-intake hasn't handed new alerts to the monitor")
+    if os.environ.get("INTAKE_SEVERITIES"):
+        split = lambda name: {v for v in os.environ.get(name, "").split(",") if v}
+        alerts += intake(get, alerta_get, {
+            "severities": split("INTAKE_SEVERITIES"), "ignore": split("INTAKE_IGNORE_ORIGINS"),
+            "harmless": split("INTAKE_HARMLESS"), "routine": os.environ["INTAKE_ROUTINE"],
+            "stale_after": datetime.timedelta(minutes=int(os.environ.get("INTAKE_STALE_MINUTES", "15")))}, now)
     if os.environ.get("BRIDGE_STATUS"):
         alerts += stale(os.environ["BRIDGE_STATUS"],
                         datetime.timedelta(minutes=int(os.environ.get("BRIDGE_STALE_MINUTES", "15"))), now,

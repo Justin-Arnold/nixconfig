@@ -1,0 +1,688 @@
+{
+  "name": "alerta",
+  "nodes": [
+    {
+      "id": "43615447-9873-4ff2-87e1-e39281597a8e",
+      "name": "Alerta says an alert opened",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "75eae49a-cb3e-4b59-9841-604f6359a2d3",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "alerta",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "7595f883-bfc0-4fce-b3ed-78dc4fae963b",
+      "name": "Accepted",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        220,
+        0
+      ],
+      "parameters": {
+        "respondWith": "noData",
+        "options": {
+          "responseCode": 202
+        }
+      }
+    },
+    {
+      "id": "09e59796-093b-4749-80e0-9652bd28d17d",
+      "name": "Settle",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        440,
+        0
+      ],
+      "webhookId": "c5f0b0bb-7d40-402d-87dc-930711736167",
+      "parameters": {
+        "resume": "timeInterval",
+        "amount": 3,
+        "unit": "minutes"
+      }
+    },
+    {
+      "id": "22093198-6330-4609-b836-27ba766e9eb6",
+      "name": "Every 30 minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        440,
+        -200
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 30
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "80bb6efb-58e1-48bd-bf96-09f7a607bf45",
+      "name": "Pass",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        660,
+        0
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "54cb6325-f9c7-473f-a9c1-e07d385fe4e1",
+      "name": "Open triages",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        880,
+        0
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "alwaysOutputData": true,
+      "parameters": {
+        "method": "GET",
+        "url": {
+          "sops": "paperclip-triggers/triage/open/url"
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "credentials": {
+        "httpBearerAuth": {
+          "name": "Paperclip read key"
+        }
+      }
+    },
+    {
+      "id": "1e934c69-95a9-42ae-b868-d32250c9eee7",
+      "name": "Triage open?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1100,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "4a41b98e-8de6-4927-a66d-2b7e68491cc8",
+              "leftValue": "={{ $json.id ? 'yes' : 'no' }}",
+              "rightValue": "yes",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "executeOnce": true
+    },
+    {
+      "id": "92180e56-a832-42b4-a1d5-6481111f8396",
+      "name": "Waited half an hour?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1320,
+        -150
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "b03cb0dc-19bc-4ade-8dfd-8952cc2e6566",
+              "leftValue": "={{ $runIndex >= 6 ? 'yes' : 'no' }}",
+              "rightValue": "yes",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "e2a3988f-1555-4b7e-bec1-38e758b54b77",
+      "name": "Wait for it",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1540,
+        -150
+      ],
+      "webhookId": "e0b3c3cf-d620-4b41-a2ea-df887136ae44",
+      "parameters": {
+        "resume": "timeInterval",
+        "amount": 5,
+        "unit": "minutes"
+      }
+    },
+    {
+      "id": "437fa6e9-d60b-474e-9564-efbf620958a4",
+      "name": "Open alerts",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1320,
+        100
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "parameters": {
+        "method": "GET",
+        "url": "http://10.118.0.1:5000/alerts",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "status",
+              "value": "open"
+            },
+            {
+              "name": "environment",
+              "value": "Homelab"
+            },
+            {
+              "name": "show-history",
+              "value": "true"
+            },
+            {
+              "name": "page-size",
+              "value": "200"
+            }
+          ]
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Alerta key"
+        }
+      }
+    },
+    {
+      "id": "1412a758-1d34-4a97-a9b4-765326c4e17d",
+      "name": "Each alert",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        1540,
+        100
+      ],
+      "parameters": {
+        "fieldToSplitOut": "alerts",
+        "options": {}
+      }
+    },
+    {
+      "id": "14c0ed14-e3c8-42b0-9175-3d59c981603c",
+      "name": "Eligible?",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.2,
+      "position": [
+        1760,
+        100
+      ],
+      "parameters": {
+        "options": {},
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "f0626512-bfe5-4055-9db9-8fc40fbf9283",
+              "leftValue": "={{ /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test($json.id || '') ? 'yes' : 'no' }}",
+              "rightValue": "yes",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "e6b7b549-87e3-4cd8-89a6-1c369a9adaf9",
+              "leftValue": "={{ ['critical', 'major', 'minor', 'warning'].includes($json.severity) ? 'yes' : 'no' }}",
+              "rightValue": "yes",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "05c30c08-ce48-425b-a343-11ebd291a7b7",
+              "leftValue": "={{ !['agent-watch', 'n8n', 'send-test-alert.sh'].includes($json.origin) ? 'yes' : 'no' }}",
+              "rightValue": "yes",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "27b4929c-1f5f-4373-b1ef-7889967c7c7b",
+              "leftValue": "={{ !($json.origin === 'uptimekuma' && $json.event === 'msg') ? 'yes' : 'no' }}",
+              "rightValue": "yes",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "47d0c5cd-4bd3-43fb-88c6-a3cd7a6a7a90",
+              "leftValue": "={{ !($json.attributes?.n8nTriagedAt && new Date($json.attributes.n8nTriagedAt) >= new Date($json.receiveTime)) ? 'yes' : 'no' }}",
+              "rightValue": "yes",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "3d0212a9-fb08-4edf-9ad0-f647ca19f99d",
+              "leftValue": "={{ !(($json.history || []).filter(h => ['new', 'severity', 'status'].includes(h.type) && h.status === 'open' && new Date(h.updateTime) > new Date(Date.now() - 3600e3)).length >= 3 && $json.attributes?.n8nTriagedAt && new Date($json.attributes.n8nTriagedAt) > new Date(Date.now() - 3600e3)) ? 'yes' : 'no' }}",
+              "rightValue": "yes",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "cad4af90-c34e-4a99-aba9-66dddfdab363",
+      "name": "Batch key",
+      "type": "n8n-nodes-base.crypto",
+      "typeVersion": 2,
+      "position": [
+        1980,
+        100
+      ],
+      "executeOnce": true,
+      "parameters": {
+        "action": "hash",
+        "type": "SHA256",
+        "dataPropertyName": "key",
+        "encoding": "hex",
+        "value": "={{ $('Eligible?').all().map(i => i.json.id + '@' + i.json.receiveTime).sort().join(' ') + ' ' + new Date().toISOString().slice(0, 13) }}"
+      }
+    },
+    {
+      "id": "40d7c37e-6424-448c-9b53-fe7ca9151ed2",
+      "name": "Start the triage",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2200,
+        100
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "executeOnce": true,
+      "parameters": {
+        "method": "POST",
+        "url": {
+          "sops": "paperclip-triggers/triage/url"
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Idempotency-Key",
+              "value": "={{ 'alerts-' + $('Batch key').first().json.key }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ variables: { count: $('Eligible?').all().length, alerts: $('Eligible?').all().map(i => i.json.id).join(' ') } }) }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "credentials": {
+        "httpBearerAuth": {
+          "name": "Paperclip triage trigger"
+        }
+      }
+    },
+    {
+      "id": "ff5271df-08ed-4729-bd41-58c6450bbef2",
+      "name": "Started?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2420,
+        100
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "2da73bf2-8bfb-4384-9bcc-98f15ceebc2e",
+              "leftValue": "={{ ['issue_created', 'coalesced', 'skipped'].includes($json.status) ? 'yes' : 'no' }}",
+              "rightValue": "yes",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "ccf92624-67a7-42a8-a89d-5f8b82000e49",
+      "name": "Mark them",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2640,
+        0
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "executeOnce": true,
+      "parameters": {
+        "method": "PUT",
+        "url": "http://10.118.0.1:5000/_bulk/alerts/attributes",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "id",
+              "value": "={{ $('Eligible?').all().map(i => i.json.id) }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ attributes: { n8nTriagedAt: new Date().toISOString() } }) }}",
+        "options": {
+          "timeout": 10000,
+          "queryParameterArrays": "repeat"
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Alerta key"
+        }
+      }
+    },
+    {
+      "id": "b503c014-0125-4537-b01e-bf15e186e156",
+      "name": "Raise IntakeFailed",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2640,
+        200
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "executeOnce": true,
+      "parameters": {
+        "method": "POST",
+        "url": "http://10.118.0.1:5000/alert",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ environment: 'Homelab', resource: 'n8n/intake', event: 'IntakeFailed', severity: 'warning', service: ['automation'], group: 'Agents', origin: 'n8n', tags: ['n8n'], text: 'Paperclip answered ' + String($json.status || 'without a status').slice(0, 40) + ' when n8n started a triage of ' + $('Eligible?').all().length + ' alert(s).', attributes: { notificationTitle: 'The lab alert triage did not start' } }) }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Alerta key"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Alerta says an alert opened": {
+      "main": [
+        [
+          {
+            "node": "Accepted",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Accepted": {
+      "main": [
+        [
+          {
+            "node": "Settle",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Settle": {
+      "main": [
+        [
+          {
+            "node": "Pass",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Every 30 minutes": {
+      "main": [
+        [
+          {
+            "node": "Pass",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pass": {
+      "main": [
+        [
+          {
+            "node": "Open triages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Open triages": {
+      "main": [
+        [
+          {
+            "node": "Triage open?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Triage open?": {
+      "main": [
+        [
+          {
+            "node": "Waited half an hour?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Open alerts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Waited half an hour?": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Wait for it",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait for it": {
+      "main": [
+        [
+          {
+            "node": "Open triages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Open alerts": {
+      "main": [
+        [
+          {
+            "node": "Each alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Each alert": {
+      "main": [
+        [
+          {
+            "node": "Eligible?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Eligible?": {
+      "main": [
+        [
+          {
+            "node": "Batch key",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Batch key": {
+      "main": [
+        [
+          {
+            "node": "Start the triage",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Start the triage": {
+      "main": [
+        [
+          {
+            "node": "Started?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Started?": {
+      "main": [
+        [
+          {
+            "node": "Mark them",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Raise IntakeFailed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

@@ -122,6 +122,9 @@ in
         behindProxy = true;
       };
       alerta.extraCorsOrigins = [ "https://alerta.servicestack.xyz" ];
+      # n8n on the automation VM, over the tunnel, decides what the monitor triages
+      # (docs/automation/REFERENCE.md). automation.servicestack.xyz resolves through lab DNS (labDomains).
+      alerta.n8nAlertsUrl = "https://automation.servicestack.xyz/webhook/alerta";
       # 1880 on the host is the nginx intake allowlist; Node-RED itself is loopback-only.
       nodeRed.hostPort = 1881;
       images = {

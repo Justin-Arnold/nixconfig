@@ -221,7 +221,6 @@
           sqlite-backup = import ./modules/roles/sqlite-backup/check.nix { inherit pkgs lib; };
           agent-watch = import ./hosts/agents/agent-watch/check.nix { inherit pkgs; };
           agent-costs = import ./hosts/agents/agent-costs/check.nix { inherit pkgs; };
-          monitor-intake = import ./hosts/agents/monitor-intake/check.nix { inherit pkgs; };
           board-bridge = import ./hosts/agents/board-bridge/check.nix { inherit pkgs; };
           paperclip-events = import ./hosts/agents/paperclip-events/check.nix { inherit pkgs; };
           jev-mcp = import ./modules/roles/hermes-agents/jev-mcp/check.nix { inherit pkgs; };
@@ -262,16 +261,18 @@
               names = map (agent: agent.name) spec.agents;
               badRoutines = lib.filter (routine: !(lib.elem routine.assignee names)
                 || !(builtins.pathExists (./scripts/agents + "/${routine.descriptionFile}"))) (spec.routines or [ ]);
-              intake = agentsConfig.agents.monitorIntake;
-              triage = lib.findFirst (routine: routine.title == intake.routineTitle) null (spec.routines or [ ]);
+              watch = agentsConfig.agents.watch;
+              triage = lib.findFirst (routine: routine.title == watch.intake.routineTitle) null (spec.routines or [ ]);
             in
             assert lib.assertMsg (onHost == inSpec)
               "scripts/agents/paperclip-spec.json doesn't match hosts/agents/agents.nix: ${builtins.toJSON { inherit onHost inSpec; }}";
             assert lib.assertMsg (badRoutines == [ ])
               "scripts/agents/paperclip-spec.json: these routines name an agent or a description file that doesn't exist: ${builtins.toJSON (map (r: r.title) badRoutines)}";
-            # monitor-intake runs a routine by its title with the monitor's key, which runs only the monitor's own.
-            assert lib.assertMsg (!intake.active || (triage != null && triage.assignee == "Monitor"))
-              "scripts/agents/paperclip-spec.json has no routine for the monitor titled ${builtins.toJSON intake.routineTitle} (agents.monitorIntake.routineTitle)";
+            # n8n starts the triage through this routine's webhook and waits while one of its issues is open;
+            # agent-watch finds it by its title.
+            assert lib.assertMsg (!(watch.enable && watch.intake.enable) || (triage != null && triage.assignee == "Monitor"
+              && lib.any (trigger: trigger.kind == "webhook" && (trigger.watchOpen or false)) (triage.triggers or [ ])))
+              "scripts/agents/paperclip-spec.json has no routine for the monitor titled ${builtins.toJSON watch.intake.routineTitle} with a webhook trigger that has watchOpen (agents.watch.intake.routineTitle)";
             pkgs.writeText "paperclip-spec" (builtins.toJSON inSpec);
           # Each case breaks the dashboard's exposure policy; evaluation must refuse all of them.
           dashboard-exposure-guards =
@@ -585,6 +586,8 @@
                 tunnel-reaches-ui = { services.nginx.virtualHosts.${vhost}.locations."/".extraConfig = lib.mkForce "allow 10.118.0.1;\ndeny all;\n"; };
                 tunnel-reaches-other-webhook = { services.nginx.virtualHosts.${vhost}.locations."^~ /webhook/".extraConfig = "allow 10.118.0.1;\ndeny all;\n"; };
                 lan-reaches-github-webhook = { services.nginx.virtualHosts.${vhost}.locations."= /webhook/github".extraConfig = lib.mkForce "allow 10.0.0.0/24;\nallow 10.118.0.1;\ndeny all;\n"; };
+                lan-reaches-alerta-webhook = { services.nginx.virtualHosts.${vhost}.locations."= /webhook/alerta".extraConfig = lib.mkForce "allow 10.0.0.0/24;\nallow 10.118.0.1;\ndeny all;\nlimit_except POST { deny all; }\n"; };
+                alerta-webhook-any-method = { services.nginx.virtualHosts.${vhost}.locations."= /webhook/alerta".extraConfig = lib.mkForce "allow 10.118.0.1;\ndeny all;\n"; };
                 docker-enabled = { virtualisation.docker.enable = true; };
                 sops-file-missing = { sops.validateSopsFiles = lib.mkOverride 40 true; };
                 backup-target-missing = { automation.backup.nfsDevice = lib.mkOverride 40 null; };

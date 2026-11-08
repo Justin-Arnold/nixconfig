@@ -78,6 +78,15 @@ in
           client_max_body_size 5m;
         '';
       };
+      # Alerta's push plugin, saying an alert opened. Only an id comes in;
+      # n8n reads the alert from Alerta itself.
+      locations."= /webhook/alerta" = {
+        proxyPass = n8n;
+        extraConfig = allow [ tunnel ] + ''
+          limit_except POST { deny all; }
+          client_max_body_size 16k;
+        '';
+      };
       locations."= /healthz" = {
         proxyPass = n8n;
         extraConfig = allow [ lan vpn tunnel ];
@@ -100,12 +109,14 @@ in
     {
       # Anything else the tunnel reached would be open to lab118-services and
       # whatever runs there.
-      assertion = lib.sort lib.lessThan tunnelLocations == [ "= /healthz" "= /webhook/github" ];
-      message = "automation: the tunnel (${tunnel}) reaches /webhook/github and /healthz only (got ${toString tunnelLocations}).";
+      assertion = lib.sort lib.lessThan tunnelLocations == [ "= /healthz" "= /webhook/alerta" "= /webhook/github" ];
+      message = "automation: the tunnel (${tunnel}) reaches /webhook/github, /webhook/alerta and /healthz only (got ${toString tunnelLocations}).";
     }
     {
-      assertion = lib.hasPrefix (allow [ tunnel ]) vhost.locations."= /webhook/github".extraConfig;
-      message = "automation: /webhook/github allows the tunnel and nothing else.";
+      assertion = lib.all (path: lib.hasPrefix (allow [ tunnel ]) vhost.locations.${path}.extraConfig
+        && lib.hasInfix "limit_except POST { deny all; }" vhost.locations.${path}.extraConfig)
+        [ "= /webhook/github" "= /webhook/alerta" ];
+      message = "automation: /webhook/github and /webhook/alerta allow the tunnel and nothing else, POST only.";
     }
   ];
 

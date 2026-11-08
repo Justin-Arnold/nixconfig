@@ -27,7 +27,6 @@ let
   # The oneshot services nudged straight. board-bridge runs all the time,
   # so it's nudged through a kick that sends it SIGHUP.
   oneshots = lib.optional config.agents.watch.enable "agent-watch"
-    ++ lib.optional config.agents.monitorIntake.active "monitor-intake"
     ++ map (name: "agent-costs-${name}") costAgents;
   bridge = config.agents.boardBridge.enable;
   consumers = oneshots ++ lib.optional bridge "board-bridge";
@@ -40,7 +39,7 @@ in
     enable = lib.mkOption {
       type = lib.types.bool;
       default = false;
-      description = "Whether Paperclip's live events nudge agent-watch, board-bridge, monitor-intake and agent-costs. Its key on the researcher has to be in SOPS first.";
+      description = "Whether Paperclip's live events nudge agent-watch, board-bridge and agent-costs. Its key on the researcher has to be in SOPS first.";
     };
 
     cooldownSeconds = lib.mkOption {
@@ -59,8 +58,7 @@ in
 
   config = lib.mkIf cfg.enable {
     # The consumers' timers become a slower sweep. agent-watch keeps its five
-    # minutes for what's about time passing, and monitor-intake its two
-    # until alerts reach it as events too.
+    # minutes for what's about time passing.
     agents.boardBridge.pollSeconds = lib.mkDefault 300;
     agents.costs.every = lib.mkDefault "hourly";
 

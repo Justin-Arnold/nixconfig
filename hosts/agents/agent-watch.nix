@@ -4,8 +4,9 @@
 # stuck in progress, approvals and questions waiting on the board, open
 # issues labelled change or sensitive, and budgets past their warning level,
 # and, from what agent-costs writes, Claude spend nearing the month's credit
-# and Claude or Jev refusing an agent for credits, and, from their status
-# files, monitor-intake, board-bridge or paperclip-events stalling. Alerta's forwarder on
+# and Claude or Jev refusing an agent for credits, from their status files,
+# board-bridge or paperclip-events stalling, and from Alerta itself, alerts
+# n8n should have handed to the monitor's triage and hasn't. Alerta's forwarder on
 # lab118-services sends them to the phone, with a link to the issue or
 # approval where there is one. See agent-watch/agent-watch.py for what each
 # alert means.
@@ -21,6 +22,19 @@ let
   secret = name: config.sops.secrets."agent-watch/${name}".path;
   # Alerts about an issue or approval link to it on the board.
   spec = builtins.fromJSON (builtins.readFile ../../scripts/agents/paperclip-spec.json);
+  # Which alerts n8n hands to the monitor's triage, as hosts/automation/workflows/alerta.json says it.
+  eligible = (lib.findFirst (node: node.name == "Eligible?") { parameters.conditions.conditions = [ ]; }
+    (lib.importJSON ../automation/workflows/alerta.json).nodes).parameters.conditions.conditions;
+  rules = map (condition: condition.leftValue) eligible;
+  js = list: "[${lib.concatMapStringsSep ", " (value: "'${value}'") list}]";
+  harmless = entry: let pair = lib.splitString "/" entry; in
+    "!($json.origin === '${lib.elemAt pair 0}' && $json.event === '${lib.elemAt pair 1}')";
+  expected = [
+    "${js cfg.intake.severities}.includes($json.severity)"
+    "!${js cfg.intake.ignoreOrigins}.includes($json.origin)"
+  ] ++ map harmless cfg.intake.harmless;
+  missing = lib.filter (rule: !lib.any (lib.hasInfix rule) rules) expected;
+  harmlessRules = lib.filter (lib.hasInfix "$json.event ===") rules;
 in
 {
   options.agents.watch = {
@@ -41,6 +55,46 @@ in
       default = 60;
       description = "How long an issue can sit in progress with no run and no activity before it's stuck.";
     };
+
+    # The same rules as the Eligible? node in hosts/automation/workflows/alerta.json; an assertion
+    # keeps the two together.
+    intake = {
+      enable = lib.mkOption {
+        type = lib.types.bool;
+        default = true;
+        description = "Whether agent-watch raises IntakeStale for alerts n8n should have handed to the monitor's triage and hasn't.";
+      };
+
+      severities = lib.mkOption {
+        type = lib.types.listOf (lib.types.enum [ "security" "critical" "major" "minor" "warning" "informational" "debug" ]);
+        default = [ "critical" "major" "minor" "warning" ];
+        description = "The severities n8n hands over.";
+      };
+
+      ignoreOrigins = lib.mkOption {
+        type = lib.types.listOf lib.types.str;
+        default = [ "agent-watch" "n8n" "send-test-alert.sh" ];
+        description = "Origins n8n never hands over: the agents' own alerts, n8n's, and the end-to-end test script's.";
+      };
+
+      harmless = lib.mkOption {
+        type = lib.types.listOf (lib.types.strMatching "[^/']+/[^/']+");
+        default = [ "uptimekuma/msg" ];
+        description = "Known-harmless alerts n8n never hands over, as origin/event: Kuma's test notification.";
+      };
+
+      routineTitle = lib.mkOption {
+        type = lib.types.str;
+        default = "Triage {{count}} lab alert(s)";
+        description = "The monitor's triage routine, by its title in scripts/agents/paperclip-spec.json. Alerts waiting behind one of its issues open less than an hour aren't stale.";
+      };
+
+      staleMinutes = lib.mkOption {
+        type = lib.types.ints.positive;
+        default = 15;
+        description = "How long an alert n8n should hand over can stay open without being handed over.";
+      };
+    };
   };
 
   config = lib.mkMerge [
@@ -49,6 +103,11 @@ in
         "agents: agent-watch is off until agent-watch/paperclip-key, alerta-key and kuma-push-url are in SOPS (agents.watch.enable).";
     }
     (lib.mkIf cfg.enable {
+      assertions = lib.optionals cfg.intake.enable [ {
+        assertion = missing == [ ] && lib.length harmlessRules == lib.length cfg.intake.harmless;
+        message = "agents.watch.intake doesn't match the Eligible? node in hosts/automation/workflows/alerta.json; change both together. Not found there: ${builtins.toJSON missing}";
+      } ];
+
       sops.secrets = {
         "agent-watch/paperclip-key" = { };
         "agent-watch/alerta-key" = { };
@@ -69,11 +128,14 @@ in
           COSTS_DIR = "/var/lib/agent-costs";
           CLAUDE_MONTHLY_CREDITS = toString config.agents.costs.claudeMonthlyCredits;
           CLAUDE_WARN_PERCENT = toString config.agents.costs.claudeWarnPercent;
-        } // lib.optionalAttrs config.agents.monitorIntake.active {
-          # Whether new alerts still reach the monitor (./monitor-intake.nix),
-          # which runs every 2 minutes.
-          INTAKE_STATUS = config.agents.monitorIntake.statusFile;
-          INTAKE_STALE_MINUTES = "15";
+        } // lib.optionalAttrs cfg.intake.enable {
+          # Whether new alerts still reach the monitor's triage through n8n's
+          # alerta workflow on the automation VM.
+          INTAKE_SEVERITIES = lib.concatStringsSep "," cfg.intake.severities;
+          INTAKE_IGNORE_ORIGINS = lib.concatStringsSep "," cfg.intake.ignoreOrigins;
+          INTAKE_HARMLESS = lib.concatStringsSep "," cfg.intake.harmless;
+          INTAKE_ROUTINE = cfg.intake.routineTitle;
+          INTAKE_STALE_MINUTES = toString cfg.intake.staleMinutes;
         } // lib.optionalAttrs config.agents.boardBridge.enable {
           # Whether the board's questions still reach the chat channels
           # (./board-bridge.nix).

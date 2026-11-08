@@ -5,7 +5,7 @@ printing it.
 Some services on agents read Paperclip as an agent rather than the board:
 Paperclip's live events take agent keys only, and an agent key can't change
 anything outside that agent's reach. SERVICES says which agent each one's
-key belongs to and where it goes in secrets/hosts/agents.yaml.
+key belongs to, and which SOPS file and path it goes to.
 
 It signs in like paperclip-apply.py, with a link to approve in the browser
 where you're signed in to Paperclip. Then it:
@@ -36,12 +36,15 @@ import subprocess
 import sys
 
 HERE = pathlib.Path(__file__).resolve().parent
-SOPS_FILE = HERE.parent.parent / "secrets/hosts/agents.yaml"
+REPO = HERE.parent.parent
 SPEC = HERE / "paperclip-spec.json"
-# service: (the agent its key is on, where it goes in agents.yaml)
+# service: (the agent its key is on, the SOPS file it goes in, and where)
 SERVICES = {
-    "paperclip-events": ("Researcher", '["paperclip-events"]["paperclip-key"]'),
-    "agent-watch": ("Researcher", '["agent-watch"]["paperclip-key"]'),
+    "paperclip-events": ("Researcher", "secrets/hosts/agents.yaml", '["paperclip-events"]["paperclip-key"]'),
+    "agent-watch": ("Researcher", "secrets/hosts/agents.yaml", '["agent-watch"]["paperclip-key"]'),
+    # n8n on the automation VM, which reads the triage routine's open issues and nothing else
+    # (n8n-apply.py holds that credential to one GET).
+    "n8n": ("Researcher", "secrets/hosts/automation.yaml", '["paperclip"]["n8n-key"]'),
 }
 
 
@@ -75,7 +78,8 @@ def main():
     ap.add_argument("--revoke-old", action="store_true", help="revoke every key of this name but the newest, and make none")
     ap.add_argument("--url", default="https://paperclip.servicestack.xyz")
     args = ap.parse_args()
-    agent_name, sops_path = SERVICES[args.service]
+    agent_name, sops_file, sops_path = SERVICES[args.service]
+    sops_file = REPO / sops_file
     env = {**os.environ, "SOPS_AGE_KEY_FILE": os.environ.get("SOPS_AGE_KEY_FILE",
                                                               str(pathlib.Path.home() / ".config/sops/age/keys.txt"))}
     if not args.revoke_old and not pathlib.Path(env["SOPS_AGE_KEY_FILE"]).is_file():
@@ -97,17 +101,17 @@ def main():
         older = service_keys(pc, agent, args.service)
         key = pc.call("post", f"/api/agents/{agent['id']}/keys", {"name": args.service})
         # The value goes to sops on stdin, JSON-encoded as `sops set` wants it.
-        done = subprocess.run(["sops", "set", "--value-stdin", str(SOPS_FILE), sops_path],
+        done = subprocess.run(["sops", "set", "--value-stdin", str(sops_file), sops_path],
                               input=json.dumps(key["token"]), text=True, env=env, capture_output=True)
         if done.returncode != 0:
             pc.call("delete", f"/api/agents/{agent['id']}/keys/{key['id']}")
             sys.exit(f"sops couldn't set {sops_path}, so the new key is revoked: {done.stderr.strip()[:300]}")
         where = "/".join(part.strip('"') for part in sops_path.strip("[]").split("]["))
         print(f"made a key named {args.service} on {agent_name}, and put it in "
-              f"{SOPS_FILE.relative_to(HERE.parent.parent)} at {where}")
+              f"{sops_file.relative_to(REPO)} at {where}")
         if older:
-            print(f"{len(older)} older {args.service} key(s) still work. Once agents is switched, run this "
-                  "again with --revoke-old.")
+            print(f"{len(older)} older {args.service} key(s) still work. Once {args.service} uses the new one, "
+                  "run this again with --revoke-old.")
     finally:
         try:
             pc.call("post", "/api/cli-auth/revoke-current")

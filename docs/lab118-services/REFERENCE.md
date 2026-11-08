@@ -96,8 +96,9 @@ Alerta identifies an alert by environment + resource + event.
   the full history.
 - `ALLOWED_ENVIRONMENTS` is `Production`, `Development`, `Homelab`; anything
   else is rejected.
-- One Alerta plugin is on, `push`. It sends nothing about the alert: it
-  only tells the forwarder to read Alerta now (see Delivery).
+- One Alerta plugin is on, `push`. It tells the forwarder to read Alerta
+  now (see Delivery), and tells n8n on the automation VM the id of an alert
+  that just opened, for the monitor's triage.
 
 ### Delivery
 
@@ -115,6 +116,16 @@ that's down never fails Kuma's call into Alerta. A status change through the
 API kicks a second late, because Alerta calls the plugin before it saves the
 new status. The plugin is a small package with an `alerta.plugins` entry
 point, and the role runs `alertad` from an Alerta build that includes it.
+
+When an alert is saved open and isn't a repeat (it's new, reopened, or its
+severity changed), the plugin also POSTs `{"id": "<alert id>"}` to
+`roles.notificationsStack.alerta.n8nAlertsUrl`, which is
+`https://automation.servicestack.xyz/webhook/alerta` here. That goes over the
+tunnel through lab DNS, from its own thread with a 3-second timeout, and a
+failure is logged and dropped. n8n reads the alert back from Alerta with its
+own key, so the id is all it's told (`docs/automation/REFERENCE.md`, "Alerts
+from Alerta"). `SSL_CERT_FILE` is set for `alertad` so the HTTPS call finds
+the system's certificates.
 
 For each alert it hashes the id, severity, status, text and any
 custom title or body, and compares the result with
@@ -558,7 +569,7 @@ Upgrades are manual. There's no auto-upgrade on this host. The flow:
 - Nothing outside watches this VPS itself.
 - A rebuild during a Doppler outage needs the old cache file.
 - A kick that's lost, say while the forwarder restarts, waits for its
-  5-minute fetch.
+  5-minute fetch. A push to n8n that's lost waits for n8n's 30-minute sweep.
 - sops-nix restarts services from the activation script, which NixOS deprecates in 26.11. After that, secret changes coming from SOPS (Doppler token, WireGuard key) may need a manual restart of the affected unit.
 
 ## Gotchas

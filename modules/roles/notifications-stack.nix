@@ -49,7 +49,7 @@ let
     JSON
   '';
 
-  alertaConfig = pkgs.writeText "alertad-${cfg.hostAlias}.conf" ''
+  alertaConfig = pkgs.writeText "alertad-${cfg.hostAlias}.conf" (''
     DATABASE_URL = 'postgresql:///alerta'
     DATABASE_NAME = 'alerta'
     LOG_HANDLERS = ['console']
@@ -73,7 +73,9 @@ let
     # A plugin's error is logged and never fails the request that sent the alert.
     PLUGINS_RAISE_ON_ERROR = False
     FORWARDER_KICK_URL = 'http://127.0.0.1:${toString appriseForwarderPort}/kick'
-  '';
+  '' + lib.optionalString (cfg.alerta.n8nAlertsUrl != null) ''
+    N8N_ALERTS_URL = '${cfg.alerta.n8nAlertsUrl}'
+  '');
 
   # Alerta with the `push` plugin, which kicks the forwarder as alerts come
   # in and change (notifications-stack/alerta-push/).
@@ -112,6 +114,15 @@ in
         type = lib.types.listOf lib.types.str;
         default = [ ];
         description = "Additional browser origins allowed to call the Alerta API.";
+      };
+      n8nAlertsUrl = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
+        default = null;
+        example = "https://automation.servicestack.xyz/webhook/alerta";
+        description = ''
+          Where the push plugin tells n8n an alert opened, with only its id,
+          so n8n can decide whether the monitor triages it. Null sends nothing.
+        '';
       };
     };
 
@@ -204,6 +215,8 @@ in
       after = [ "network.target" "postgresql.service" "alerta-bootstrap.service" ] ++ secretsAfter;
       wants = [ "postgresql.service" ] ++ secretsAfter;
       environment.ALERTA_SVR_CONF_FILE = lib.mkForce "${alertaConfig}";
+      # The push plugin reaches n8n over HTTPS, and Python doesn't find the bundle itself.
+      environment.SSL_CERT_FILE = "/etc/ssl/certs/ca-certificates.crt";
       # The module runs pkgs.alerta-server, which has no push plugin.
       serviceConfig.ExecStart = lib.mkForce
         "${alertaServer}/bin/alertad run --port ${toString config.services.alerta.port} --host ${config.services.alerta.bind}";

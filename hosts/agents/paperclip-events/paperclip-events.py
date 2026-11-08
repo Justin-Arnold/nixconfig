@@ -19,8 +19,6 @@ a consumer. Who wants what is in targets():
 - agent-watch: questions, confirmations and approvals coming and going,
   issues created or changed, runs that finished, agents' status;
 - board-bridge: questions, confirmations and approvals coming and going;
-- monitor-intake: issues created or changed, so a finished triage releases
-  the alerts waiting behind it at once;
 - agent-costs-<name>: each finished run of that agent.
 
 After every (re)connect every consumer is nudged once, for whatever
@@ -88,7 +86,7 @@ def targets(event, agents):
         if action.startswith(INTERACTIONS) or action.startswith(APPROVALS):
             found |= {"agent-watch", "board-bridge"}
         if action in ISSUE_STATE:
-            found |= {"agent-watch", "monitor-intake"}
+            found.add("agent-watch")
     elif kind == "heartbeat.run.status":
         # A run's status changes several times; only its end matters here.
         if payload.get("finishedAt"):

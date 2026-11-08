@@ -29,9 +29,12 @@ them, and checks what came back:
             monitor comments on the issue it makes and sets it done, and the
             lab server's call log shows it read every source it has during
             the run
-  intake    a minor test alert (resource smoke/<nonce>) goes into Alerta and
-            monitor-intake runs; the monitor's triage issue for that alert
-            ends done with a comment naming smoke/<nonce>, which it can only
+  intake    a minor test alert (resource smoke/<nonce>) goes into Alerta,
+            and nothing more is done: Alerta's plugin tells n8n, which hands
+            it to the monitor's triage after its 3-minute settle and marks
+            the alert's n8nTriagedAt. The triage issue has to come within
+            12 minutes and the mark with it, and the issue has to end done
+            with a comment naming smoke/<nonce>, which the monitor can only
             learn by reading the alert, and an alerta_alert call in its log.
             The alert is cleared afterwards. The phone gets both.
   ask       the researcher asks the board a two-option question on an issue
@@ -648,23 +651,30 @@ awk -v since="$since" '$1 >= since && $3 == "client=agents" && $5 == "/v1/chat/c
         since = self.vm_now()
         alert_id = self.send_alert(resource, "minor", f"Smoke test {self.nonce}: nothing is wrong. This alert checks "
                                    "that the monitor triages new alerts, and is cleared within minutes.")
-        print(f"    raised {resource} in Alerta ({alert_id})")
+        print(f"    raised {resource} in Alerta ({alert_id}); n8n settles for 3 minutes before it hands it over")
+        raised = time.monotonic()
         try:
             issue = None
-            deadline = time.monotonic() + 8 * 60
             while issue is None:
-                proc = remote("agents", "systemctl start monitor-intake; "
-                              "journalctl -u monitor-intake -n 5 -o cat --no-pager | grep '^monitor-intake' | tail -n 1")
-                print(f"    {proc.stdout.strip() or text(proc.stderr)}")
+                time.sleep(20)
                 made = self.pc.call("get", f"/api/companies/{self.cid}/issues?originKind=routine_execution"
                                     f"&originId={routine['id']}&limit=20")
                 issue = next((i for i in made if alert_id in self.description(i)), None)
-                if issue is None:
-                    if time.monotonic() > deadline:
-                        raise Fail(f"no triage issue for {resource} after 8 minutes; "
-                                   "is the monitor still on an earlier one?")
-                    time.sleep(30)
-            print(f"    the intake made {issue['identifier']}: {issue['title']}")
+                if issue is None and time.monotonic() - raised > 12 * 60:
+                    working = [i["identifier"] for i in made if i.get("status") in ("todo", "in_progress")]
+                    raise Fail(f"no triage issue for {resource} after 12 minutes"
+                               + (f"; n8n waits while {', '.join(working)} is open" if working else
+                                  "; see the alerta workflow's executions in n8n"))
+            print(f"    n8n made {issue['identifier']} {time.monotonic() - raised:.0f} s after the alert: {issue['title']}")
+            for _ in range(6):
+                found = self.alert(resource, "open", event="SmokeTest") or {}
+                marked = (found.get("attributes") or {}).get("n8nTriagedAt") or ""
+                if marked:
+                    break
+                time.sleep(5)
+            if not (marked and seconds_between(found["receiveTime"], marked) >= 0):
+                raise Fail(f"n8n started {issue['identifier']}, but {resource} has no n8nTriagedAt from after it "
+                           f"opened ({marked or 'none'}), so agent-watch will call it stale")
             done = self.wait(issue)
             if done["status"] != "done":
                 raise self.ended(issue, done["status"], monitor)

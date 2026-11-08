@@ -198,7 +198,7 @@ SPEC = {
          "variables": [{"name": "repo", "label": "Repository", "type": "select", "options": ["nixconfig"]},
                        {"name": "number", "label": "Pull request", "type": "number"}],
          "triggers": [{"label": "n8n", "kind": "webhook", "signingMode": "bearer",
-                       "secretsTo": "paperclip-triggers/fix-ci"}]},
+                       "secretsTo": "paperclip-triggers/fix-ci", "watchOpen": True}]},
     ],
     "webhookTriggers": {"sopsFile": "automation.yaml", "baseUrl": "https://triggers.example"},
 }
@@ -462,8 +462,8 @@ check("dry run plans the routine drift", "~ routine Lab health review {{date}}: 
       "morning cronExpression 0 6 * * * -> 0 7 * * *, trigger every morning timezone UTC -> America/New_York" in out)
 check("dry run plans the new routine", "+ routine Review {{repo}}#{{number}} (for Reviewer, no triggers)" in out)
 check("dry run plans the routine with a webhook trigger",
-      "+ routine Fix CI on {{repo}}#{{number}} (for Engineer, n8n: webhook, its URL and secret to SOPS at "
-      "paperclip-triggers/fix-ci)" in out)
+      "+ routine Fix CI on {{repo}}#{{number}} (for Engineer, n8n: webhook, its URL, secret and routine's "
+      "open-issues url to SOPS at paperclip-triggers/fix-ci)" in out)
 check("dry run reports a webhook trigger only in Paperclip",
       "? routine Lab health review {{date}}: webhook trigger old hook exists only in Paperclip (left alone)" in out)
 check("dry run reports routines only in Paperclip, but not archived ones",
@@ -516,6 +516,9 @@ check("apply makes the webhook trigger signed with bearer",
 check("  ...and writes its URL on the spec's base URL to SOPS",
       stored.get("url") == f"https://triggers.example/api/routine-triggers/public/{hook.get('publicId')}/fire")
 check("  ...with its secret", stored.get("secret") == fake.hook_secrets.get(hook.get("id")))
+OPEN_URL = (f"{url}/api/companies/{CID}/issues?originKind=routine_execution&originId={fix_ci.get('id')}"
+            "&status=todo,in_progress")
+check("  ...and, for watchOpen, the routine's open-issues url", stored.get("open", {}).get("url") == OPEN_URL)
 check("  ...and says to make n8n's credential", "n8n-apply.py --apply makes n8n's credential" in out)
 
 writes = len(fake.writes)
@@ -538,6 +541,22 @@ check("  ...and says n8n's credential has to be made again", "delete it in n8n, 
 writes = len(fake.writes)
 out = run(url, str(spec_path), "--apply")
 check("then nothing more", len(fake.writes) == writes and "0 change(s) made" in out)
+check("  ...and the open-issues url survived the new secret",
+      sops_values()[str(spec_path.parent / "automation.yaml")]["paperclip-triggers"]["fix-ci"].get("open", {}).get("url") == OPEN_URL)
+
+print("== a webhook trigger whose open-issues url SOPS lost")
+values = sops_values()
+del values[str(spec_path.parent / "automation.yaml")]["paperclip-triggers"]["fix-ci"]["open"]
+SOPS_VALUES.write_text(json.dumps(values))
+secret_before = fake.hook_secrets[hook["id"]]
+out = run(url, str(spec_path))
+check("dry run plans only the url", "its routine's open-issues url to SOPS at paperclip-triggers/fix-ci/open/url" in out
+      and "a new secret" not in out)
+writes = len(fake.writes)
+out = run(url, str(spec_path), "--apply")
+stored = sops_values()[str(spec_path.parent / "automation.yaml")]["paperclip-triggers"]["fix-ci"]
+check("apply writes it back without a new secret", stored.get("open", {}).get("url") == OPEN_URL
+      and fake.hook_secrets[hook["id"]] == secret_before and len(fake.writes) == writes)
 check("no webhook secret is ever printed",
       not any(secret in text for text in OUTPUTS for secret in fake.hook_secrets.values()))
 
@@ -574,6 +593,8 @@ SOPS_VALUES.write_text(saved)
 check("stops before touching the trigger", proc.returncode != 0 and "can't decrypt" in proc.stderr
       and fake.hook_secrets[hook["id"]] == secret_before
       and not any("rotate-secret" in path for _, path, _ in fake.writes[writes:]))
+refused("watchOpen on a schedule trigger",
+        lambda s: s["routines"][0]["triggers"][0].update(watchOpen=True), "watchOpen is true or false, on a webhook")
 refused("an unknown trigger kind",
         lambda s: s["routines"][0]["triggers"].append({"label": "hook", "kind": "email"}), "only api, schedule, webhook")
 
