@@ -359,6 +359,7 @@
                 hermes-browser = { roles.hermesAgents.instances.researcher.toolsets = [ "browser" ]; };
                 hermes-approvals-off = { roles.hermesAgents.instances.engineer.settings.approvals.mode = "off"; };
                 hermes-deny-list-dropped = { roles.hermesAgents.instances.engineer.settings.approvals.deny = [ ]; };
+                hermes-allowlist-widened = { roles.hermesAgents.instances.engineer.settings.command_allowlist = [ "git rm *" "rm *" ]; };
                 hermes-yolo = { roles.hermesAgents.instances.engineer.extraArgs = [ "--yolo" ]; };
                 hermes-messaging = { roles.hermesAgents.instances.coordinator.secrets.TELEGRAM_BOT_TOKEN = "hermes/coordinator/telegram"; };
                 hermes-extra-mcp = { roles.hermesAgents.instances.coordinator.mcpServers.shell.command = "/bin/sh"; };

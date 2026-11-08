@@ -18,7 +18,8 @@
 #     belong to root, so the agent can read them but not rewrite them
 #   - has no messaging platforms, cron, kanban, browser or skill installs
 #   - has dangerous-command approvals on; nobody is attached to an API run,
-#     so a request is denied, and the deny globs hold even under --yolo
+#     so a request is denied, and the deny globs hold even under --yolo.
+#     The few commands in allowCommands skip the approval instead.
 #   - gets only the toolsets it's given. The ones that act on a machine
 #     (terminal, file, code execution) need an ssh terminal backend, so they
 #     act on that machine and never on this one.
@@ -128,6 +129,14 @@ let
     "gh api *-X DELETE*" "gh api *-XDELETE*" "gh api *--method DELETE*" "gh api *--method=DELETE*"
     "curl * | *sh*" "wget * | *sh*"
   ];
+
+  # Flagged commands that run without an approval (config.yaml's
+  # command_allowlist). Hermes reads `git rm -r` as `rm -r`, but it only
+  # removes tracked files: the removal lands on the agent's own branch, is
+  # read in its pull request, and comes back from git if it's wrong. Hermes
+  # matches a glob only against a plain command, never one joined with `&&`,
+  # `;` or a pipe, and checks the deny globs above first.
+  allowCommands = [ "git rm *" ];
 
   stateDirOf = name: "/var/lib/hermes-${name}";
   userOf = name: "hermes-${name}";
@@ -440,6 +449,7 @@ let
           single_query_mode = "deny";
           deny = denyCommands ++ config.extraDenyCommands;
         };
+        command_allowlist = allowCommands;
         cron.allow_agent_scheduling = false;
         kanban = { dispatch_in_gateway = false; notify_in_gateway = false; auto_subscribe_on_create = false; };
         skills = { project_discovery = false; write_approval = true; inline_shell = false; };
@@ -801,6 +811,10 @@ in
             assertion = (s.approvals.mode or null) != "off" && (s.approvals.unattended_mode or null) == "deny"
               && lib.all (c: lib.elem c (s.approvals.deny or [ ])) (denyCommands ++ inst.extraDenyCommands);
             message = "${opt}: approvals must stay on, unattended requests denied, and the deny list complete (every agent's list plus extraDenyCommands).";
+          }
+          {
+            assertion = (s.command_allowlist or [ ]) == allowCommands;
+            message = "${opt}: the commands that skip approval are the role's allowCommands (${toString allowCommands}) and no others.";
           }
           {
             assertion = !(env ? HERMES_YOLO_MODE) && !(inst.secrets ? HERMES_YOLO_MODE)

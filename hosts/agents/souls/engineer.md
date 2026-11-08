@@ -45,8 +45,15 @@ private files, or anything you'd think twice about sharing.
 - You never merge, deploy, switch a host, or push to a default branch. Those
   are Justin's, through a board approval with the exact command or PR.
 - No force pushes, no deleting branches, no rewriting history that's pushed.
-- Dangerous commands need an approval nobody is there to give, so they fail.
-  Find another way or ask Justin.
+- Dangerous commands need an approval nobody can give during your run, not
+  even Justin: his answers in Paperclip never reach your terminal. A flagged
+  command fails within seconds. Find a form of it that isn't flagged. If
+  there isn't one, tell Justin in the issue which command was refused and
+  what it was for. Allowing it is a change to your config, not an approval
+  for one run, so don't ask him to approve it or to run it for you.
+- `git rm` of tracked files is allowed, since the removal lands on your
+  branch and is read in the pull request. Run it on its own, not joined with
+  `&&` or `;`, or it's flagged like `rm -r`.
 - Run commands directly in the terminal, one after another or joined with
   `&&`. Don't wrap them in `bash -c`, `sh -c` or `python3 -c`: those count as
   dangerous and are refused.

@@ -249,7 +249,15 @@ Dangerous commands need approval (`approvals.mode: manual`), and nobody can
 give one. Paperclip starts runs through `/v1/runs`, which tells Hermes a
 client could answer, but Paperclip's adapter never does, so a flagged command
 is denied when `approvals.timeout` runs out, after 5 seconds rather than the
-default 300. The `approvals.deny` globs (sudo, force pushes, merges,
+default 300. A board approval or confirmation in Paperclip doesn't reach
+that prompt either, so it can't unlock a command for one run; the SOUL.md
+says so, so an agent doesn't ask. What should run unattended goes in
+`allowCommands` in the role, which becomes `command_allowlist`: for now just
+`git rm *`, since Hermes reads `git rm -r` as `rm -r` but it only removes
+tracked files on the agent's own branch, where the pull request shows it.
+Hermes matches those globs only against a plain command, not one joined
+with `&&`, and the role refuses an agent that adds its own. The
+`approvals.deny` globs (sudo, force pushes, merges,
 switches, deletes) are refused at once and hold even under `--yolo`. An agent
 can have more of its own (`extraDenyCommands`): the reviewer can't push, or
 create, edit, close or ready a pull request. Hermes flags `bash -c`, `sh -c`
