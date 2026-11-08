@@ -20,8 +20,28 @@ let
   # lab118-services's end of the tunnel, where Alerta's API listens.
   lab118 = "10.118.0.1";
 
-  # n8n's own default, kept explicit so the guard below can hold it.
-  excludedNodes = [ "n8n-nodes-base.executeCommand" "n8n-nodes-base.localFileTrigger" ];
+  # Nodes n8n won't load, even for an edit in the UI: anything that runs code
+  # (JavaScript or Python, the AI Transform node's included), reaches the
+  # host's files, git, SSH or FTP, or drives n8n's own API. The first two are
+  # n8n's default. scripts/automation/n8n-apply.py refuses them in the repo's
+  # workflow files as well, from a shorter list of what's allowed.
+  excludedNodes = map (n: "n8n-nodes-base.${n}") [
+    "executeCommand"
+    "localFileTrigger"
+    "code"
+    "function"
+    "functionItem"
+    "aiTransform"
+    "ssh"
+    "ftp"
+    "git"
+    "readWriteFile"
+    "readBinaryFile"
+    "readBinaryFiles"
+    "writeBinaryFile"
+    "readPdf"
+    "n8n"
+  ] ++ [ "@n8n/n8n-nodes-langchain.code" "@n8n/n8n-nodes-langchain.toolCode" ];
 in
 {
   sops.secrets."n8n/encryption-key".restartUnits = [ "n8n.service" ];
@@ -96,7 +116,7 @@ in
       assertion = lib.all (node: lib.elem node (builtins.fromJSON cfg.environment.NODES_EXCLUDE)) excludedNodes
         && cfg.environment.N8N_BLOCK_ENV_ACCESS_IN_NODE == "true"
         && cfg.environment.N8N_COMMUNITY_PACKAGES_ENABLED == "false";
-      message = "automation: n8n keeps Execute Command and the local file trigger excluded, environment access blocked and community packages off.";
+      message = "automation: n8n keeps every node in excludedNodes (code, files, SSH, FTP, git, its own API) excluded, environment access blocked and community packages off.";
     }
     {
       assertion = !(cfg.environment ? N8N_ENCRYPTION_KEY);

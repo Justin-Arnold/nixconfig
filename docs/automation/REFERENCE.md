@@ -89,7 +89,10 @@ n8n runs from nixpkgs' module with these changes:
 - Nothing calls home or pulls code in: telemetry, version checks, templates
   and community packages are off.
 - n8n's MCP server access is off, and nodes can't read the service's
-  environment. Execute Command and the local file trigger are excluded.
+  environment. n8n won't load a node that runs code (Code, Function, AI
+  Transform and LangChain's code nodes), reaches the host's files, git, SSH
+  or FTP, or drives n8n's own API (`excludedNodes` in `n8n.nix`), so not even
+  an edit in the UI can use one.
 
 n8n reaches only loopback, the internet, `10.0.0.152:443` (Paperclip's
 routine triggers on the agents VM, as `paperclip-triggers.servicestack.xyz`,
@@ -132,7 +135,34 @@ The script refuses a workflow file that carries a credential's id or data, a
 literal `Authorization` header, a literal value in a field named like a
 secret, or any value it read from SOPS. `--check` runs the checks that need
 neither n8n nor SOPS, and the `provisioning` flake check runs it on the repo's
-files.
+files, so on every pull request.
+
+Agents may propose workflows, so the script also keeps what one can reach to
+short lists, written at the top of `n8n-apply.py`:
+
+| What | Allowed |
+|---|---|
+| Node types | webhook, respond to webhook, if, filter, switch, wait, schedule trigger, HTTP request, crypto, set, split out, aggregate, merge, no-op |
+| Hosts a url may name | `https://api.github.com/` and Alerta (`http://10.118.0.1:5000/`), or a Paperclip trigger's url from SOPS |
+| SOPS paths a credential may read | `github/webhook-secret`, `alerta/n8n-key`, `paperclip/n8n-key`, `paperclip-triggers/<name>/secret` |
+| Where each credential may go | the webhook secret only into a Crypto node; the Alerta key only to Alerta; a trigger's secret only to that trigger's url; the Paperclip key only in a GET of a routine's open issues |
+
+A url is written out or comes from SOPS, never from an expression, and the
+HTTP node's proxy and pagination options are refused, since either could
+send a request somewhere else. Each HTTP credential also carries n8n's own
+domain fence, `allowedHttpRequestDomains` and `allowedDomains`, which n8n
+checks on every request and every redirect. Loosening any of this is a
+change to `n8n-apply.py`, `n8n.nix` or `n8n-credentials.json` that Justin
+reads, and infra's instructions say never to make it to get a workflow
+through. A change to a credential, a url or a webhook path gets the
+`sensitive` label.
+
+`scripts/automation/tests/n8n-live-test.py`, run by hand on the Mac, starts a
+scratch n8n with the host's excluded nodes, fakes GitHub, Alerta and
+Paperclip, applies the repo's workflows and sends them deliveries. It also
+checks that the domain fence holds, redirects included, and that a Code node
+can't be published. n8n is unfree, so its build line is at the top of the
+script.
 
 The API key needs only these scopes: `credential:create`, `credential:list`,
 `workflow:create`, `workflow:list`, `workflow:read`, `workflow:update` and

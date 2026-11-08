@@ -217,16 +217,93 @@ cases = {
         path={"sops": "paperclip-triggers/fix-ci/url"}),
     "a url from a SOPS path that isn't a /url": lambda w: named(w, "Start Fix CI")["parameters"].update(
         url={"sops": "paperclip-triggers/fix-ci/secret"}),
+    "a node type that isn't on the list": lambda w: w["nodes"].append(
+        {"id": "x", "name": "Run code", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [0, 0],
+         "parameters": {"jsCode": "return []"}}),
+    "a LangChain node": lambda w: w["nodes"].append(
+        {"id": "x", "name": "Tool", "type": "@n8n/n8n-nodes-langchain.toolCode", "typeVersion": 1, "position": [0, 0],
+         "parameters": {}}),
+    "a url built from an expression": lambda w: named(w, "Raise LandReady")["parameters"].update(
+        url="={{ 'http://10.118.0.1:5000/alert' }}"),
+    "a host that isn't on the list": lambda w: named(w, "Find its pull request")["parameters"].update(
+        url="https://example.com/collect"),
+    "the Alerta key sent to another listed host": lambda w: named(w, "Raise LandReady")["parameters"].update(
+        url="https://api.github.com/gists"),
+    "a trigger's secret sent to another trigger": lambda w: named(w, "Start Fix CI")["parameters"].update(
+        url={"sops": "paperclip-triggers/other/url"}),
+    "a proxy": lambda w: named(w, "Raise LandReady")["parameters"]["options"].update(
+        proxy="http://proxy.example:8080"),
+    "pagination": lambda w: named(w, "Find its pull request")["parameters"]["options"].update(
+        pagination={"pagination": {"nextURL": "={{ $response.body.next }}"}}),
+    "the webhook secret in an HTTP node": lambda w: named(w, "Raise LandReady").update(
+        credentials={"httpHeaderAuth": {"name": "GitHub webhook secret"}}),
+    "a credential on a node that isn't HTTP or Crypto": lambda w: node(w, "n8n-nodes-base.webhook").update(
+        credentials={"httpHeaderAuth": {"name": "Alerta key"}}),
+    "a predefined credential type": lambda w: named(w, "Raise LandReady")["parameters"].update(
+        authentication="predefinedCredentialType", nodeCredentialType="githubApi"),
+}
+
+# The part of the refusal that says which rule caught each case.
+REASONS = {
+    "a credential's id": "gives its crypto credential more than a name",
+    "an undeclared credential": "which n8n-credentials.json doesn't declare",
+    "a literal Authorization header": "sets an Authorization header itself",
+    "a literal secret-named field": "has a literal value for apiKey",
+    "a SOPS path in a field that isn't a url": "only a node's url may",
+    "a url from a SOPS path that isn't a /url": "isn't a Paperclip trigger's",
+    "a node type that isn't on the list": "n8n-nodes-base.code node, which isn't on",
+    "a LangChain node": "@n8n/n8n-nodes-langchain.toolCode node, which isn't on",
+    "a url built from an expression": "builds its url from an expression",
+    "a host that isn't on the list": "calls https://example.com/collect, which isn't on",
+    "the Alerta key sent to another listed host": "sends the Alerta key somewhere other than Alerta",
+    "a trigger's secret sent to another trigger": "sends the fix-ci trigger's secret somewhere other",
+    "a proxy": "sets options.proxy",
+    "pagination": "sets options.pagination",
+    "the webhook secret in an HTTP node": "uses the webhook secret, which belongs in a Crypto node",
+    "a credential on a node that isn't HTTP or Crypto": "only HTTP Request and Crypto nodes may",
+    "a predefined credential type": "authenticates with predefinedCredentialType",
 }
 for what, change in cases.items():
     done = run("--check", host=host_with(change), path=False)
-    check(f"refuses {what}", done.returncode != 0 and "refusing" in done.stderr)
+    check(f"refuses {what}", done.returncode != 0 and REASONS[what] in done.stderr)
 done = run("--check", host=host_with(lambda w: node(w, "n8n-nodes-base.webhook")["parameters"].update(
     apiKey="={{ $json.key }}")), path=False)
 check("takes an expression in a secret-named field", done.returncode == 0)
 done = run("--check", host=host_with(change_credentials=lambda c: c["credentials"][1]["data"].update(
     value={"literal": "abc"})), path=False)
 check("refuses a literal secret in n8n-credentials.json", done.returncode != 0 and "comes from SOPS" in done.stderr)
+done = run("--check", host=host_with(change_credentials=lambda c: c["credentials"][1]["data"].update(
+    value="n8n/api-key")), path=False)
+check("refuses a credential from a SOPS path that isn't on the list",
+      done.returncode != 0 and "isn't on n8n-apply.py's list of what n8n may hold" in done.stderr)
+done = run("--check", host=host_with(change_credentials=lambda c: c["credentials"][1]["data"].pop("allowedDomains")),
+           path=False)
+check("refuses an HTTP credential without its domain fence",
+      done.returncode != 0 and 'allowedDomains "10.118.0.1"' in done.stderr)
+done = run("--check", host=host_with(change_credentials=lambda c: c["credentials"][2].update(type="httpHeaderAuth")),
+           path=False)
+check("refuses a trigger's secret in the wrong kind of credential", done.returncode != 0 and "goes in a httpBearerAuth" in done.stderr)
+
+READ_KEY = {"name": "Paperclip read key", "type": "httpBearerAuth",
+            "data": {"token": "paperclip/n8n-key", "allowedHttpRequestDomains": {"literal": "domains"},
+                     "allowedDomains": {"literal": "paperclip.servicestack.xyz"}}}
+
+
+def with_read(method):
+    def change(w):
+        w["nodes"].append({"id": "r", "name": "Open triages", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2,
+                           "position": [0, 0], "credentials": {"httpBearerAuth": {"name": "Paperclip read key"}},
+                           "parameters": {"method": method, "url": {"sops": "paperclip-triggers/triage/open/url"},
+                                          "authentication": "genericCredentialType", "genericAuthType": "httpBearerAuth",
+                                          "options": {}}})
+    return change
+
+
+done = run("--check", host=host_with(with_read("GET"), lambda c: c["credentials"].append(READ_KEY)), path=False)
+check("takes the Paperclip key for a GET of a routine's open issues", done.returncode == 0)
+done = run("--check", host=host_with(with_read("POST"), lambda c: c["credentials"].append(READ_KEY)), path=False)
+check("refuses the Paperclip key for anything else",
+      done.returncode != 0 and "for anything but a GET of a routine's open issues" in done.stderr)
 
 print("== dry run")
 done = run()
@@ -241,10 +318,12 @@ check("exits 0", done.returncode == 0)
 credential = made("GitHub webhook secret")
 check("creates the credential from SOPS",
       credential.get("type") == "crypto" and credential.get("data") == {"hmacSecret": SECRETS["github/webhook-secret"]})
-check("  ...a literal field as written",
-      made("Alerta key").get("data") == {"name": "X-API-Key", "value": SECRETS["alerta/n8n-key"]})
-check("  ...and the trigger's bearer token", made("Paperclip Fix CI trigger").get("data") == {
-      "token": SECRETS["paperclip-triggers/fix-ci/secret"]})
+check("  ...a literal field as written, with the credential's domain fence",
+      made("Alerta key").get("data") == {"name": "X-API-Key", "value": SECRETS["alerta/n8n-key"],
+                                         "allowedHttpRequestDomains": "domains", "allowedDomains": "10.118.0.1"})
+check("  ...and the trigger's bearer token, fenced to the triggers name", made("Paperclip Fix CI trigger").get("data") == {
+      "token": SECRETS["paperclip-triggers/fix-ci/secret"], "allowedHttpRequestDomains": "domains",
+      "allowedDomains": "paperclip-triggers.servicestack.xyz"})
 workflow = fake.workflows[0] if fake.workflows else {"nodes": []}
 signer = next((n for n in workflow["nodes"] if n["type"] == "n8n-nodes-base.crypto"), {})
 check("creates the workflow with the credential's id",

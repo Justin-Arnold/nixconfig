@@ -578,6 +578,7 @@
                 n8n-reaches-lan = { systemd.services.n8n.serviceConfig.IPAddressAllow = lib.mkForce [ "localhost" "10.0.0.0/24" ]; };
                 n8n-lan-not-denied = { systemd.services.n8n.serviceConfig.IPAddressDeny = lib.mkForce [ "192.168.0.0/16" ]; };
                 n8n-runs-commands = { services.n8n.environment.NODES_EXCLUDE = lib.mkForce "[]"; };
+                n8n-runs-code = { services.n8n.environment.NODES_EXCLUDE = lib.mkForce (builtins.toJSON [ "n8n-nodes-base.executeCommand" "n8n-nodes-base.localFileTrigger" ]); };
                 n8n-reads-environment = { services.n8n.environment.N8N_BLOCK_ENV_ACCESS_IN_NODE = lib.mkForce false; };
                 n8n-community-packages = { services.n8n.environment.N8N_COMMUNITY_PACKAGES_ENABLED = lib.mkForce true; };
                 key-in-environment = { services.n8n.environment.N8N_ENCRYPTION_KEY = "0000"; };

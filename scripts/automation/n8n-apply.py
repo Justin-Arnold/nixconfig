@@ -23,8 +23,16 @@ what the repo names:
 - never deletes anything and never prints a secret. It refuses a workflow
   file that carries a credential's id or data, a literal Authorization
   header or a field named like a secret, any value from SOPS, or a SOPS
-  path anywhere but a url. --check runs the checks that need neither n8n
-  nor SOPS, for the flake check.
+  path anywhere but a url.
+- keeps what a workflow can reach to short lists, since agents may propose
+  workflows: the node types, the hosts a url may name, the SOPS paths a
+  credential may read, and for each credential the one place it may be
+  sent. A url is written out or comes from SOPS, never from an expression,
+  and the HTTP node's proxy and pagination options are refused. Each HTTP
+  credential also carries n8n's own domain fence, which n8n enforces on
+  every request and redirect.
+
+--check runs the checks that need neither n8n nor SOPS, for the flake check.
 
 It's a dry run unless you pass --apply. SOPS_AGE_KEY_FILE defaults to
 ~/.config/sops/age/keys.txt, the operator key.
@@ -55,6 +63,32 @@ WORKFLOW_KEYS = ("name", "nodes", "connections", "settings")
 SECRET_NAME = re.compile(r"(?i)(password|secret|token|api[_-]?key)$")
 # Credential fields that are the secret itself, so never a literal.
 SECRET_FIELD = re.compile(r"(?i)^(value|password|secret|token|api[_-]?key|.*(secret|token|password))$")
+
+# What a workflow may be made of. The lists are short on purpose: a workflow
+# that needs more is a change to this file, which Justin reads before it lands.
+NODE_TYPES = {"n8n-nodes-base." + t for t in (
+    "webhook", "respondToWebhook", "if", "filter", "switch", "wait", "scheduleTrigger",
+    "httpRequest", "crypto", "set", "splitOut", "aggregate", "merge", "noOp")}
+# Hosts a literal url may name: GitHub's public API, and Alerta over the tunnel.
+URL_PREFIXES = ("https://api.github.com/", "http://10.118.0.1:5000/")
+ALERTA = "http://10.118.0.1:5000/"
+# A url from SOPS may only be a Paperclip trigger's, or its routine's open issues.
+URL_MARKER = re.compile(r"paperclip-triggers/([a-z0-9-]+)/(open/)?url")
+# Where a credential's secret may come from, and so what it is.
+CREDENTIAL_SOURCES = [
+    (re.compile(r"github/webhook-secret"), "hmac"),
+    (re.compile(r"alerta/n8n-key"), "alerta"),
+    (re.compile(r"paperclip/n8n-key"), "paperclip-read"),
+    (re.compile(r"paperclip-triggers/([a-z0-9-]+)/secret"), "trigger"),
+]
+CREDENTIAL_TYPES = {"hmac": "crypto", "alerta": "httpHeaderAuth", "trigger": "httpBearerAuth",
+                    "paperclip-read": "httpBearerAuth"}
+# The one host each HTTP credential may reach. n8n enforces it as well, on
+# every request and redirect, from the credential's own allowedDomains.
+CREDENTIAL_DOMAINS = {"alerta": "10.118.0.1", "trigger": "paperclip-triggers.servicestack.xyz",
+                      "paperclip-read": "paperclip.servicestack.xyz"}
+# HTTP Request options that could send a request somewhere else.
+REFUSED_OPTIONS = ("proxy", "pagination")
 
 
 class N8n:
@@ -185,25 +219,96 @@ def resolve(value, values):
     return value
 
 
-def check(credentials, workflows, secrets=()):
-    """Refuse workflow files that carry anything secret."""
-    declared = {c["name"] for c in credentials}
-    credential_paths = {path for c in credentials for path in sops_paths(c)}
+def credential_kinds(credentials, problems):
+    """Each credential's kind and, for a trigger, its name; problems for any that break the rules."""
+    kinds = {}
+    for credential in credentials:
+        name, paths = credential["name"], sops_paths(credential)
+        if len(paths) != 1:
+            problems.append(f"n8n-credentials.json: {name} takes {len(paths)} values from SOPS; one is allowed")
+            continue
+        source = next(((kind, m) for pattern, kind in CREDENTIAL_SOURCES if (m := pattern.fullmatch(paths[0]))), None)
+        if source is None:
+            problems.append(f"n8n-credentials.json: {name} reads {paths[0]} from SOPS, which isn't on "
+                            "n8n-apply.py's list of what n8n may hold")
+            continue
+        kind, match = source
+        if credential["type"] != CREDENTIAL_TYPES[kind]:
+            problems.append(f"n8n-credentials.json: {name} is a {credential['type']} credential; "
+                            f"{paths[0]} goes in a {CREDENTIAL_TYPES[kind]} one")
+        if kind in CREDENTIAL_DOMAINS:
+            data = credential["data"]
+            fence = {"allowedHttpRequestDomains": "domains", "allowedDomains": CREDENTIAL_DOMAINS[kind]}
+            if any(not literal(data.get(k)) or data[k]["literal"] != v for k, v in fence.items()):
+                problems.append(f"n8n-credentials.json: {name} needs allowedHttpRequestDomains \"domains\" and "
+                                f"allowedDomains \"{CREDENTIAL_DOMAINS[kind]}\", as literals")
+        kinds[name] = (kind, match.group(1) if match.groups() else None)
+    return kinds
+
+
+def http_problems(where, params, used):
+    """Where an HTTP Request node may send what, given the credential kinds it uses."""
     problems = []
+    for option in REFUSED_OPTIONS:
+        if option in (params.get("options") or {}):
+            problems.append(f"{where} sets options.{option}, which could send the request somewhere else")
+    auth = params.get("authentication", "none")
+    if auth not in ("none", "genericCredentialType") or (
+            auth == "genericCredentialType" and params.get("genericAuthType") not in ("httpHeaderAuth", "httpBearerAuth")):
+        problems.append(f"{where} authenticates with {auth}/{params.get('genericAuthType')}; only a declared "
+                        "header or bearer credential is allowed")
+    url = params.get("url")
+    target = URL_MARKER.fullmatch(url["sops"]) if marker(url) else None
+    if marker(url):
+        if target is None:
+            problems.append(f"{where} takes its url from {url['sops']}, which isn't a Paperclip trigger's")
+    elif not isinstance(url, str) or url.startswith("="):
+        problems.append(f"{where} builds its url from an expression; a url is written out, or comes from SOPS")
+    elif not url.startswith(URL_PREFIXES):
+        problems.append(f"{where} calls {url}, which isn't on n8n-apply.py's list of hosts")
+    if len(used) > 1:
+        problems.append(f"{where} uses more than one credential")
+    for kind, trigger in used:
+        if kind == "alerta" and not (isinstance(url, str) and url.startswith(ALERTA)):
+            problems.append(f"{where} sends the Alerta key somewhere other than Alerta")
+        elif kind == "trigger" and not (target and target.group(1) == trigger and not target.group(2)):
+            problems.append(f"{where} sends the {trigger} trigger's secret somewhere other than that trigger")
+        elif kind == "paperclip-read" and not (target and target.group(2) and params.get("method", "GET") == "GET"):
+            problems.append(f"{where} uses the Paperclip key for anything but a GET of a routine's open issues")
+        elif kind == "hmac":
+            problems.append(f"{where} uses the webhook secret, which belongs in a Crypto node")
+    return problems
+
+
+def check(credentials, workflows, secrets=()):
+    """Refuse workflow files that carry anything secret, or reach beyond the lists above."""
+    declared = {c["name"] for c in credentials}
+    problems = []
+    kinds = credential_kinds(credentials, problems)
     for name, (file, workflow) in workflows.items():
         for node in workflow["nodes"]:
-            for where, key, path in markers(node):
-                if where[:1] != ("parameters",) or key != "url" or not str(path).endswith("/url") \
-                        or path in credential_paths:
-                    problems.append(f"{file}: node {node['name']} takes {path} from SOPS at "
-                                    f"{'.'.join(map(str, where + (key,)))}; only a parameter named url may, "
-                                    "and only from a path ending in /url")
-            for kind, ref in (node.get("credentials") or {}).items():
+            where = f"{file}: node {node['name']}"
+            if node.get("type") not in NODE_TYPES:
+                problems.append(f"{where} is a {node.get('type')} node, which isn't on n8n-apply.py's list")
+            for place, key, path in markers(node):
+                if place != ("parameters",) or key != "url" or not URL_MARKER.fullmatch(str(path)):
+                    problems.append(f"{where} takes {path} from SOPS at {'.'.join(map(str, place + (key,)))}; only "
+                                    "a node's url may, and only a Paperclip trigger's url or open-issues url")
+            refs = node.get("credentials") or {}
+            for kind, ref in refs.items():
                 if set(ref) != {"name"}:
-                    problems.append(f"{file}: node {node['name']} gives its {kind} credential more than a name")
+                    problems.append(f"{where} gives its {kind} credential more than a name")
                 elif ref["name"] not in declared:
-                    problems.append(f"{file}: node {node['name']} names the credential {ref['name']}, "
+                    problems.append(f"{where} names the credential {ref['name']}, "
                                     "which n8n-credentials.json doesn't declare")
+            used = [kinds[ref["name"]] for ref in refs.values() if ref.get("name") in kinds]
+            if node.get("type") == "n8n-nodes-base.httpRequest":
+                problems += http_problems(where, node.get("parameters") or {}, used)
+            elif node.get("type") == "n8n-nodes-base.crypto":
+                if any(kind != "hmac" for kind, _ in used):
+                    problems.append(f"{where} is a Crypto node using a credential that isn't the webhook secret")
+            elif refs:
+                problems.append(f"{where} uses a credential; only HTTP Request and Crypto nodes may")
             for where, key, text in strings(node.get("parameters") or {}):
                 literal = text and not text.startswith("=")
                 if literal and isinstance(key, str) and SECRET_NAME.search(key):
@@ -216,7 +321,7 @@ def check(credentials, workflows, secrets=()):
             if secret and secret in text:
                 problems.append(f"{file}: holds a value from SOPS")
     if problems:
-        sys.exit("refusing these workflow files:\n  " + "\n  ".join(problems))
+        sys.exit("refusing these files:\n  " + "\n  ".join(problems))
 
 
 def _headers(value):

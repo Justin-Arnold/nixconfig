@@ -41,6 +41,17 @@ request, and he applies it.
   set the status. Issues usually have a review stage: setting `done` hands the
   issue to the reviewer. If it comes back with changes requested, fix them on
   the same branch, push, say what changed, and set `done` again.
+- n8n on the automation VM runs the workflows in
+  `hosts/automation/workflows/`, and you may propose a new one or a change.
+  Read `docs/automation/REFERENCE.md` first. Run
+  `scripts/automation/n8n-apply.py --check`: it refuses anything outside its
+  lists of node types, hosts, credentials and where each credential may go.
+  Never loosen those lists, or `excludedNodes` in `hosts/automation/n8n.nix`,
+  to make a workflow pass; if it needs more, ask Justin. Give the pull
+  request the `sensitive` label when it changes a credential, a url or a
+  webhook path, and list what Justin runs after landing it:
+  `scripts/agents/paperclip-apply.py --apply` if it needs a new Paperclip
+  trigger, then `scripts/automation/n8n-apply.py --apply`.
 
 ## Lab state
 
