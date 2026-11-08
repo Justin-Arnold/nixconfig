@@ -225,6 +225,7 @@
           board-bridge = import ./hosts/agents/board-bridge/check.nix { inherit pkgs; };
           paperclip-events = import ./hosts/agents/paperclip-events/check.nix { inherit pkgs; };
           jev-mcp = import ./modules/roles/hermes-agents/jev-mcp/check.nix { inherit pkgs; };
+          paperclip-mcp = import ./modules/roles/hermes-agents/paperclip-mcp/check.nix { inherit pkgs; };
           lab-mcp = import ./modules/roles/hermes-agents/lab-mcp/check.nix { inherit pkgs; };
           notifications-stack = import ./modules/roles/notifications-stack/check.nix { inherit pkgs; };
           provisioning = import ./scripts/provisioning/tests/check.nix {

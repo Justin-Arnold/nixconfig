@@ -215,7 +215,10 @@ Paperclip and an agent talk both ways without a shell on this host:
   to. The upstream MCP server only reads one when it starts, and an agent's
   server outlives its runs, so the package starts from `run-id.mjs`, which
   gives every tool a `paperclipRunId` argument. The agent copies it from the
-  Run ID in its wake prompt.
+  Run ID in its wake prompt. The local model sometimes leaves it out, so a
+  change without one goes out under the agent's own run in progress when it
+  has exactly one; with none or several, Paperclip refuses it as before. The
+  `paperclip-mcp` check runs the wrapper against a fake Paperclip.
 
 What an agent can do on a machine depends on its terminal backend. Without
 one, the terminal, file and code execution toolsets are switched off, because
