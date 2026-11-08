@@ -108,7 +108,7 @@
       "name": "Home Assistant",
       "description": "Home automation",
       "icon": "home-assistant",
-      "href": "TODO: Home Assistant URL",
+      "href": "https://home-assistant.servicestack.xyz",
       "pingUrl": null
     },
     {
