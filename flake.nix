@@ -225,6 +225,7 @@
           paperclip-events = import ./hosts/agents/paperclip-events/check.nix { inherit pkgs; };
           jev-mcp = import ./modules/roles/hermes-agents/jev-mcp/check.nix { inherit pkgs; };
           paperclip-mcp = import ./modules/roles/hermes-agents/paperclip-mcp/check.nix { inherit pkgs; };
+          websearch-mcp = import ./modules/roles/hermes-agents/websearch-mcp/check.nix { inherit pkgs; };
           lab-mcp = import ./modules/roles/hermes-agents/lab-mcp/check.nix { inherit pkgs; };
           notifications-stack = import ./modules/roles/notifications-stack/check.nix { inherit pkgs; };
           provisioning = import ./scripts/provisioning/tests/check.nix {
@@ -357,6 +358,13 @@
                 hermes-backend-override = { roles.hermesAgents.instances.engineer.settings.terminal.backend = "docker"; };
                 hermes-credentials-to-terminal = { roles.hermesAgents.instances.engineer.settings.terminal.credential_files = [ "auth.json" ]; };
                 hermes-browser = { roles.hermesAgents.instances.researcher.toolsets = [ "browser" ]; };
+                hermes-builtin-web = { roles.hermesAgents.instances.researcher.toolsets = [ "web" ]; };
+                websearch-remote = { roles.hermesAgents.web.searxngUrl = lib.mkForce "https://search.example.org"; };
+                websearch-lan = { roles.hermesAgents.web.searxngUrl = lib.mkForce "http://10.0.0.152:8888"; };
+                websearch-extra-env = { roles.hermesAgents.instances.researcher.mcpServers.websearch.env.HERMES_ALLOW_PRIVATE_URLS = "1"; };
+                websearch-without-flag = { roles.hermesAgents.instances.coordinator.mcpServers.websearch = { command = "/bin/true"; }; };
+                searxng-on-all-interfaces = { services.searx.settings.server.bind_address = lib.mkForce "0.0.0.0"; };
+                searxng-firewall = { services.searx.openFirewall = true; };
                 hermes-approvals-off = { roles.hermesAgents.instances.engineer.settings.approvals.mode = "off"; };
                 hermes-deny-list-dropped = { roles.hermesAgents.instances.engineer.settings.approvals.deny = [ ]; };
                 hermes-allowlist-widened = { roles.hermesAgents.instances.engineer.settings.command_allowlist = [ "git rm *" "rm *" ]; };

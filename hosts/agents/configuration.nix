@@ -43,6 +43,7 @@ in
       ./agent-watch.nix
       ./agent-costs.nix
       ./lab-health.nix
+      ./searxng.nix
       ./board-bridge.nix
       ./paperclip-events.nix
       ../../modules/common

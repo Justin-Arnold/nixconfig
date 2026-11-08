@@ -139,6 +139,11 @@ in
     # sources only (docs/agents/REFERENCE.md).
     jev.enable = true;
 
+    # Web search through SearXNG on this VM (./searxng.nix), for the agents
+    # with web.enable. The server reads only pages a search or a page it read
+    # gave it (docs/agents/REFERENCE.md, "Web search").
+    web.searxngUrl = lib.mkIf config.agents.searxng.enable config.agents.searxng.url;
+
     observe = {
       proxmox = if lib.elem "proxmox" observeReady && proxmoxNodes != [ ] && proxmoxCa != null then {
         urls = map (address: "https://${address}:8006") proxmoxNodes;
@@ -205,7 +210,8 @@ in
       };
 
       # Answers questions and writes them up, on the local model, with Codex's
-      # middle tier behind it. Compression stays on Codex for now.
+      # middle tier behind it. Compression stays on Codex for now. The only
+      # agent that searches the web.
       researcher = {
         uid = 3203;
         port = 8644;
@@ -216,6 +222,7 @@ in
         secrets = paperclipKey "researcher";
         observe.enable = observing;
         github.enable = withGithubToken;
+        web.enable = config.agents.searxng.enable;
       };
 
       # Watches the lab: triages the alerts n8n hands it and

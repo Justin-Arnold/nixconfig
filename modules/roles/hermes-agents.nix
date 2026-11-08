@@ -35,6 +35,7 @@ let
   jevMcp = pkgs.callPackage ./hermes-agents/jev-mcp/package.nix { };
   labMcp = pkgs.callPackage ./hermes-agents/lab-mcp/package.nix { };
   githubMcp = pkgs.callPackage ./hermes-agents/github-mcp/package.nix { };
+  websearchMcp = pkgs.callPackage ./hermes-agents/websearch-mcp/package.nix { };
 
   # The MCP servers an agent may run: this role's own packages, each taking
   # only its own keys from .env.
@@ -43,7 +44,13 @@ let
     jev = { command = lib.getExe jevMcp; keys = [ "JEV_API_KEY" ]; };
     lab = { command = lib.getExe labMcp; keys = lib.attrValues labKeys; };
     github = { command = lib.getExe githubMcp; keys = [ "GITHUB_OBSERVE_TOKEN" ]; };
+    # SearXNG on loopback needs no key.
+    websearch = { command = lib.getExe websearchMcp; keys = [ ]; };
   };
+
+  # What the websearch server's env may hold, and where SearXNG may be.
+  websearchEnv = [ "SEARXNG_URL" "SSL_CERT_FILE" "WEB_CALL_LOG" ];
+  loopbackHttp = url: builtins.match "http://(127\\.0\\.0\\.1|localhost)(:[0-9]+)?/?" url != null;
 
   # The lab server's keys in .env, by source.
   labKeys = { proxmox = "LAB_PROXMOX_TOKEN"; beszel = "LAB_BESZEL_PASSWORD"; alerta = "LAB_ALERTA_KEY"; };
@@ -96,10 +103,12 @@ let
 
   # Never offered: they act on this host (browser, computer_use), schedule or
   # dispatch work outside Paperclip (cronjob, kanban), connect outside
-  # services (connections) or post to chat platforms.
+  # services (connections) or post to chat platforms. Hermes' own web tools
+  # (web, search, x_search) read any URL and, with no backend set, fall back
+  # to outside services' free tiers; web search is the websearch server.
   neverToolsets = [
     "browser" "computer_use" "desktop_ui" "cronjob" "kanban" "connections" "bot_room"
-    "discord" "discord_admin" "yuanbao" "feishu_doc" "feishu_drive"
+    "discord" "discord_admin" "yuanbao" "feishu_doc" "feishu_drive" "web" "search" "x_search"
   ];
 
   # Paperclip MCP tools an agent may use. Left out: the raw API escape hatch,
@@ -232,6 +241,16 @@ let
         type = lib.types.bool;
         default = false;
         description = "Give this agent GitHub's MCP server, read-only, with roles.hermesAgents.github's token.";
+      };
+
+      web.enable = lib.mkOption {
+        type = lib.types.bool;
+        default = false;
+        description = ''
+          Give this agent web search: the websearch server, which searches
+          through roles.hermesAgents.web.searxngUrl and reads only pages
+          that a search or a page it read gave it.
+        '';
       };
 
       soul = lib.mkOption {
@@ -387,19 +406,39 @@ let
             sampling.enabled = false;
           };
         })
+        (lib.mkIf config.web.enable {
+          websearch = {
+            command = lib.getExe websearchMcp;
+            env = {
+              SEARXNG_URL = cfg.web.searxngUrl;
+              # Call ids, tools, outcomes and a read's host only; the smoke
+              # test reads it.
+              WEB_CALL_LOG = "${stateDirOf name}/.hermes/logs/web.log";
+              # For pages over HTTPS; Python doesn't find the bundle itself.
+              SSL_CERT_FILE = "${osConfig.security.pki.caBundle}";
+            };
+            tools.include = [ "search_web" "read_page" ];
+            timeout = 60;
+            sampling.enabled = false;
+          };
+        })
       ];
       # settings is a raw attribute set (it becomes config.yaml as written), so
       # conditional parts use optionalAttrs, not mkIf.
       settings = lib.optionalAttrs (config.mcpServers != { }) {
-        # Neither server's resources or prompts become tools, and Jev's calls
-        # are counted: past the limit in one session, Hermes wants an
-        # approval nobody can give.
+        # Neither server's resources or prompts become tools, and Jev's and
+        # the web's calls are counted: past the limit in one session, Hermes
+        # wants an approval nobody can give.
         mcp_servers = lib.recursiveUpdate (common.mcpServersToConfig config.mcpServers)
           (lib.mapAttrs (n: _: { tools = { resources = false; prompts = false; }; }
             // lib.optionalAttrs (n == "jev") {
               tool_costs.decide = 1;
               cost_unit = "calls";
               spend_limit = cfg.jev.callsPerSession;
+            } // lib.optionalAttrs (n == "websearch") {
+              tool_costs = { search_web = 1; read_page = 1; };
+              cost_unit = "calls";
+              spend_limit = cfg.web.callsPerSession;
             }) config.mcpServers);
       } // lib.optionalAttrs (config.fallbacks != [ ]) {
         # A Claude entry names its key, so Hermes takes the API key rather
@@ -426,7 +465,8 @@ let
           ++ lib.optional (config.secrets ? PAPERCLIP_AGENT_KEY) "paperclip"
           ++ lib.optional config.jev.enable "jev"
           ++ lib.optional config.observe.enable "lab"
-          ++ lib.optional config.github.enable "github";
+          ++ lib.optional config.github.enable "github"
+          ++ lib.optional config.web.enable "websearch";
         agent.disabled_toolsets = neverToolsets
           ++ lib.optionals (config.terminal.ssh == null) machineToolsets;
         terminal = if config.terminal.ssh == null then { backend = "local"; } else {
@@ -599,6 +639,22 @@ in
         type = lib.types.ints.positive;
         default = 25;
         description = "Jev calls one session may make before Hermes wants an approval, which an unattended run can't get.";
+      };
+    };
+
+    # Web search for the agents with web.enable
+    # (modules/roles/hermes-agents/websearch-mcp).
+    web = {
+      searxngUrl = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
+        default = null;
+        example = "http://127.0.0.1:8888";
+        description = "SearXNG, over plain HTTP on loopback. An agent with web.enable needs it.";
+      };
+      callsPerSession = lib.mkOption {
+        type = lib.types.ints.positive;
+        default = 40;
+        description = "Searches and page reads one session may make before Hermes wants an approval, which an unattended run can't get.";
       };
     };
 
@@ -805,7 +861,7 @@ in
           {
             assertion = lib.intersectLists neverToolsets inst.toolsets == [ ]
               && lib.all (t: lib.elem t (s.agent.disabled_toolsets or [ ])) neverToolsets;
-            message = "${opt}: browser, computer use, cron, kanban, connections and chat toolsets stay off.";
+            message = "${opt}: browser, computer use, cron, kanban, connections, chat and Hermes' own web toolsets stay off.";
           }
           {
             assertion = (s.approvals.mode or null) != "off" && (s.approvals.unattended_mode or null) == "deny"
@@ -829,7 +885,7 @@ in
           {
             assertion = lib.all (n: mcpAllowed ? ${n}) (lib.attrNames inst.mcpServers)
               && lib.all lib.id (lib.mapAttrsToList serverOk servers);
-            message = "${opt}: MCP servers are only paperclip, jev, lab and github, each running this role's own package with no arguments, url, headers or auth, sampling off, and only its own keys from .env.";
+            message = "${opt}: MCP servers are only paperclip, jev, lab, github and websearch, each running this role's own package with no arguments, url, headers or auth, sampling off, and only its own keys from .env.";
           }
           {
             assertion = inst.jev.enable == (inst.secrets ? JEV_API_KEY)
@@ -850,6 +906,14 @@ in
               && inst.github.enable == lib.elem "github" (s.platform_toolsets.api_server or [ ])
               && (!inst.github.enable || inst.secrets.GITHUB_OBSERVE_TOKEN == cfg.github.tokenSecret);
             message = "${opt}: an agent with github.enable has GitHub's server, in its toolsets, with the token from roles.hermesAgents.github.tokenSecret; one without has none of them.";
+          }
+          {
+            assertion = inst.web.enable == (servers ? websearch)
+              && inst.web.enable == lib.elem "websearch" (s.platform_toolsets.api_server or [ ])
+              && (!inst.web.enable || (cfg.web.searxngUrl != null && loopbackHttp cfg.web.searxngUrl
+                && lib.sort lib.lessThan (lib.attrNames (servers.websearch.env or { })) == websearchEnv
+                && servers.websearch.env.SEARXNG_URL == cfg.web.searxngUrl));
+            message = "${opt}: an agent with web.enable has the websearch server, in its toolsets, asking SearXNG over HTTP on loopback (roles.hermesAgents.web.searxngUrl) with nothing else in its env; one without has neither.";
           }
           {
             assertion = (claudeTyped != [ ]) == (inst.secrets ? ANTHROPIC_API_KEY)

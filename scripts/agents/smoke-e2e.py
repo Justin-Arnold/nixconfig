@@ -25,6 +25,11 @@ them, and checks what came back:
             be a successful call of that source in the lab server's call log.
             With GitHub on, it also quotes nixconfig pull request #1's title,
             which has to match GitHub's.
+  web       the researcher searches the web for NixOS's download page and
+            reads one result on nixos.org, then comments both call ids, the
+            URL and the page's title. Both ids have to be successful calls
+            in the websearch server's log, the read on the URL's host, and
+            the title has to be the one the Mac gets fetching that URL.
   health    lab-health's dry run reads every source the monitor has and
             starts nothing; then the board runs the monitor's "Look into
             {{count}} lab finding(s)" routine with one planted finding,
@@ -115,7 +120,10 @@ import shlex
 import subprocess
 import sys
 import time
+import html
+import html.parser
 import urllib.error
+import urllib.parse
 import urllib.request
 from decimal import Decimal
 
@@ -131,7 +139,7 @@ ENGINEER_LOGS = "/var/lib/hermes-engineer/.hermes/logs"
 # agents.watch.alertaUrl and the secret agent-watch reads its key from.
 ALERTA = "http://10.118.0.1:5000"
 ALERTA_KEY = "/run/secrets/agent-watch/alerta-key"
-STAGES = ["rulesets", "refused", "watch", "ping", "local", "decide", "observe", "health", "intake", "ask", "approve", "change",
+STAGES = ["rulesets", "refused", "watch", "ping", "local", "decide", "observe", "web", "health", "intake", "ask", "approve", "change",
           "review", "costs", "infra", "gate", "route"]
 RESEARCHER_CONFIG = "/var/lib/hermes-researcher/.hermes/config.yaml"
 RESEARCHER_LOGS = "/var/lib/hermes-researcher/.hermes/logs"
@@ -139,6 +147,8 @@ RESEARCHER_LOGS = "/var/lib/hermes-researcher/.hermes/logs"
 JEV_LOG = "/var/lib/hermes-researcher/.hermes/logs/jev.log"
 # The lab MCP server's call log: one line per call, ids, tools and outcomes only.
 LAB_LOG = "/var/lib/hermes-researcher/.hermes/logs/lab.log"
+# The websearch server's call log: ids, tools, outcomes and a read's host only.
+WEB_LOG = "/var/lib/hermes-researcher/.hermes/logs/web.log"
 MONITOR_CONFIG = "/var/lib/hermes-monitor/.hermes/config.yaml"
 MONITOR_LAB_LOG = "/var/lib/hermes-monitor/.hermes/logs/lab.log"
 # The monitor's routines, by title in paperclip-spec.json.
@@ -205,6 +215,35 @@ def seconds_between(earlier, later):
     def parse(stamp):
         return datetime.datetime.fromisoformat(str(stamp).replace("Z", "+00:00"))
     return (parse(later) - parse(earlier)).total_seconds()
+
+
+def page_title(url):
+    """A web page's <title>, as the Mac sees it, or None."""
+    class Title(html.parser.HTMLParser):
+        def __init__(self):
+            super().__init__(convert_charrefs=True)
+            self.inside, self.title = False, ""
+
+        def handle_starttag(self, tag, attrs):
+            self.inside = self.inside or tag == "title"
+
+        def handle_endtag(self, tag):
+            if tag == "title":
+                self.inside = False
+
+        def handle_data(self, data):
+            if self.inside:
+                self.title += data
+
+    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (compatible; lab-smoke/1)"})
+    try:
+        with urllib.request.urlopen(req, timeout=20) as resp:
+            body = resp.read(2_000_000).decode(resp.headers.get_content_charset() or "utf-8", "replace")
+    except (urllib.error.URLError, TimeoutError, OSError):
+        return None
+    parser = Title()
+    parser.feed(body)
+    return " ".join(html.unescape(parser.title).split()) or None
 
 
 def text(s, limit=300):
@@ -551,6 +590,42 @@ awk -v since="$since" '$1 >= since && $3 == "client=agents" && $5 == "/v1/chat/c
             raise Fail(f"the researcher quoted {', '.join(sorted(quoted))} on {issue['identifier']}, but the Jev server "
                        "logged no successful call with that id, so the tool wasn't used")
         return f"the researcher asked Jev (call {found[0]}) and reported it on {issue['identifier']}"
+
+    def web(self):
+        researcher = self.agent("Researcher")
+        if "websearch-mcp-server" not in remote("agents", 'cat "$config"', config=RESEARCHER_CONFIG).stdout:
+            raise Fail("not tried: the researcher has no web search (web.enable)")
+        issue = self.file("researcher searches the web", "An automated smoke test of web search. Use `search_web` "
+                          "(find it with tool_search) to search for `NixOS download`, then use `read_page` on one "
+                          "result from nixos.org. Then reply with a comment that gives the `call_id` of the search and "
+                          "of the read, the exact URL you read, and that page's title exactly as read_page returned "
+                          "it, and set this issue to done.", assignee=researcher)
+        done = self.wait(issue)
+        if done["status"] != "done":
+            raise self.ended(issue, done["status"], researcher)
+        said = " ".join(self.comments(issue, researcher))
+        quoted = set(re.findall(r"\b[0-9a-f]{12}\b", said))
+        log = remote("agents", 'tail -n 400 "$log" 2>/dev/null', log=WEB_LOG).stdout
+        calls = {call: (tool, host) for call, tool, host in
+                 re.findall(r"call=([0-9a-f]{12}) tool=(\w+) status=ok(?: host=(\S+))?", log)}
+        searched = sorted(c for c in quoted if calls.get(c, ("", ""))[0] == "search_web")
+        reads = sorted(c for c in quoted if calls.get(c, ("", ""))[0] == "read_page")
+        if not searched or not reads:
+            raise Fail(f"the researcher quoted {', '.join(sorted(quoted)) or 'no call ids'} on {issue['identifier']}, "
+                       "but the websearch server didn't log both a successful search and a successful read with them")
+        host = calls[reads[0]][1]
+        urls = [u.rstrip(").,;:`'\"*]") for u in re.findall(r"https?://[^\s)<>`\"'\]]+", said)]
+        url = next((u for u in urls if urllib.parse.urlsplit(u).hostname == host), None)
+        if url is None:
+            raise Fail(f"the researcher read a page on {host}, but its comment on {issue['identifier']} names no URL there")
+        title = page_title(url)
+        if not title:
+            raise Fail(f"couldn't read {url}'s title from here to check the researcher's")
+        if title not in " ".join(said.split()):
+            raise Fail(f"{url}'s title is {title!r}, which the researcher's comment on {issue['identifier']} doesn't quote")
+        print(f"    it read {url}: {title}")
+        return (f"the researcher searched (call {searched[0]}) and read {url} (call {reads[0]}), quoting its title, "
+                f"on {issue['identifier']}")
 
     def observe(self):
         researcher = self.agent("Researcher")

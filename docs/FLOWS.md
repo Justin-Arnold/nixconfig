@@ -25,6 +25,7 @@ flowchart TB
     paperclip["Paperclip: issues, routines, approvals"]
     hermes["Six Hermes agents: coordinator, engineer,<br/>researcher, reviewer, infra, monitor"]
     services["Plain services: paperclip-events,<br/>agent-watch, board-bridge, lab-health"]
+    searxng["SearXNG, on loopback"]
   end
 
   subgraph vms["Other lab VMs"]
@@ -42,6 +43,7 @@ flowchart TB
 
   github["GitHub: repos and Actions"]
   observed["Proxmox and Beszel"]
+  web["The web"]
 
   you -->|"issues and answers"| paperclip
   you -->|"chat"| concierge
@@ -52,6 +54,9 @@ flowchart TB
   workbench -->|"agent branches and PRs"| github
   hermes -.->|"read-only"| observed
   hermes -.->|"read-only"| lab118
+  hermes -.->|"the researcher's searches"| searxng
+  searxng -.-> web
+  hermes -.->|"the researcher reads pages it found"| web
   paperclip -->|"live events"| services
   services -->|"alerts"| alerta
   services <-->|"DMs and your answers"| you

@@ -20,7 +20,7 @@ separate execution host.
 | Database | PostgreSQL 17 from nixpkgs, socket and localhost only |
 | Agents | Hermes v0.22.5: `coordinator`, `engineer`, `researcher`, `reviewer`, `infra`, `monitor`, one process each, API servers on `127.0.0.1:8642` to `8647` |
 | Models | Codex for the coordinator, engineer and infra, with Claude Opus 5.5 as their last fallback; Claude Opus 5.5 for the reviewer, with Sonnet 5.5 and Codex behind it; the lab's GPU (`local` on inference) for the researcher and the monitor, with Codex behind them, and for every agent's session titles and memory review |
-| Tools from outside | Jev, TypeSafe's decision model, as every agent's `decide` tool; read-only Proxmox, Beszel, Kuma and Alerta for the coordinator, infra, the researcher and the monitor; read-only GitHub for the coordinator and the researcher |
+| Tools from outside | Jev, TypeSafe's decision model, as every agent's `decide` tool; read-only Proxmox, Beszel, Kuma and Alerta for the coordinator, infra, the researcher and the monitor; read-only GitHub for the coordinator and the researcher; web search through the lab's own SearXNG for the researcher |
 | Login | `ssh agents` as `justin`, key only (the Mac Mini key). Root has no SSH. |
 | Console | Proxmox console, root password from SOPS (`root/console-password-hash`) |
 | Secrets | `secrets/hosts/agents.yaml`, host-scoped age key at `/var/lib/sops-nix/key.txt` |
@@ -51,6 +51,8 @@ separate execution host.
 | `modules/roles/hermes-agents/jev-mcp/` | The Jev MCP server (`server.py`), its package and its test against a fake TypeSafe API. |
 | `modules/roles/hermes-agents/lab-mcp/` | The lab MCP server: read-only Proxmox, Beszel, Kuma and Alerta, and its test against fakes of all four. |
 | `modules/roles/hermes-agents/github-mcp/` | GitHub's MCP server at a pinned release, behind a wrapper that keeps it read-only. |
+| `modules/roles/hermes-agents/websearch-mcp/` | The web search MCP server: `search_web` through SearXNG and `read_page` for pages a search found, and its test against fakes. |
+| `hosts/agents/searxng.nix` | SearXNG on this VM's loopback, for the researcher's web search. |
 | `modules/roles/agent-egress.nix` | The outbound filter that keeps the agents off the LAN. |
 | `modules/roles/sqlite-backup.nix` | Backups, including the PostgreSQL dumps. |
 | `scripts/agents/post-install-check.sh` | Read-only health report. |
@@ -226,8 +228,8 @@ they'd act on this VM. The engineer, reviewer and infra get the terminal and
 file toolsets with an ssh backend on workbench, each logging in as
 `agent-<name>` with `hermes/<name>/ssh-key`, once workbench's host key is set
 as `workbenchHostKey` in `agents.nix` (`docs/workbench/REFERENCE.md`). Browser,
-computer use, cron, kanban, outside connections and chat platforms are off
-for everyone.
+computer use, cron, kanban, outside connections, chat platforms and Hermes'
+own web tools are off for everyone.
 
 On the network, an agent reaches the Internet and this VM's own services, and
 nothing else in the LAN: not the NAS, Proxmox, OPNsense or AdGuard's admin
@@ -438,6 +440,42 @@ A source is on once it's in `observeReady` in `agents.nix` with its
 credential in SOPS; Proxmox also needs `proxmoxNodes` and `proxmoxCa`. GitHub
 is on with `withGithubToken`. The agents' Proxmox token is its own, so it can
 be revoked without touching Homarr's or Terraform's.
+
+### Web search
+
+The researcher can search the web and read what it finds, through its own
+MCP server (`modules/roles/hermes-agents/websearch-mcp/server.py`) and
+SearXNG on this VM (`searxng.nix`). It's the only agent that can.
+
+| Tool | What it does |
+|---|---|
+| `search_web` | asks SearXNG, on `127.0.0.1:8888`, and returns titles, URLs, snippets and which engines didn't answer |
+| `read_page` | reads one page's title, main text (cut to 15,000 characters unless it asks for up to 30,000) and links |
+
+A page can be read only at a URL exactly as a search returned it, or as a
+link on a page read before, in the last six hours. The researcher reads
+Justin's private repos and the lab, and its network reaches the whole
+internet, so a reader that took any URL would let a page that tricked it
+send data out in a URL it built. This way it can follow what it finds but
+can't build one. Searches go only to SearXNG, and a query that looks like
+it holds a key or a password is refused.
+
+A page is fetched with a plain GET and no cookies or credentials, and only
+HTML or plain text, at most 2 MB. Its host and every redirect's must resolve
+to public addresses only, and the egress filter refuses the LAN anyway. One
+session may make 40 searches and reads in all
+(`roles.hermesAgents.web.callsPerSession`); past that, Hermes wants an
+approval nobody can give. The server writes `logs/web.log` under the
+researcher's `.hermes` with each call's id, tool and outcome, and a read's
+host, never the query or the page.
+
+SearXNG searches engines like DuckDuckGo, Brave and Bing from this VM, as its
+own user, outside the agents' egress filter. It listens on loopback only,
+with no rate limiter, image proxy or Redis, and its cookie-signing key is
+made on this VM the first time, in `/var/lib/searx-secret`, since nothing
+outside this host ever gets a cookie from it. Hermes' own web tools stay off
+for every agent: they read any URL, and with no backend set they fall back to
+outside services' free tiers.
 
 ### Spend
 
@@ -790,6 +828,7 @@ names some:
 | `local` | the same, through the lab's local model: the researcher's main model is `lab-gpu`, Hermes logs no fallback while it works, and inference's nginx logs at least one successful request from the `agents` key |
 | `decide` | the researcher asks Jev one fixed question and comments the call id it got back, which is in the Jev server's call log as a successful call |
 | `observe` | the researcher reads each lab source it has once and comments the call ids, each a successful call of that source in the lab server's log; with GitHub on, it quotes nixconfig pull request #1's title, which matches GitHub's |
+| `web` | the researcher searches for NixOS's download page and reads a result on nixos.org, then comments both call ids, the URL and the page's title; both ids are successful calls in the websearch server's log, the read on the URL's host, and the title matches what the Mac fetches |
 | `health` | lab-health's dry run reads every source the monitor has and starts nothing; then the board runs the findings routine with one planted code, `storage-full:<node>/local:1` on an online node, and the monitor comments naming that node and sets the issue done, with a successful Proxmox call in its lab log |
 | `intake` | a minor test alert, `smoke/<nonce>`, goes into Alerta and nothing else is done: n8n has to start a triage naming it within 12 minutes and mark the alert's `n8nTriagedAt`, and the monitor's triage of it ends done with a comment naming `smoke/<nonce>`, which it can only learn by reading the alert, and an `alerta_alert` call in its log. The alert is cleared afterwards, and the phone gets both. |
 | `ask` | the researcher asks the board a two-option question on an issue and leaves the issue blocked; agent-watch raises `WaitingOnYou` linking to the issue; the test answers as the board with the second option, and the researcher wakes, comments that option and closes the issue, after which the alert clears. The phone gets both. With board-bridge on, the question reaches every chat channel, and every copy ends up answered in Paperclip. With paperclip-events connected nothing is forced: the alert has to come within 20 s of the question, the DMs within 10 s, and the alert has to clear on its own. |
@@ -997,6 +1036,9 @@ host key and the same master key in SOPS, the stored secrets stay readable.
 - Six agents at their 2 GB `MemoryMax` plus Paperclip's 4 GB add up to more
   than the VM's 12 GB. Those are caps, and an idle agent uses far less, but
   several long runs at once could press on memory.
+- SearXNG scrapes public engines from the home connection, and an engine can
+  throttle or ask for a CAPTCHA; a search says which engines didn't answer.
+  A link Justin puts in an issue can be read only once a search turns it up.
 - GitHub's MCP server is pinned in the repo, not in nixpkgs, so its updates
   are by hand (`modules/roles/hermes-agents/github-mcp/package.nix`), and its
   `go.mod` is edited to build with nixpkgs' Go until that catches up.
