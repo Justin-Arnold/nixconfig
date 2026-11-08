@@ -77,13 +77,30 @@
       }
     },
     {
+      "id": "4c2e9d18-0b6f-4f0e-a6d3-2f0b9e7c5a44",
+      "name": "Refuse",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        660,
+        200
+      ],
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "signature doesn't match",
+        "options": {
+          "responseCode": 401
+        }
+      }
+    },
+    {
       "id": "da12b7f5-2cc8-44f5-9fa5-b99e4b0d7d00",
       "name": "Ping?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
         660,
-        -100
+        0
       ],
       "parameters": {
         "conditions": {
@@ -116,46 +133,13 @@
       "typeVersion": 1.5,
       "position": [
         880,
-        -200
+        -100
       ],
       "parameters": {
         "respondWith": "json",
         "responseBody": "={{ { ok: true, event: 'ping', hook: $json.body.hook_id } }}",
         "options": {
           "responseCode": 200
-        }
-      }
-    },
-    {
-      "id": "1d7f3b52-61d8-4a56-9c43-5b7c8c5fd0a1",
-      "name": "Nothing to do yet",
-      "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1.5,
-      "position": [
-        1320,
-        400
-      ],
-      "parameters": {
-        "respondWith": "noData",
-        "options": {
-          "responseCode": 202
-        }
-      }
-    },
-    {
-      "id": "4c2e9d18-0b6f-4f0e-a6d3-2f0b9e7c5a44",
-      "name": "Refuse",
-      "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1.5,
-      "position": [
-        660,
-        300
-      ],
-      "parameters": {
-        "respondWith": "text",
-        "responseBody": "signature doesn't match",
-        "options": {
-          "responseCode": 401
         }
       }
     },
@@ -178,7 +162,7 @@
           },
           "conditions": [
             {
-              "id": "49bea7ce-7105-46ae-9b31-38e038786e9b",
+              "id": "527f85ac-0b53-4efa-b1e4-004406b743fc",
               "leftValue": "={{ $json.headers['x-github-event'] || '' }}",
               "rightValue": "workflow_run",
               "operator": {
@@ -187,7 +171,7 @@
               }
             },
             {
-              "id": "7f486b9b-8c19-4e4f-b513-ad775f476c49",
+              "id": "bd7dce2d-b434-49bf-bc8c-e2684101f8f0",
               "leftValue": "={{ $json.body.action || '' }}",
               "rightValue": "completed",
               "operator": {
@@ -196,7 +180,7 @@
               }
             },
             {
-              "id": "261bd65a-53e4-4f5d-a2c1-1d327ad4dce6",
+              "id": "9824119a-b6ba-4771-8992-b6c28d019ab2",
               "leftValue": "={{ $json.body.workflow?.path || '' }}",
               "rightValue": ".github/workflows/check.yml",
               "operator": {
@@ -205,7 +189,7 @@
               }
             },
             {
-              "id": "7ea84ec0-b040-4e6f-bd11-2536c8211110",
+              "id": "e358d14d-1b41-4280-9315-a587d464e811",
               "leftValue": "={{ $json.body.repository?.full_name || '' }}",
               "rightValue": "Justin-Arnold/nixconfig",
               "operator": {
@@ -214,7 +198,7 @@
               }
             },
             {
-              "id": "d794ad18-dace-4bd4-a608-281cb0919118",
+              "id": "bbdfc071-7b7a-4e45-a0ef-e171a4300b6b",
               "leftValue": "={{ $json.body.workflow_run?.head_repository?.full_name || '' }}",
               "rightValue": "Justin-Arnold/nixconfig",
               "operator": {
@@ -223,9 +207,9 @@
               }
             },
             {
-              "id": "df127bd9-c03c-46c4-a98a-97646e1593e3",
+              "id": "09ea4aaa-eea2-4b72-8e23-bd1cd8ff5e74",
               "leftValue": "={{ $json.body.workflow_run?.head_branch || '' }}",
-              "rightValue": "^agent/(ci|infra)/",
+              "rightValue": "^agent/(ci|infra|engineer)/",
               "operator": {
                 "type": "string",
                 "operation": "regex"
@@ -254,16 +238,315 @@
       }
     },
     {
+      "id": "11decabb-98a8-43f5-b3fb-dc69427c3ccd",
+      "name": "Run from the delivery",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1320,
+        0
+      ],
+      "parameters": {
+        "mode": "manual",
+        "assignments": {
+          "assignments": [
+            {
+              "id": "9680c6ba-3c5d-4921-a840-7df2d66d07b5",
+              "name": "run_id",
+              "value": "={{ $json.body.workflow_run.id }}",
+              "type": "number"
+            },
+            {
+              "id": "cc53b51c-9c74-4688-852f-55917808b52d",
+              "name": "attempt",
+              "value": "={{ $json.body.workflow_run.run_attempt }}",
+              "type": "number"
+            },
+            {
+              "id": "d0badc92-47dc-418e-ac03-6deb94108351",
+              "name": "head_sha",
+              "value": "={{ $json.body.workflow_run.head_sha }}",
+              "type": "string"
+            },
+            {
+              "id": "4d9d77f5-eca6-4114-8ff4-357ac2c5d265",
+              "name": "head_branch",
+              "value": "={{ $json.body.workflow_run.head_branch }}",
+              "type": "string"
+            },
+            {
+              "id": "e386069b-d7c8-4257-96f7-230999e7c71c",
+              "name": "conclusion",
+              "value": "={{ $json.body.workflow_run.conclusion }}",
+              "type": "string"
+            },
+            {
+              "id": "94b800f5-f126-42f0-9cb6-c30abd30936e",
+              "name": "swept",
+              "value": "no",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "fc73aa34-a900-4b4f-a865-c167291171fb",
+      "name": "Every 30 minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        880,
+        -400
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 30
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "e102ec99-72a7-4b1c-b392-4fb7e545392f",
+      "name": "Open pull requests",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1100,
+        -400
+      ],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000,
+      "parameters": {
+        "method": "GET",
+        "url": "https://api.github.com/repos/Justin-Arnold/nixconfig/pulls",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "state",
+              "value": "open"
+            },
+            {
+              "name": "per_page",
+              "value": "100"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/vnd.github+json"
+            },
+            {
+              "name": "X-GitHub-Api-Version",
+              "value": "2022-11-28"
+            },
+            {
+              "name": "User-Agent",
+              "value": "n8n-automation"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 10000
+        }
+      }
+    },
+    {
+      "id": "437a1462-cba1-4fdb-9e26-6a3fab84e6df",
+      "name": "Agent branches",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.2,
+      "position": [
+        1320,
+        -400
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "388ed18f-2e18-47ce-8a83-eb81b7e46cc4",
+              "leftValue": "={{ $json.head?.ref || '' }}",
+              "rightValue": "^agent/(ci|infra|engineer)/",
+              "operator": {
+                "type": "string",
+                "operation": "regex"
+              }
+            },
+            {
+              "id": "ce7345f9-1b62-496d-a08d-42b4755a71e8",
+              "leftValue": "={{ $json.head?.repo?.full_name || '' }}",
+              "rightValue": "Justin-Arnold/nixconfig",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "ec68ab1a-c848-4d2e-91cf-710b89d65afb",
+      "name": "Latest run on its head",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1540,
+        -400
+      ],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000,
+      "parameters": {
+        "method": "GET",
+        "url": "https://api.github.com/repos/Justin-Arnold/nixconfig/actions/workflows/check.yml/runs",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "head_sha",
+              "value": "={{ $json.head.sha }}"
+            },
+            {
+              "name": "status",
+              "value": "completed"
+            },
+            {
+              "name": "per_page",
+              "value": "1"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/vnd.github+json"
+            },
+            {
+              "name": "X-GitHub-Api-Version",
+              "value": "2022-11-28"
+            },
+            {
+              "name": "User-Agent",
+              "value": "n8n-automation"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 10000
+        }
+      }
+    },
+    {
+      "id": "d6e2630e-6103-4c6b-a599-7d2976daffa3",
+      "name": "Its runs",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        1760,
+        -400
+      ],
+      "parameters": {
+        "fieldToSplitOut": "workflow_runs",
+        "options": {}
+      }
+    },
+    {
+      "id": "c0e4bb62-9aed-44ff-a960-329a4d08c7b2",
+      "name": "Run from the sweep",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1980,
+        -400
+      ],
+      "parameters": {
+        "mode": "manual",
+        "assignments": {
+          "assignments": [
+            {
+              "id": "59fe9b8a-9845-4c78-91e0-88876ff62aea",
+              "name": "run_id",
+              "value": "={{ $json.id }}",
+              "type": "number"
+            },
+            {
+              "id": "ef036610-fa75-4a79-a3e3-4586a5ddfa41",
+              "name": "attempt",
+              "value": "={{ $json.run_attempt }}",
+              "type": "number"
+            },
+            {
+              "id": "4b1f3dc3-c090-4880-8e0c-f57571490ae3",
+              "name": "head_sha",
+              "value": "={{ $json.head_sha }}",
+              "type": "string"
+            },
+            {
+              "id": "7450404a-4299-4b49-9364-1dec1a8fa6fc",
+              "name": "head_branch",
+              "value": "={{ $json.head_branch }}",
+              "type": "string"
+            },
+            {
+              "id": "a43bd839-81bb-4c6e-9dff-be7640621471",
+              "name": "conclusion",
+              "value": "={{ $json.conclusion }}",
+              "type": "string"
+            },
+            {
+              "id": "f79770cb-3a81-4de5-ac99-135a3e8a75f4",
+              "name": "swept",
+              "value": "yes",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "4765c5bb-cf3f-4eb0-9227-03f6232ab147",
+      "name": "Run",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        2200,
+        0
+      ],
+      "parameters": {}
+    },
+    {
       "id": "eee7d036-438e-42e9-90b6-dcc1a70a2c28",
       "name": "Find its pull request",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1320,
+        2420,
         0
       ],
       "retryOnFail": true,
-      "maxTries": 3,
+      "maxTries": 2,
       "waitBetweenTries": 5000,
       "parameters": {
         "method": "GET",
@@ -273,7 +556,7 @@
           "parameters": [
             {
               "name": "head",
-              "value": "={{ 'Justin-Arnold:' + $json.body.workflow_run.head_branch }}"
+              "value": "={{ 'Justin-Arnold:' + $('Run').item.json.head_branch }}"
             },
             {
               "name": "state",
@@ -304,12 +587,12 @@
       }
     },
     {
-      "id": "7b030033-66e9-4e89-8443-5c3616f2b014",
-      "name": "Green?",
+      "id": "aa54cf1b-1b6c-4e09-b946-ec3408d91a9e",
+      "name": "Its current head?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        1540,
+        2640,
         0
       ],
       "parameters": {
@@ -322,8 +605,41 @@
           },
           "conditions": [
             {
-              "id": "d6f1286a-bb66-477e-8c94-9291ddecdb9b",
-              "leftValue": "={{ $('GitHub delivery').first().json.body.workflow_run.conclusion }}",
+              "id": "28142b7a-cd4f-47c7-b7d3-65d45d4f008d",
+              "leftValue": "={{ $json.head?.sha || '' }}",
+              "rightValue": "={{ $('Run').item.json.head_sha }}",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "7b030033-66e9-4e89-8443-5c3616f2b014",
+      "name": "Green?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2860,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c9f9d214-5e6d-4116-8de6-5130a57e9633",
+              "leftValue": "={{ $('Run').item.json.conclusion }}",
               "rightValue": "success",
               "operator": {
                 "type": "string",
@@ -337,13 +653,13 @@
       }
     },
     {
-      "id": "b100f583-d241-40ca-a487-7ec3c480a6ff",
-      "name": "Red?",
+      "id": "fef446fb-00e2-467e-866d-76136bc62404",
+      "name": "Swept?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        1760,
-        100
+        3080,
+        -200
       ],
       "parameters": {
         "conditions": {
@@ -355,25 +671,98 @@
           },
           "conditions": [
             {
-              "id": "c4ba1312-c8aa-4b6f-8510-33da63d00d76",
-              "leftValue": "={{ $('GitHub delivery').first().json.body.workflow_run.conclusion }}",
-              "rightValue": "failure",
-              "operator": {
-                "type": "string",
-                "operation": "equals"
-              }
-            },
-            {
-              "id": "88b32fdc-ef9c-4349-9db9-39e09138dbc5",
-              "leftValue": "={{ $('GitHub delivery').first().json.body.workflow_run.conclusion }}",
-              "rightValue": "timed_out",
+              "id": "6efec050-0082-40df-b0e8-ea6f90a4dd6f",
+              "leftValue": "={{ $('Run').item.json.swept }}",
+              "rightValue": "yes",
               "operator": {
                 "type": "string",
                 "operation": "equals"
               }
             }
           ],
-          "combinator": "or"
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "e42d6481-cb40-4f96-b8f9-98f041d14e93",
+      "name": "Any LandReady yet?",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3300,
+        -300
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "parameters": {
+        "method": "GET",
+        "url": "http://10.118.0.1:5000/alerts",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "environment",
+              "value": "Homelab"
+            },
+            {
+              "name": "resource",
+              "value": "={{ 'nixconfig#' + $('Find its pull request').item.json.number }}"
+            },
+            {
+              "name": "event",
+              "value": "LandReady"
+            },
+            {
+              "name": "status",
+              "value": "={{ [\"open\", \"ack\", \"closed\", \"shelved\", \"expired\"] }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 10000,
+          "queryParameterArrays": "repeat"
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Alerta key"
+        }
+      }
+    },
+    {
+      "id": "4cceabae-d91f-40b0-9e6c-68b21e1d8756",
+      "name": "No LandReady yet?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3520,
+        -300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "2e266094-ebbf-4ba0-8313-3ff0a78f0abb",
+              "leftValue": "={{ $json.total }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
         },
         "options": {}
       }
@@ -384,8 +773,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1760,
-        -100
+        3740,
+        -200
       ],
       "retryOnFail": true,
       "maxTries": 3,
@@ -395,7 +784,7 @@
         "url": "http://10.118.0.1:5000/alert",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ environment: 'Homelab', resource: 'nixconfig#' + $json.number, event: 'LandReady', severity: 'informational', service: ['nixconfig'], group: 'CI', origin: 'n8n', tags: ['n8n'], text: 'CI passed on nixconfig#' + $json.number + '. Land it with scripts/workbench/land-pr.sh ' + $json.number + '.', attributes: { notificationTitle: 'nixconfig#' + $json.number + ' is green: land it', url: $json.html_url } }) }}",
+        "jsonBody": "={{ JSON.stringify({ environment: 'Homelab', resource: 'nixconfig#' + $('Find its pull request').item.json.number, event: 'LandReady', severity: 'informational', service: ['nixconfig'], group: 'CI', origin: 'n8n', tags: ['n8n'], text: 'CI passed on nixconfig#' + $('Find its pull request').item.json.number + '. Land it with scripts/workbench/land-pr.sh ' + $('Find its pull request').item.json.number + '.', attributes: { notificationTitle: 'nixconfig#' + $('Find its pull request').item.json.number + ' is green: land it', url: $('Find its pull request').item.json.html_url } }) }}",
         "options": {
           "timeout": 10000
         },
@@ -409,13 +798,216 @@
       }
     },
     {
+      "id": "b100f583-d241-40ca-a487-7ec3c480a6ff",
+      "name": "Red?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3080,
+        200
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "a8f71389-cf4e-4e2e-8ee2-39980b14d9a3",
+              "leftValue": "={{ $('Run').item.json.conclusion }}",
+              "rightValue": "failure",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "66e602e4-068e-4fcc-85dc-ca6313ae8993",
+              "leftValue": "={{ $('Run').item.json.conclusion }}",
+              "rightValue": "timed_out",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "ebb1c4ce-036a-4ce5-9b7a-543aa5b0d12a",
+      "name": "Its red commits",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3300,
+        200
+      ],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000,
+      "parameters": {
+        "method": "GET",
+        "url": "https://api.github.com/repos/Justin-Arnold/nixconfig/actions/workflows/check.yml/runs",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "branch",
+              "value": "={{ $('Run').item.json.head_branch }}"
+            },
+            {
+              "name": "status",
+              "value": "completed"
+            },
+            {
+              "name": "per_page",
+              "value": "100"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/vnd.github+json"
+            },
+            {
+              "name": "X-GitHub-Api-Version",
+              "value": "2022-11-28"
+            },
+            {
+              "name": "User-Agent",
+              "value": "n8n-automation"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 10000
+        }
+      }
+    },
+    {
+      "id": "419fb93a-1f85-4d23-bbb6-ba004c900e70",
+      "name": "Under the cap?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3520,
+        200
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "8927c561-c11b-4e8e-b5dd-65b7315126fb",
+              "leftValue": "={{ $json.workflow_runs.filter(r => r.conclusion === 'failure' || r.conclusion === 'timed_out').map(r => r.head_sha).filter((sha, i, all) => all.indexOf(sha) === i).length }}",
+              "rightValue": 3,
+              "operator": {
+                "type": "number",
+                "operation": "lte"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "342bea6a-9f5f-4656-bd57-1451264c7524",
+      "name": "Engineer's branch?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3740,
+        100
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "12b2b078-2adb-49a1-a333-668294f4cd87",
+              "leftValue": "={{ $('Run').item.json.head_branch }}",
+              "rightValue": "agent/engineer/",
+              "operator": {
+                "type": "string",
+                "operation": "startsWith"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "264d4eb7-1c90-4cc9-9137-019f5b07b8cb",
+      "name": "Start the engineer's Fix CI",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3960,
+        0
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "parameters": {
+        "method": "POST",
+        "url": {
+          "sops": "paperclip-triggers/fix-ci-engineer/url"
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Idempotency-Key",
+              "value": "={{ 'check-run-' + $('Run').item.json.run_id + '-' + $('Run').item.json.attempt }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ variables: { repo: 'nixconfig', number: $('Find its pull request').item.json.number } }) }}",
+        "options": {
+          "timeout": 10000
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth"
+      },
+      "credentials": {
+        "httpBearerAuth": {
+          "name": "Paperclip engineer Fix CI trigger"
+        }
+      }
+    },
+    {
       "id": "600c2284-521f-436b-a8be-9dc338e1e22c",
       "name": "Start Fix CI",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1980,
-        100
+        3960,
+        200
       ],
       "retryOnFail": true,
       "maxTries": 3,
@@ -430,13 +1022,13 @@
           "parameters": [
             {
               "name": "Idempotency-Key",
-              "value": "={{ $('GitHub delivery').first().json.headers['x-github-delivery'] }}"
+              "value": "={{ 'check-run-' + $('Run').item.json.run_id + '-' + $('Run').item.json.attempt }}"
             }
           ]
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ variables: { repo: 'nixconfig', number: $json.number } }) }}",
+        "jsonBody": "={{ JSON.stringify({ variables: { repo: 'nixconfig', number: $('Find its pull request').item.json.number } }) }}",
         "options": {
           "timeout": 10000
         },
@@ -450,13 +1042,13 @@
       }
     },
     {
-      "id": "2a6a37c8-6f5f-49b9-87bf-7ea3c9355103",
-      "name": "Agent pull request closed?",
+      "id": "2643d279-2eea-4b7f-a465-9f171be1f567",
+      "name": "Started?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        1100,
-        250
+        4180,
+        100
       ],
       "parameters": {
         "conditions": {
@@ -468,7 +1060,224 @@
           },
           "conditions": [
             {
-              "id": "b461e611-13c3-4470-8f7b-e6d66bb27a40",
+              "id": "6f5a4ae6-e1d9-4d16-b7e6-fee78b31e985",
+              "leftValue": "={{ $json.status || '' }}",
+              "rightValue": "issue_created",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "5d6c5da4-10c9-410c-902e-d7738b738cca",
+              "leftValue": "={{ $json.status || '' }}",
+              "rightValue": "coalesced",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "8f949770-9f64-40da-bfe6-524ecf5cb657",
+      "name": "Raise RoutineFailed",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        4400,
+        200
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "parameters": {
+        "method": "POST",
+        "url": "http://10.118.0.1:5000/alert",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ environment: 'Homelab', resource: 'nixconfig#' + $('Find its pull request').item.json.number, event: 'RoutineFailed', severity: 'warning', service: ['nixconfig'], group: 'CI', origin: 'n8n', tags: ['n8n'], text: 'Paperclip answered ' + String($json.status || 'without a status').slice(0, 40) + ' when n8n started Fix CI for nixconfig#' + $('Find its pull request').item.json.number + '.', attributes: { notificationTitle: 'Fix CI for nixconfig#' + $('Find its pull request').item.json.number + ' did not start', url: $('Find its pull request').item.json.html_url } }) }}",
+        "options": {
+          "timeout": 10000
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Alerta key"
+        }
+      }
+    },
+    {
+      "id": "7108973a-680f-4b03-b4c6-c2635acbe351",
+      "name": "Swept, over the cap?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3740,
+        400
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "85c4e5b3-9fbf-44cb-a44d-321900eb39a1",
+              "leftValue": "={{ $('Run').item.json.swept }}",
+              "rightValue": "yes",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "f65373d3-66e0-483b-a659-f7492b430d17",
+      "name": "Any CIStuck yet?",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3960,
+        500
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "parameters": {
+        "method": "GET",
+        "url": "http://10.118.0.1:5000/alerts",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "environment",
+              "value": "Homelab"
+            },
+            {
+              "name": "resource",
+              "value": "={{ 'nixconfig#' + $('Find its pull request').item.json.number }}"
+            },
+            {
+              "name": "event",
+              "value": "CIStuck"
+            },
+            {
+              "name": "status",
+              "value": "={{ [\"open\", \"ack\", \"closed\", \"shelved\", \"expired\"] }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 10000,
+          "queryParameterArrays": "repeat"
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Alerta key"
+        }
+      }
+    },
+    {
+      "id": "39dbb1e2-4ab3-4cd6-8121-b06063d10704",
+      "name": "No CIStuck yet?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        4180,
+        500
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "ad41f8da-ff1b-47ae-87cd-ef1b8faa24be",
+              "leftValue": "={{ $json.total }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "7f19dba2-a6ae-453d-9b3e-c5aa5f213ecd",
+      "name": "Raise CIStuck",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        4400,
+        400
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "parameters": {
+        "method": "POST",
+        "url": "http://10.118.0.1:5000/alert",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ environment: 'Homelab', resource: 'nixconfig#' + $('Find its pull request').item.json.number, event: 'CIStuck', severity: 'warning', service: ['nixconfig'], group: 'CI', origin: 'n8n', tags: ['n8n'], text: 'CI went red on more than three commits of nixconfig#' + $('Find its pull request').item.json.number + ', so no agent was woken.', attributes: { notificationTitle: 'nixconfig#' + $('Find its pull request').item.json.number + ' is stuck red', url: $('Find its pull request').item.json.html_url } }) }}",
+        "options": {
+          "timeout": 10000
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Alerta key"
+        }
+      }
+    },
+    {
+      "id": "2a6a37c8-6f5f-49b9-87bf-7ea3c9355103",
+      "name": "Agent pull request closed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1100,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "ac570463-7545-4368-8e89-7309d374db52",
               "leftValue": "={{ $json.headers['x-github-event'] || '' }}",
               "rightValue": "pull_request",
               "operator": {
@@ -477,7 +1286,7 @@
               }
             },
             {
-              "id": "85efa3ed-9e02-4dc8-b4a8-699c4f20c6e8",
+              "id": "b4663d02-8c7b-46b2-890e-edd43cfad360",
               "leftValue": "={{ $json.body.action || '' }}",
               "rightValue": "closed",
               "operator": {
@@ -486,7 +1295,7 @@
               }
             },
             {
-              "id": "450903d3-e4e4-44b8-b085-a4463cca7195",
+              "id": "e0b4f001-8fd9-4f8a-a2f3-6e6dfaf752dc",
               "leftValue": "={{ $json.body.repository?.full_name || '' }}",
               "rightValue": "Justin-Arnold/nixconfig",
               "operator": {
@@ -495,7 +1304,7 @@
               }
             },
             {
-              "id": "4eabb4d6-9502-48a7-a9e2-38eef7d92909",
+              "id": "877b1509-7049-4f25-9779-9007cbed7de0",
               "leftValue": "={{ $json.body.pull_request?.head?.repo?.full_name || '' }}",
               "rightValue": "Justin-Arnold/nixconfig",
               "operator": {
@@ -504,9 +1313,9 @@
               }
             },
             {
-              "id": "e9469e64-a8e4-46ac-9ee8-88008460b00a",
+              "id": "0b8f985c-529b-4c34-8fbe-2a6803691bf3",
               "leftValue": "={{ $json.body.pull_request?.head?.ref || '' }}",
-              "rightValue": "^agent/(ci|infra)/",
+              "rightValue": "^agent/(ci|infra|engineer)/",
               "operator": {
                 "type": "string",
                 "operation": "regex"
@@ -525,7 +1334,7 @@
       "typeVersion": 1.5,
       "position": [
         1320,
-        200
+        300
       ],
       "parameters": {
         "respondWith": "noData",
@@ -535,13 +1344,13 @@
       }
     },
     {
-      "id": "593473cc-a7b2-409b-9aba-78a69c4a17f9",
-      "name": "Find its LandReady",
+      "id": "a023afc8-f27c-477d-a879-05336e0d91d0",
+      "name": "Find its alerts",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
         1540,
-        200
+        300
       ],
       "retryOnFail": true,
       "maxTries": 3,
@@ -557,19 +1366,64 @@
               "value": "Homelab"
             },
             {
-              "name": "event",
-              "value": "LandReady"
+              "name": "resource",
+              "value": "={{ 'nixconfig#' + $('GitHub delivery').first().json.body.number }}"
             },
             {
-              "name": "resource",
-              "value": "={{ 'nixconfig#' + $json.body.number }}"
+              "name": "event",
+              "value": "={{ [\"LandReady\", \"CIStuck\", \"RoutineFailed\"] }}"
             },
             {
               "name": "status",
-              "value": "open"
+              "value": "={{ [\"open\", \"ack\"] }}"
             }
           ]
         },
+        "options": {
+          "timeout": 10000,
+          "queryParameterArrays": "repeat"
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Alerta key"
+        }
+      }
+    },
+    {
+      "id": "ff3835b3-a852-49c6-a7bf-55fc55a18c31",
+      "name": "Its alerts",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        1760,
+        300
+      ],
+      "parameters": {
+        "fieldToSplitOut": "alerts",
+        "options": {}
+      }
+    },
+    {
+      "id": "c312dbd7-270f-4fe6-b7ba-c17421a6c312",
+      "name": "Clear it",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1980,
+        300
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "parameters": {
+        "method": "POST",
+        "url": "http://10.118.0.1:5000/alert",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ environment: 'Homelab', resource: $json.resource, event: $json.event, severity: 'cleared', service: ['nixconfig'], group: 'CI', origin: 'n8n', tags: ['n8n'], text: $json.resource + ($('GitHub delivery').first().json.body.pull_request.merged ? ' was merged.' : ' was closed.'), attributes: { notificationTitle: $json.resource + ($('GitHub delivery').first().json.body.pull_request.merged ? ' landed' : ' closed'), url: $('GitHub delivery').first().json.body.pull_request.html_url } }) }}",
         "options": {
           "timeout": 10000
         },
@@ -583,65 +1437,18 @@
       }
     },
     {
-      "id": "fa2ce29a-e21d-43d5-b87b-455020ba6097",
-      "name": "Raised?",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2.2,
+      "id": "1d7f3b52-61d8-4a56-9c43-5b7c8c5fd0a1",
+      "name": "Nothing to do yet",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
       "position": [
-        1760,
-        200
+        1320,
+        500
       ],
       "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "strict",
-            "version": 2
-          },
-          "conditions": [
-            {
-              "id": "e4f6a779-ad52-43f6-9bdb-fe63d9f61ee5",
-              "leftValue": "={{ $json.total }}",
-              "rightValue": 0,
-              "operator": {
-                "type": "number",
-                "operation": "gt"
-              }
-            }
-          ],
-          "combinator": "and"
-        },
-        "options": {}
-      }
-    },
-    {
-      "id": "42b58a08-3e8e-4c42-a1d2-702456a0d551",
-      "name": "Clear LandReady",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        1980,
-        200
-      ],
-      "retryOnFail": true,
-      "maxTries": 3,
-      "waitBetweenTries": 5000,
-      "parameters": {
-        "method": "POST",
-        "url": "http://10.118.0.1:5000/alert",
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ environment: 'Homelab', resource: 'nixconfig#' + $('GitHub delivery').first().json.body.number, event: 'LandReady', severity: 'cleared', service: ['nixconfig'], group: 'CI', origin: 'n8n', tags: ['n8n'], text: 'nixconfig#' + $('GitHub delivery').first().json.body.number + ($('GitHub delivery').first().json.body.pull_request.merged ? ' was merged.' : ' was closed.'), attributes: { notificationTitle: 'nixconfig#' + $('GitHub delivery').first().json.body.number + ($('GitHub delivery').first().json.body.pull_request.merged ? ' landed' : ' closed'), url: $('GitHub delivery').first().json.body.pull_request.html_url } }) }}",
+        "respondWith": "noData",
         "options": {
-          "timeout": 10000
-        },
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth"
-      },
-      "credentials": {
-        "httpHeaderAuth": {
-          "name": "Alerta key"
+          "responseCode": 202
         }
       }
     }
@@ -727,6 +1534,94 @@
       "main": [
         [
           {
+            "node": "Run from the delivery",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run from the delivery": {
+      "main": [
+        [
+          {
+            "node": "Run",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Every 30 minutes": {
+      "main": [
+        [
+          {
+            "node": "Open pull requests",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Open pull requests": {
+      "main": [
+        [
+          {
+            "node": "Agent branches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agent branches": {
+      "main": [
+        [
+          {
+            "node": "Latest run on its head",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Latest run on its head": {
+      "main": [
+        [
+          {
+            "node": "Its runs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Its runs": {
+      "main": [
+        [
+          {
+            "node": "Run from the sweep",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run from the sweep": {
+      "main": [
+        [
+          {
+            "node": "Run",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run": {
+      "main": [
+        [
+          {
             "node": "Find its pull request",
             "type": "main",
             "index": 0
@@ -738,18 +1633,30 @@
       "main": [
         [
           {
-            "node": "Green?",
+            "node": "Its current head?",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
+    "Its current head?": {
+      "main": [
+        [
+          {
+            "node": "Green?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
     "Green?": {
       "main": [
         [
           {
-            "node": "Raise LandReady",
+            "node": "Swept?",
             "type": "main",
             "index": 0
           }
@@ -763,11 +1670,174 @@
         ]
       ]
     },
+    "Swept?": {
+      "main": [
+        [
+          {
+            "node": "Any LandReady yet?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Raise LandReady",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Any LandReady yet?": {
+      "main": [
+        [
+          {
+            "node": "No LandReady yet?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "No LandReady yet?": {
+      "main": [
+        [
+          {
+            "node": "Raise LandReady",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
     "Red?": {
       "main": [
         [
           {
+            "node": "Its red commits",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Its red commits": {
+      "main": [
+        [
+          {
+            "node": "Under the cap?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Under the cap?": {
+      "main": [
+        [
+          {
+            "node": "Engineer's branch?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Swept, over the cap?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Engineer's branch?": {
+      "main": [
+        [
+          {
+            "node": "Start the engineer's Fix CI",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
             "node": "Start Fix CI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Start the engineer's Fix CI": {
+      "main": [
+        [
+          {
+            "node": "Started?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Start Fix CI": {
+      "main": [
+        [
+          {
+            "node": "Started?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Started?": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Raise RoutineFailed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Swept, over the cap?": {
+      "main": [
+        [
+          {
+            "node": "Any CIStuck yet?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Raise CIStuck",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Any CIStuck yet?": {
+      "main": [
+        [
+          {
+            "node": "No CIStuck yet?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "No CIStuck yet?": {
+      "main": [
+        [
+          {
+            "node": "Raise CIStuck",
             "type": "main",
             "index": 0
           }
@@ -797,34 +1867,33 @@
       "main": [
         [
           {
-            "node": "Find its LandReady",
+            "node": "Find its alerts",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Find its LandReady": {
+    "Find its alerts": {
       "main": [
         [
           {
-            "node": "Raised?",
+            "node": "Its alerts",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Raised?": {
+    "Its alerts": {
       "main": [
         [
           {
-            "node": "Clear LandReady",
+            "node": "Clear it",
             "type": "main",
             "index": 0
           }
-        ],
-        []
+        ]
       ]
     }
   },

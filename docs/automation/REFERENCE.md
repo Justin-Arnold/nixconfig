@@ -186,26 +186,53 @@ with plain rules and no model:
 
 | Event | When | What happens |
 |---|---|---|
-| `workflow_run` completed | `check.yml`, on an `agent/ci/*` or `agent/infra/*` branch of nixconfig itself | 202, then it finds the open pull request for the branch through GitHub's public API. Green raises LandReady; failure or timed out starts Fix CI. |
-| `pull_request` closed | the same branches | 202, then it clears that pull request's LandReady, if one is open |
+| `workflow_run` completed | `check.yml`, on an `agent/ci/*`, `agent/infra/*` or `agent/engineer/*` branch of nixconfig itself | 202, then the run is routed (below) |
+| `pull_request` closed | the same branches | 202, then it clears that pull request's LandReady, CIStuck and RoutineFailed, if any are open |
 | anything else | | 202 and nothing more |
 
-LandReady goes to Alerta with the `Alerta key` credential (`X-API-Key`), as
-`informational` from origin `n8n`, resource `nixconfig#<n>`, with the pull
-request's link in `attributes.url`. So it reaches the phone with a link, and
-monitor-intake, which takes `warning` and above, never hands it to the
-monitor. Clearing it sends a "landed" or "closed" note the same way.
+A run is routed like this:
+1. n8n finds the branch's open pull request through GitHub's public API. A
+   run that isn't on the pull request's current head is dropped, so a late
+   or redelivered event for an older commit does nothing.
+2. **Green** raises LandReady.
+3. **Failed or timed out** starts a Fix CI routine for the branch's agent:
+   infra's for `agent/ci/*` and `agent/infra/*`, the engineer's own for
+   `agent/engineer/*`. Before that, n8n counts the commits of the branch
+   that went red, from GitHub's list of its `check.yml` runs, so re-runs
+   count once. On the fourth it wakes nobody and raises CIStuck for you
+   instead.
+4. **Anything else**, like a cancelled run, does nothing.
 
-Fix CI is a Paperclip routine webhook on the agents VM
-(`paperclip-triggers.servicestack.xyz`), signed with the `Paperclip Fix CI
-trigger` credential's bearer token. Its body is the repo and the number and
-nothing else, and GitHub's delivery id goes along as `Idempotency-Key`, so a
-redelivered event never starts a second run. No text from GitHub reaches an
-alert or a routine: only numbers, branch names checked against a pattern,
-and links.
+LandReady, CIStuck and RoutineFailed go to Alerta with the `Alerta key`
+credential (`X-API-Key`), from origin `n8n`, resource `nixconfig#<n>`, with
+the pull request's link in `attributes.url`. LandReady is `informational` and
+the other two `warning`, so they reach the phone with a link, and the
+monitor's intake, which skips origin `n8n`, never hands them to the monitor.
 
-The three calls out retry twice, 5 seconds apart. One that still fails shows
-in n8n's executions; GitHub has its 202 by then and won't send it again.
+Each Fix CI is a Paperclip routine webhook on the agents VM
+(`paperclip-triggers.servicestack.xyz`), signed with its own trigger's
+bearer credential. Its body is the repo and the number and nothing else, and
+its `Idempotency-Key` is `check-run-<run id>-<attempt>`. Paperclip keeps
+those keys for good, so nothing that repeats a run's routing starts a second
+issue. Paperclip answers 202 even when it didn't start the routine, so n8n
+reads the status it gives back, and anything but `issue_created` or
+`coalesced` raises RoutineFailed. No text from GitHub reaches an alert or a
+routine: only numbers, branch names checked against a pattern, and links.
+
+GitHub doesn't retry a delivery that failed, so the same workflow sweeps
+every 30 minutes. It lists nixconfig's open pull requests on agent branches,
+reads the latest completed `check.yml` run on each one's head, and routes it
+the same way. A sweep raises LandReady or CIStuck only if Alerta has no
+alert of that kind for the pull request at all, so one you closed by hand
+stays closed, and its Fix CI key is the same as the webhook's. Both paths
+meet at one node, `Run`, and everything after it reads the run from there.
+
+The calls to Alerta and Paperclip retry twice, and GitHub's once, 5 seconds
+apart. One that still fails shows in n8n's executions, and the next sweep
+tries again. n8n keeps only the last of two query parameters with one name,
+so a repeated one, like Alerta's `status=open&status=ack`, is a single
+parameter whose value is an array, sent with the HTTP node's "No Brackets"
+array format.
 
 ## Monitoring
 
@@ -232,7 +259,8 @@ operator key, nothing else. On macOS, edit it with
 | `n8n/api-key` | the owner's API key for `n8n-apply.py`, made in n8n's UI. The host never reads it. |
 | `github/webhook-secret` | `openssl rand -hex 32`, also set on the repository's webhook |
 | `alerta/n8n-key` | an Alerta API key with `read:alerts` and `write:alerts`, made with `alertad key` on lab118-services |
-| `paperclip-triggers/fix-ci/url`, `.../secret` | the Fix CI trigger's URL and bearer secret, written by `paperclip-apply.py` when it makes the trigger |
+| `paperclip-triggers/fix-ci/url`, `.../secret` | infra's Fix CI trigger's URL and bearer secret, written by `paperclip-apply.py` when it makes the trigger |
+| `paperclip-triggers/fix-ci-engineer/url`, `.../secret` | the engineer's Fix CI trigger's, the same way |
 | `porkbun/api-key`, `porkbun/secret-api-key` | for DNS-01 |
 | `beszel/agent-token` | the hub's universal token |
 | `kuma/backup-push-url` | push monitor for backups |
@@ -284,8 +312,9 @@ workflows still match.
   down is lost until it's redelivered from the repository's webhook settings.
 - n8n-apply.py can't tell whether a stored credential still matches SOPS.
 - The pull request lookup goes to GitHub's API without a token, which allows
-  60 requests an hour from the lab's address: far more than CI finishes, but
-  a burst of redeliveries could run into it.
+  60 requests an hour from the lab's address. A delivery costs one or two and
+  a sweep one plus about three per open agent pull request, far more than CI
+  finishes, but a burst of redeliveries could run into it.
 
 ## Related
 

@@ -209,6 +209,37 @@
       ]
     },
     {
+      "title": "Fix CI on {{repo}}#{{number}} (engineer)",
+      "assignee": "Engineer",
+      "descriptionFile": "routines/fix-ci.md",
+      "priority": "high",
+      "concurrencyPolicy": "coalesce_if_active",
+      "catchUpPolicy": "skip_missed",
+      "variables": [
+        {
+          "name": "repo",
+          "label": "Repository",
+          "type": "select",
+          "options": [
+            "nixconfig"
+          ]
+        },
+        {
+          "name": "number",
+          "label": "Pull request number",
+          "type": "number"
+        }
+      ],
+      "triggers": [
+        {
+          "label": "n8n",
+          "kind": "webhook",
+          "signingMode": "bearer",
+          "secretsTo": "paperclip-triggers/fix-ci-engineer"
+        }
+      ]
+    },
+    {
       "title": "Review {{repo}}#{{number}}",
       "assignee": "Reviewer",
       "descriptionFile": "routines/review-pull-request.md",

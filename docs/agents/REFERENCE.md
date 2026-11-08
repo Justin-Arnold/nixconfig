@@ -88,7 +88,7 @@ fire routines. A trigger can be created with no authentication, so they stay
 closed on this name.
 
 One other name reaches Paperclip, made for one sender: n8n on the automation
-VM, which starts infra's Fix CI routine when CI goes red
+VM, which starts infra's or the engineer's Fix CI routine when CI goes red
 (`docs/automation/REFERENCE.md`). It has its own certificate and doesn't
 include the guard, and it answers nothing but a trigger's fire URL.
 
@@ -623,6 +623,7 @@ line with it, and what each asks its agent is in `scripts/agents/routines/`.
 | Lab health review | monitor | every day at 07:00 New York time | Reads every lab source and says what's down, degraded or heading the wrong way, leading with whether anything needs you; if something does, the issue stays blocked on you |
 | Triage lab alerts | monitor | monitor-intake, when alerts open in Alerta | Reads each new alert and what it's about, and gives the likely cause and the next step; blocked on you the same way when one needs you |
 | Fix CI on a pull request | infra | n8n, when `check.yml` finishes red on an `agent/ci/*` or `agent/infra/*` branch | Reads what failed, reproduces only that, fixes what it may and asks you about the rest, and pushes to the same branch |
+| Fix CI on a pull request (engineer) | engineer | n8n, the same way for an `agent/engineer/*` branch | The same instructions, for the engineer's own branch |
 | Review a pull request | reviewer | when you run it in Paperclip, with a repository and a number | Reviews that pull request the way it reviews a review stage, and comments on it |
 
 The scheduled ones skip a tick while the last one's run is still going, and
@@ -641,7 +642,9 @@ starts its checks (`docs/workbench/REFERENCE.md`, CI). A green result tells
 you it's ready to land, and only a red one wakes infra, through Fix CI.
 Paperclip combines a Fix CI run with a live one only when the variables
 match, so a second red on the same pull request joins the open issue and a
-different pull request gets its own.
+different pull request gets its own. After CI has gone red on three different commits of one pull request,
+n8n wakes nobody for the fourth and raises CIStuck for you instead
+(`docs/automation/REFERENCE.md`).
 
 A routine paused in Paperclip stays paused: `paperclip-apply.py` reports it
 and leaves it alone. It never deletes or archives a routine. A webhook

@@ -44,6 +44,8 @@ SECRETS = {
     "alerta/n8n-key": "alerta-" + "ef" * 16,
     "paperclip-triggers/fix-ci/secret": "pctrig-" + "12" * 16,
     "paperclip-triggers/fix-ci/url": "https://triggers.example/api/routine-triggers/public/" + "0a" * 12 + "/fire",
+    "paperclip-triggers/fix-ci-engineer/secret": "pctrig-" + "34" * 16,
+    "paperclip-triggers/fix-ci-engineer/url": "https://triggers.example/api/routine-triggers/public/" + "0b" * 12 + "/fire",
 }
 PAGE = 2
 WORKFLOW_KEYS = {"name", "nodes", "connections", "settings"}

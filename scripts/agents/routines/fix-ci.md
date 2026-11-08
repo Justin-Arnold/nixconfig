@@ -47,6 +47,10 @@ Justin it's ready to land, and red starts this again.
 8. Comment the pull request's link and what you fixed here, and set this
    issue to done. Don't wait for CI: its result comes back on its own.
 
+n8n stops starting this after CI has gone red on three different commits of
+the same pull request, and tells Justin instead. So if this is your third go
+and you aren't sure the fix holds, say so here and ask him before pushing.
+
 If the failure isn't in the repo at all, like a runner that died or a
 download that timed out, say so here, ask Justin whether to re-run it, and
 change nothing.
