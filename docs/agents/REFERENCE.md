@@ -537,8 +537,12 @@ When an agent needs a decision from you, it asks in Paperclip, not in a
 comment, since a comment reaches nobody. Every agent's soul ends with the
 same section on this (`souls/asking-justin.md`):
 
-- A choice is a question card (`paperclipAskUserQuestions`) with two to four
-  options, the agent's recommendation first, each with its trade-off.
+- A choice is a question card (`paperclipAskUserQuestions`), each question
+  with two to four options, the agent's recommendation first, each with its
+  trade-off. Paperclip keeps only an agent's newest pending card on an
+  issue and expires the one before it unanswered, and the same for
+  confirmations, so an agent puts all its questions in one card, up to
+  four, and asks again rather than guessing when a card expires.
 - A yes or no is a confirmation (`paperclipRequestConfirmation`), always set
   to wake the agent when you answer. Paperclip's default for confirmations
   is not to.
@@ -580,11 +584,18 @@ and a link to it in Paperclip.
 
 - A question with one question gets a button per option. Multiple choice
   gets toggles and Submit, and a free-text option or "Other" asks for text.
+- A card with two to four questions gets a row of buttons for each, its
+  options and "Other…" when it has one, and Submit. A press only marks the
+  pick on every copy, a text answer is kept the same way, and Submit sends
+  every answer at once, after checking each required question has one. A
+  question's row holds five buttons, so it can have five options, or four
+  with "Other…". When the trade-offs make a card too long for Discord's
+  message, Discord's copy leaves them out; Telegram's has them.
 - A confirmation gets Accept, Reject, and Reject with a reason. A checkbox
   confirmation gets toggles, starting from its defaults.
 - An approval gets Approve, Reject, and Reject with a note, in one tap.
-- Anything else, like a form with several questions or a tool action to
-  confirm, gets the link alone.
+- Anything else, like a card with more than four questions or a tool
+  action to confirm, gets the link alone.
 
 Text comes as a reply to the bot's prompt in Telegram, and as a form in
 Discord. A press answers in Paperclip as you, through the same calls as

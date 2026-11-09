@@ -10,8 +10,9 @@ sendMessage, editMessageText, answerCallbackQuery and getUpdates' shape.
 Discord's side uses discord.py's own views and items with fake presses.
 
 The tests check what goes out and once only, what each kind of item looks
-like, every kind of answer, toggles, text answers, answers given in
-Paperclip, items that are cancelled, that only Justin's presses in a DM
+like, every kind of answer, toggles, text answers, cards of several
+questions answered with one Submit, answers given in Paperclip, items that
+are cancelled, that only Justin's presses in a DM
 count, that a failed read finishes nothing, that a restart doesn't send
 again, and that no key or token is ever in an error.
 
@@ -199,9 +200,9 @@ async def core_tests(tmp):
     check("Markdown in a confirmation stays plain text",
           "**bold** stays plain" in cards[bb.token_of(f"i:{confirm}")]["text"]
           and actions(cards[bb.token_of(f"i:{confirm}")]) == ["ok", "no", "xno"])
-    check("a form with two questions and a tool action get the link and no buttons",
-          actions(cards[bb.token_of(f"i:{form}")]) == [] and "Answer this one in Paperclip." in cards[bb.token_of(f"i:{form}")]["text"]
-          and actions(cards[bb.token_of(f"i:{tool}")]) == [])
+    check("a card of two questions with the same option ids gets a row each and Submit; a tool action gets the link alone",
+          actions(cards[bb.token_of(f"i:{form}")]) == ["q0o0", "q0o1", "q1o0", "q1o1", "s"]
+          and actions(cards[bb.token_of(f"i:{tool}")]) == [] and "Answer this one in Paperclip." in cards[bb.token_of(f"i:{tool}")]["text"])
     approval = cards[bb.token_of(f"a:{uid(50)}")]
     check("an approval shows its type, title, summary and risks, links to itself, and approves in one tap",
           "Board approval" in approval["text"] and "Open port 443" in approval["text"] and "- exposure" in approval["text"]
@@ -251,8 +252,8 @@ async def core_tests(tmp):
 
     ok, _ = await bridge.press("Discord", bb.token_of(f"a:{uid(50)}"), "ok")
     check("an approval approves in one tap", ok and pc.approvals[uid(50)]["status"] == "approved")
-    ok, notice = await bridge.press("Discord", bb.token_of(f"i:{form}"), "o0")
-    check("a press can't answer what only Paperclip can", not ok and pc.interactions[form]["status"] == "pending")
+    ok, notice = await bridge.press("Discord", bb.token_of(f"i:{tool}"), "ok")
+    check("a press can't answer what only Paperclip can", not ok and pc.interactions[tool]["status"] == "pending")
     ok, notice = await bridge.press("Discord", "deadbeef", "ok")
     check("a press for something unknown is refused", not ok)
 
@@ -264,7 +265,7 @@ async def core_tests(tmp):
     before = len(tg.edits)
     await bridge.pass_once()
     check("an answer given in Paperclip shows on every copy and counts as Paperclip's",
-          latest(tg, bb.token_of(f"i:{form}"))["status"] == "✓ Answered in Paperclip: pine (recommended), maple"
+          latest(tg, bb.token_of(f"i:{form}"))["status"] == "✓ Answered in Paperclip: 1. pine (recommended); 2. maple"
           and latest(dc, bb.token_of(f"i:{form}")) is not None)
     check("a cancelled one says it's no longer waiting",
           latest(tg, bb.token_of(f"i:{tool}"))["status"] == "No longer waiting: cancelled.")
@@ -304,6 +305,116 @@ async def core_tests(tmp):
                          ("DELETE", f"/api/approvals/{uid(50)}"), ("POST", f"/api/issues/{a}/interactions/{single}/cancel"),
                          ("GET", "/api/companies/x/agents"), ("POST", f"/api/approvals/{uid(50)}/approve/../../x")]:
         check(f"ROUTES refuses {method} {path}", not bb.allowed(method, path))
+
+
+def q(qid, prompt, mode, labels, why="why", **extra):
+    return {"id": qid, "prompt": prompt, "selectionMode": mode,
+            "options": [{"id": f"o{n}", "label": label, "description": f"{why} {n}"} for n, label in enumerate(labels)], **extra}
+
+
+def form_payload(why="why"):
+    name = q("name", "Host name?", "single", ["home-assistant (recommended)", "hass"], why)
+    name["options"].append({"id": "o2", "label": "Something else", "freeText": True})
+    return {"version": 1, "title": "Home Assistant requirements", "questions": [
+        q("radios", "USB sticks or network coordinators?", "single", ["USB sticks (recommended)", "Network coordinators"], why),
+        q("homekit", "HomeKit Bridge?", "single", ["Yes (recommended)", "No"], why, allowOther=True),
+        q("addons", "Add-ons or custom integrations?", "multi", ["Neither (recommended)", "Add-ons", "Custom integrations"], why),
+        name]}
+
+
+async def form_tests(tmp):
+    """A card of several questions: a row of buttons each, picks marked on
+    every copy, and one Submit that answers them all."""
+    pc = FakePaperclip()
+    a = pc.issue(7)
+    four = pc.ask(1, a, "ask_user_questions", form_payload())
+    five = pc.ask(2, a, "ask_user_questions", {"version": 1, "questions": [q(f"q{n}", f"Question {n}?", "single", ["a", "b"]) for n in range(5)]})
+    crowded = pc.ask(3, a, "ask_user_questions", {"version": 1, "questions": [
+        q("x", "X?", "single", ["a", "b", "c", "d", "e"], allowOther=True), q("y", "Y?", "single", ["a", "b"])]})
+    optional = pc.ask(4, a, "ask_user_questions", {"version": 1, "questions": [
+        q("must", "Must?", "single", ["a", "b"]), q("maybe", "Maybe?", "multi", ["c", "d"], required=False)]})
+    tg, dc = FakeChannel("Telegram"), FakeChannel("Discord")
+    bridge = bb.Bridge(pc, tmp, "https://paperclip.example/LAB")
+    bridge.channels = [tg, dc]
+    await bridge.pass_once()
+    cards = {card["token"]: card for card in tg.sent}
+    token = bb.token_of(f"i:{four}")
+    card = cards[token]
+    check("a card of four questions gets a row of buttons each and Submit, which fits Discord's five rows",
+          [[action for _, action in row] for row in card["rows"]]
+          == [["q0o0", "q0o1"], ["q1o0", "q1o1", "xq1"], ["q2o0", "q2o1", "q2o2"], ["q3o0", "q3o1", "xq3o2"], ["s"]])
+    check("its text numbers each question and option, and says nothing goes until Submit",
+          "1) USB sticks or network coordinators?" in card["text"] and "1.1 USB sticks (recommended): why 0" in card["text"]
+          and "3.3 Custom integrations: why 2" in card["text"] and "(Pick any.)" in card["text"] and "(Pick one.)" in card["text"]
+          and "2. Other: your own answer" in card["text"] and "Nothing is sent until then." in card["text"]
+          and card["url"] == "https://paperclip.example/LAB/issues/LAB-7")
+    check("its buttons say which question and option, and start with nothing marked",
+          card["rows"][0][0][0] == "○ 1.1 USB sticks (recommended)" and card["rows"][2][0][0] == "☐ 3.1 Neither (recommended)"
+          and card["rows"][3][2][0] == "○ 4.3 Something else…" and card["status"] is None)
+    check("five questions, or a question with more buttons than a row holds, get the link alone",
+          actions(cards[bb.token_of(f"i:{five}")]) == [] and "…and 2 more questions." in cards[bb.token_of(f"i:{five}")]["text"]
+          and "Answer this one in Paperclip." in cards[bb.token_of(f"i:{five}")]["text"]
+          and actions(cards[bb.token_of(f"i:{crowded}")]) == [])
+
+    ok, notice = await bridge.press("Telegram", token, "s")
+    check("Submit with nothing picked names the question that needs an answer",
+          not ok and notice == "Answer question 1 first." and pc.interactions[four]["status"] == "pending")
+    await bridge.press("Telegram", token, "q0o0")
+    await bridge.press("Discord", token, "q0o1")
+    check("a pick-one question keeps the latest pick, shown on every copy, and nothing goes to Paperclip",
+          latest(tg, token)["rows"][0][0][0].startswith("○") and latest(tg, token)["rows"][0][1][0].startswith("●")
+          and latest(dc, token)["rows"][0][1][0].startswith("●") and not [c for c in pc.calls if c[0] == "POST"])
+    for action in ("q2o1", "q2o2", "q2o1"):
+        await bridge.press("Discord", token, action)
+    check("a pick-any question toggles",
+          [label[0] for label, _ in latest(tg, token)["rows"][2]] == ["☐", "☐", "☑"])
+    ok, notice = await bridge.press("Telegram", token, "xq1", "Only for the lights")
+    check("Other keeps its text for Submit, and the card shows what's picked so far",
+          ok and notice == "Kept. Submit sends every answer." and latest(tg, token)["rows"][1][2][0] == "✎ 2. Other…"
+          and latest(tg, token)["status"] == "So far: 1. Network coordinators; 2. Only for the lights; 3. Custom integrations")
+    ok, _ = await bridge.press("Telegram", token, "xq3o2", "  ")
+    check("a free-text option needs text", not ok)
+    await bridge.press("Telegram", token, "xq3o2", "ha-new")
+    check("a free-text option is picked with its text", latest(tg, token)["status"].endswith("4. Something else, ha-new"))
+    await bridge.press("Telegram", token, "q3o0")
+    check("picking another option drops the free-text option's text",
+          latest(tg, token)["status"].endswith("4. home-assistant (recommended)") and "ha-new" not in latest(tg, token)["status"])
+    results = [await bridge.press("Telegram", token, action) for action in ("q9o0", "q0o9", "xq0", "o0")]
+    check("a press for a question or option that isn't there, Other where it isn't offered, or a one-question action, is refused",
+          not any(ok for ok, _ in results))
+    item = bridge.state["items"][f"i:{four}"]["item"]
+    check("text prompts name the question, or the free-text option",
+          bb.text_prompt(item, "xq1") == ("LAB-7: question 2", "HomeKit Bridge?")
+          and bb.text_prompt(item, "xq3o2") == ("LAB-7: question 4", "Something else"))
+    ok, notice = await bridge.press("Discord", token, "s")
+    check("Submit sends every answer in one call, each to its own question",
+          ok and pc.interactions[four]["result"]["answers"] == [
+              {"questionId": "radios", "optionIds": ["o1"]},
+              {"questionId": "homekit", "optionIds": [], "otherText": "Only for the lights"},
+              {"questionId": "addons", "optionIds": ["o2"]},
+              {"questionId": "name", "optionIds": ["o0"]}]
+          and len([c for c in pc.calls if c[0] == "POST"]) == 1)
+    check("every copy says what was sent, and loses its buttons",
+          latest(dc, token)["status"] == "✓ Answered in Discord: 1. Network coordinators; 2. Only for the lights; "
+                                         "3. Custom integrations; 4. home-assistant (recommended)"
+          and latest(dc, token)["rows"] == [])
+
+    token = bb.token_of(f"i:{optional}")
+    await bridge.press("Telegram", token, "q0o1")
+    again = bb.Bridge(pc, tmp, "https://paperclip.example/LAB")
+    again.channels = [FakeChannel("Telegram"), FakeChannel("Discord")]
+    check("picks survive a restart", again.card(again.state["items"][f"i:{optional}"])["rows"][0][1][0].startswith("●"))
+    ok, _ = await again.press("Telegram", token, "s")
+    check("a question that isn't required can be left out",
+          ok and pc.interactions[optional]["result"]["answers"] == [{"questionId": "must", "optionIds": ["o1"]}])
+
+    # Long trade-offs: Telegram gets them, Discord's 1,900 characters get every question without them.
+    entry = {"token": "abcdef12", "item": {**item, "payload": form_payload("x" * 380)}}
+    card = bb.render(entry, "https://paperclip.example/LAB")
+    long, short = bb.card_text(card, bb.Telegram.LIMIT), bb.card_text(card, 1900)
+    check("a card too long for Discord drops the descriptions there but keeps every question and option",
+          len(short) <= 1900 and "x" * 300 not in short and "4) Host name?" in short and "4.3 Something else" in short
+          and "Nothing is sent until then." in short and "x" * 300 in long and len(long) <= bb.Telegram.LIMIT)
 
 
 class FakeTelegramApi:
@@ -367,6 +478,19 @@ async def telegram_tests(tmp):
     check("a tap answers and Telegram says what was sent",
           pc.interactions[second]["status"] == "answered" and api.called("answerCallbackQuery")[-1]["text"] == "Sent: pine (recommended)")
 
+    form = pc.ask(3, a, "ask_user_questions", form_payload())
+    await bridge.pass_once()
+    token = bb.token_of(f"i:{form}")
+    await tg.handle(press(JUSTIN_TG, f"{token}:xq1"))
+    prompt = api.called("sendMessage")[-1]
+    check("a form's Other asks for a reply naming its question",
+          prompt["reply_markup"] == {"force_reply": True} and prompt["text"].startswith("LAB-5: question 2. HomeKit Bridge?"))
+    await tg.handle({"update_id": 4, "message": {"message_id": 7, "from": {"id": JUSTIN_TG}, "chat": {"id": JUSTIN_TG, "type": "private"},
+                                                 "text": "lights only", "reply_to_message": {"message_id": api.next_id}}})
+    check("the reply is kept for Submit, not sent, and Telegram says so",
+          pc.interactions[form]["status"] == "pending" and api.called("sendMessage")[-1]["text"] == "Kept. Submit sends every answer."
+          and bridge.state["items"][f"i:{form}"]["texts"] == {"homekit": "lights only"})
+
     # The real API client against a fake Telegram: errors never carry the token.
     secret = "123456:" + "Zz" * 17
 
@@ -426,11 +550,13 @@ async def discord_tests(tmp):
     a = pc.issue(5)
     many = pc.ask(1, a, "ask_user_questions", question("Which?", "multi", [f"opt {n}" for n in range(20)]))
     single = pc.ask(2, a, "ask_user_questions", question())
+    crowded = pc.ask(3, a, "ask_user_questions", {"version": 1, "questions": [
+        q(f"q{n}", f"Question {n}?", "single", ["a", "b", "c", "d"], allowOther=True) for n in range(4)]})
     bridge = bb.Bridge(pc, tmp, "https://paperclip.example/LAB")
     channel = bb.discord_channel("unused-token", str(JUSTIN_DC), bridge)
     await bridge.pass_once()  # no channel registered yet: this only fills state
 
-    for key in (f"i:{many}", f"i:{single}", ):
+    for key, what in ((f"i:{many}", "20 options"), (f"i:{single}", "2 options"), (f"i:{crowded}", "four full questions")):
         card = bridge.card(bridge.state["items"][key])
         view = channel.view(card)
         rows = {}
@@ -438,7 +564,7 @@ async def discord_tests(tmp):
             rows.setdefault(item.row, []).append(item)
         presses = [i for i in view.children if getattr(i, "custom_id", None)]
         link = [i for i in view.children if getattr(i, "url", None)]
-        check(f"Discord's view for {len(bb.options_of(bridge.state['items'][key]['item']))} options fits five rows of five, with the link",
+        check(f"Discord's view for {what} fits five rows of five, with the link",
               max(rows) <= 4 and all(len(r) <= 5 for r in rows.values()) and len(link) == 1
               and link[0].url == "https://paperclip.example/LAB/issues/LAB-5"
               and all(i.custom_id.startswith(f"bb:{card['token']}:") and len(i.custom_id) <= 100 and len(i.item.label) <= 80 for i in presses))
@@ -461,7 +587,11 @@ async def discord_tests(tmp):
     check("a press on an answered item says so", press.followup.sent == ["Already answered."])
     match = type(channel.view(bridge.card(bridge.state["items"][f"i:{many}"])).children[0]).__discord_ui_compiled_template__
     check("every action fits the button template", all(match.fullmatch(f"bb:{token}:{action}")
-                                                       for action in ("o19", "t19", "xo19", "xa", "s", "ok", "no", "xno")))
+                                                       for action in ("o19", "t19", "xo19", "xa", "s", "ok", "no", "xno",
+                                                                      "q3o4", "xq3o4", "xq3")))
+    check("every button on a full form is one of them", all(
+        match.fullmatch(f"bb:{bb.token_of(f'i:{crowded}')}:{action}")
+        for action in actions(bridge.card(bridge.state["items"][f"i:{crowded}"]))))
     bridge.wake.clear()
     await channel.client.on_ready()
     check("Discord connecting nudges the bridge, so what waited for it goes out", bridge.wake.is_set())
@@ -526,6 +656,8 @@ async def nudge_tests(tmp):
 def main():
     with tempfile.TemporaryDirectory() as tmp:
         run(core_tests(tmp))
+    with tempfile.TemporaryDirectory() as tmp:
+        run(form_tests(tmp))
     with tempfile.TemporaryDirectory() as tmp:
         run(nudge_tests(tmp))
     with tempfile.TemporaryDirectory() as tmp:

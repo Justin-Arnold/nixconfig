@@ -14,7 +14,9 @@ POLL_SECONDS anyway, and 20 seconds after a pass that went wrong:
 Each new one goes to every channel that's on, as a DM with buttons and a
 link to it in Paperclip. A question with one question, single or multiple
 choice, a confirmation, a checkbox confirmation and every approval get
-buttons. Anything else, like a form with several questions or a tool
+buttons. So does a card with two to MAX_QUESTIONS questions, a row of
+buttons each: presses there only mark a pick, and Submit sends every
+answer at once. Anything else, like a card with more questions or a tool
 action to confirm, gets the link alone. A press answers in Paperclip as
 Justin, the same as the board's own buttons, so an agent that asked with
 wake_assignee wakes. Text, like an "Other" answer or a reason to reject,
@@ -81,6 +83,10 @@ APPROVAL_TYPES = {
 }
 ANSWERED = {"answered", "accepted", "rejected", "approved"}
 MAX_OPTIONS = 20
+# A card of several questions gives each a Discord row of five buttons, its
+# options and "Other…", and Submit takes the fifth row.
+MAX_QUESTIONS = 4
+ROW = 5
 
 
 class Failure(Exception):
@@ -157,6 +163,21 @@ def options_of(item):
     return payload.get("options") or []
 
 
+def questions_of(item):
+    return (item.get("payload") or {}).get("questions") or []
+
+
+def form(item):
+    """A card of several questions, answered all at once with Submit."""
+    return item.get("type") == "interaction" and item["kind"] == "ask_user_questions" and len(questions_of(item)) > 1
+
+
+def fits_a_row(question):
+    options = question.get("options") or []
+    return (question.get("selectionMode") in ("single", "multi") and question.get("id")
+            and 1 <= len(options) <= ROW - (1 if question.get("allowOther") else 0))
+
+
 def supported(item):
     """Whether buttons can answer it. Everything else gets the link."""
     payload = item.get("payload") or {}
@@ -165,8 +186,11 @@ def supported(item):
         return True
     if kind == "ask_user_questions":
         questions = payload.get("questions") or []
-        return (len(questions) == 1 and questions[0].get("selectionMode") in ("single", "multi")
-                and 1 <= len(questions[0].get("options") or []) <= MAX_OPTIONS)
+        if len(questions) == 1:
+            return (questions[0].get("selectionMode") in ("single", "multi")
+                    and 1 <= len(questions[0].get("options") or []) <= MAX_OPTIONS)
+        return (2 <= len(questions) <= MAX_QUESTIONS and all(fits_a_row(q) for q in questions)
+                and len({q["id"] for q in questions}) == len(questions))
     if kind == "request_confirmation":
         return not payload.get("toolAction") and not payload.get("secretProposal")
     if kind == "request_checkbox_confirmation":
@@ -184,6 +208,43 @@ def default_selection(item):
     if item["type"] == "interaction" and item["kind"] == "request_checkbox_confirmation" and supported(item):
         return list(item["payload"].get("defaultSelectedOptionIds") or [])
     return []
+
+
+def form_question(item, action):
+    """The question (index, question) and, for an option press, the option
+    (index, option) that a form action names: q<i>o<n> picks option n of
+    question i, xq<i>o<n> picks a free-text option with its text, and xq<i>
+    is question i's "Other…". Raises ValueError when it names nothing."""
+    match = re.fullmatch(r"x?q(\d)(?:o(\d{1,2}))?", action)
+    questions = questions_of(item)
+    try:
+        qi = int(match[1])
+        question = questions[qi]
+        if match[2] is None:
+            if not question.get("allowOther"):
+                raise IndexError
+            return qi, question, None, None
+        n = int(match[2])
+        return qi, question, n, (question.get("options") or [])[n]
+    except (TypeError, IndexError):
+        raise ValueError("That option isn't on this question any more.") from None
+
+
+def form_picks(item, picks, texts):
+    """[(question number, labels picked, text)] for each question of a form
+    with something picked, in order."""
+    out = []
+    for qi, question in enumerate(questions_of(item)):
+        labels = {o.get("id"): line(o.get("label"), 80) for o in question.get("options") or []}
+        ids = [i for i in (picks.get(question.get("id")) or []) if i in labels]
+        text = (texts.get(question.get("id")) or "").strip()
+        if ids or text:
+            out.append((qi + 1, [labels[i] for i in ids], text))
+    return out
+
+
+def picks_line(picked):
+    return "; ".join(f"{n}. " + ", ".join(labels + ([line(text, 100)] if text else [])) for n, labels, text in picked)
 
 
 def approval_lines(kind, payload):
@@ -227,7 +288,9 @@ def approval_lines(kind, payload):
     return [trim(v, 1500) for v in lines] or ["(nothing in its payload to show)"]
 
 
-def body_of(item):
+def body_of(item, brief=False):
+    """The card's text. brief leaves out help text and option descriptions,
+    for a card that doesn't fit a channel's limit whole."""
     payload = item.get("payload") or {}
     who = item.get("agent") or "An agent"
     if item["type"] == "approval":
@@ -244,17 +307,26 @@ def body_of(item):
         questions = payload.get("questions") or []
         if title and (not questions or line(title, 999) != line(questions[0].get("prompt"), 999)):
             lines.append(trim(title, 300))
-        for question in questions[:3]:
-            lines += ["", trim(question.get("prompt"), 1000)]
-            if question.get("helpText"):
+        several = len(questions) > 1
+        shown = questions if supported(item) else questions[:3]
+        for qi, question in enumerate(shown, 1):
+            prompt = trim(question.get("prompt"), 300 if brief else 1000)
+            lines += ["", f"{qi}) {prompt}" if several else prompt]
+            if question.get("helpText") and not brief:
                 lines.append(trim(question["helpText"], 500))
             if question.get("selectionMode") == "multi":
                 lines.append("(Pick any.)")
+            elif several:
+                lines.append("(Pick one.)")
             for n, option in enumerate((question.get("options") or [])[:MAX_OPTIONS], 1):
-                lines.append(f"{n}. {line(option.get('label'), 300)}"
-                             + (f": {line(option.get('description'), 400)}" if option.get("description") else ""))
-        if len(questions) > 3:
-            lines.append(f"…and {len(questions) - 3} more questions.")
+                lines.append(f"{f'{qi}.{n}' if several else f'{n}.'} {line(option.get('label'), 300)}"
+                             + (f": {line(option.get('description'), 400)}" if option.get("description") and not brief else ""))
+            if question.get("allowOther") and several:
+                lines.append(f"{qi}. Other: your own answer")
+        if len(questions) > len(shown):
+            lines.append(f"…and {len(questions) - len(shown)} more questions.")
+        if several and supported(item):
+            lines += ["", "Pick an answer for each, then Submit. Nothing is sent until then."]
     elif kind in ("request_confirmation", "request_checkbox_confirmation"):
         lines += [f"{issue} · {who} asks you to confirm", "", trim(payload.get("prompt"), 1000)]
         if kind == "request_checkbox_confirmation":
@@ -262,26 +334,45 @@ def body_of(item):
                 lines.append(f"{n}. {line(option.get('label'), 300)}"
                              + (f": {line(option.get('description'), 400)}" if option.get("description") else ""))
         if payload.get("detailsMarkdown"):
-            lines += ["", trim(payload["detailsMarkdown"], 1500)]
+            lines += ["", trim(payload["detailsMarkdown"], 300 if brief else 1500)]
     else:
         lines += [f"{issue} · {who} asks", "", line(item.get("title") or kind.replace("_", " "), 300)]
     if item.get("summary"):
-        lines += ["", trim(item["summary"], 600)]
+        lines += ["", trim(item["summary"], 200 if brief else 600)]
     if not supported(item):
         lines += ["", "Answer this one in Paperclip."]
     return "\n".join(lines)
 
 
-def buttons_of(item, selected):
+def buttons_of(item, selected, picks=None, texts=None):
     """Rows of (label, action). Actions: o<n> picks option n, t<n> toggles
     it, s submits the picks, ok accepts or approves, no rejects, and those
     starting with x ask for text first: xo<n> for a free-text option, xa
-    for "Other", xno to reject with a reason."""
+    for "Other", xno to reject with a reason. A form's are in form_question:
+    q<i>o<n> marks a pick, xq<i>o<n> and xq<i> take text, and s sends them."""
     if not supported(item):
         return []
     payload = item["payload"]
     if item["type"] == "approval":
         return [[("Approve", "ok"), ("Reject", "no"), ("Reject with a note…", "xno")]]
+    if form(item):
+        picks, texts = picks or {}, texts or {}
+        rows = []
+        for qi, question in enumerate(questions_of(item)):
+            picked = picks.get(question["id"]) or []
+            several = question.get("selectionMode") == "multi"
+            row = []
+            for n, option in enumerate(question.get("options") or []):
+                on = option.get("id") in picked
+                mark = ("☑ " if on else "☐ ") if several else ("● " if on else "○ ")
+                label = f"{mark}{qi + 1}.{n + 1} {line(option.get('label'), 50)}"
+                row.append((label + ("…" if option.get("freeText") else ""),
+                            f"xq{qi}o{n}" if option.get("freeText") else f"q{qi}o{n}"))
+            if question.get("allowOther"):
+                row.append((("✎ " if texts.get(question["id"]) else "") + f"{qi + 1}. Other…", f"xq{qi}"))
+            rows.append(row)
+        rows.append([(line(payload.get("submitLabel") or "Submit", 40), "s")])
+        return rows
 
     rows = []
     options = options_of(item)
@@ -327,10 +418,26 @@ def link_of(item, link):
     return f"{link}/issues/{item['issue']['identifier']}"
 
 
-def answer_of(item, action, text, selected):
+def answer_of(item, action, text, selected, picks=None, texts=None):
     """The call that answers item for a press, and what it says in a word.
     Raises ValueError with what to tell Justin when the press can't go."""
     payload = item["payload"]
+    if form(item):
+        if action != "s":
+            raise ValueError("That button doesn't fit this question.")
+        picks, texts = picks or {}, texts or {}
+        answers = []
+        for qi, question in enumerate(questions_of(item)):
+            known = {o.get("id") for o in question.get("options") or []}
+            ids = [i for i in (picks.get(question["id"]) or []) if i in known]
+            other = (texts.get(question["id"]) or "").strip()
+            if not ids and not other:
+                if question.get("required", True):
+                    raise ValueError(f"Answer question {qi + 1} first.")
+                continue
+            answers.append({"questionId": question["id"], "optionIds": ids, **({"otherText": other} if other else {})})
+        return "POST", f"/api/issues/{item['issue']['id']}/interactions/{item['id']}/respond", {"answers": answers}, \
+            picks_line(form_picks(item, picks, texts))
     if item["type"] == "approval":
         base = f"/api/approvals/{item['id']}"
         if action == "ok":
@@ -399,6 +506,12 @@ def text_prompt(item, action):
     if action == "xno":
         label = (item["payload"].get("rejectReasonLabel") if item["type"] == "interaction" else None) or "Why you're rejecting it"
         return f"{where}: reject", label
+    if action.startswith("xq"):
+        try:
+            qi, question, _, option = form_question(item, action)
+        except ValueError:
+            return f"{where}: your answer", "Other"
+        return f"{where}: question {qi + 1}", line(option.get("label") if option else question.get("prompt"), 80)
     if action.startswith("xo"):
         options = options_of(item)
         try:
@@ -422,15 +535,19 @@ def outcome_of(item, current):
     if status == "pending":
         return {"via": None, "what": "its issue was closed"}
     if status == "answered":
-        labels = {}
-        for question in (current.get("payload") or item["payload"]).get("questions") or []:
-            labels.update({o.get("id"): line(o.get("label"), 80) for o in question.get("options") or []})
+        # Option ids are only unique within a question.
+        questions = (current.get("payload") or item["payload"]).get("questions") or []
+        by_id = {q.get("id"): (n, q) for n, q in enumerate(questions, 1)}
         parts = []
         for answer in result.get("answers") or []:
-            parts += [labels.get(i, i) for i in answer.get("optionIds") or []]
+            n, question = by_id.get(answer.get("questionId"), (None, {}))
+            labels = {o.get("id"): line(o.get("label"), 80) for o in question.get("options") or []}
+            said = [labels.get(i, i) for i in answer.get("optionIds") or []]
             if answer.get("otherText"):
-                parts.append(line(answer["otherText"], 200))
-        return {"via": "Paperclip", "what": ", ".join(parts) or "answered"}
+                said.append(line(answer["otherText"], 200 if len(questions) < 2 else 100))
+            if said:
+                parts.append((f"{n}. " if len(questions) > 1 and n else "") + ", ".join(said))
+        return {"via": "Paperclip", "what": ("; " if len(questions) > 1 else ", ").join(parts) or "answered"}
     if status in ("accepted", "rejected"):
         labels = {o.get("id"): line(o.get("label"), 80) for o in options_of(item)}
         picked = [labels.get(i, i) for i in result.get("selectedOptionIds") or []]
@@ -444,19 +561,27 @@ def render(entry, link):
     """The card for an entry: its text, its rows of (label, action), its
     link, and the token its buttons carry."""
     item, done = entry["item"], entry.get("done")
-    text = body_of(item)
+    picks, texts = entry.get("picks") or {}, entry.get("texts") or {}
     if done:
         status = f"✓ Answered in {done['via']}: {done['what']}" if done.get("via") else f"No longer waiting: {done['what']}."
         rows = []
     else:
-        status, rows = None, buttons_of(item, entry.get("selected") or [])
-    return {"token": entry["token"], "text": text, "status": status, "rows": rows, "url": link_of(item, link)}
+        rows = buttons_of(item, entry.get("selected") or [], picks, texts)
+        picked = form_picks(item, picks, texts) if form(item) else []
+        status = f"So far: {picks_line(picked)}" if picked else None
+    return {"token": entry["token"], "text": body_of(item), "brief": body_of(item, brief=True),
+            "status": status, "rows": rows, "url": link_of(item, link)}
 
 
 def card_text(card, limit):
+    """The card's text within limit: whole if it fits, else without the
+    descriptions, trimmed if even that doesn't."""
     status = card.get("status")
     room = limit - (len(status) + 2 if status else 0)
-    return trim(card["text"], room) + (f"\n\n{status}" if status else "")
+    text = card["text"]
+    if len(text) > room and card.get("brief"):
+        text = card["brief"]
+    return trim(text, room) + (f"\n\n{status}" if status else "")
 
 
 def needs_text(action):
@@ -698,6 +823,31 @@ class Bridge:
                 return False, "Answer this one in Paperclip."
             if needs_text(action) and not (text or "").strip():
                 return False, "That needs some text."
+            if form(item) and action != "s":
+                # A form only marks picks; Submit sends them all.
+                try:
+                    _, question, _, option = form_question(item, action)
+                except ValueError as err:
+                    return False, str(err)
+                qid = question["id"]
+                texts = entry.setdefault("texts", {})
+                picked = entry.setdefault("picks", {}).setdefault(qid, [])
+                if needs_text(action):
+                    texts[qid] = trim(text, 4000)
+                if option is not None:
+                    if option["id"] in picked and not needs_text(action):
+                        picked.remove(option["id"])  # a second press clears it
+                    elif question.get("selectionMode") != "multi":
+                        picked[:] = [option["id"]]
+                    elif option["id"] not in picked:
+                        picked.append(option["id"])
+                # A free-text option's text goes when that option does.
+                free = {o.get("id") for o in question.get("options") or [] if o.get("freeText")}
+                if free and not free & set(picked) and not question.get("allowOther"):
+                    texts.pop(qid, None)
+                self.save()
+                await self.edit_copies(entry)
+                return True, "Kept. Submit sends every answer." if needs_text(action) else ""
             if action.startswith("t"):
                 options = options_of(item)
                 try:
@@ -713,7 +863,8 @@ class Bridge:
                 await self.edit_copies(entry)
                 return True, ""
             try:
-                method, path, body, what = answer_of(item, action, (text or "").strip(), entry.get("selected") or [])
+                method, path, body, what = answer_of(item, action, (text or "").strip(), entry.get("selected") or [],
+                                                     entry.get("picks") or {}, entry.get("texts") or {})
             except ValueError as err:
                 return False, str(err)
             try:

@@ -4,10 +4,17 @@
 Justin hears about an issue on his phone when it waits on him, not when you
 write a comment, so when you need him, ask in Paperclip:
 
-- To choose: `paperclipAskUserQuestions` on the issue, with one question and
+- To choose: `paperclipAskUserQuestions` on the issue, each question with
   two to four options. Put your recommendation first, ending its label with
   "(recommended)", and give each option its trade-off in a line of
   description. Say in `summary` what you read to get there.
+- Only one question card of yours can wait on an issue. A new one expires
+  the one before it unanswered, and he never sees it again. So when you
+  have several questions, put them all in one card, up to four, each with
+  its own `id`. More than four: ask the four that matter most, and the rest
+  once he's answered. Confirmations work the same way: one at a time.
+- If a card of yours expired unanswered, ask it again. Don't go on with a
+  guess in place of his answer.
 - To say yes or no: `paperclipRequestConfirmation`, and always pass
   `continuationPolicy: "wake_assignee"`. Without it his answer doesn't wake
   you.
