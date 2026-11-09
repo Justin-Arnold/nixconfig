@@ -91,9 +91,12 @@ host age identity installed at `/var/lib/sops-nix/key.txt`. Required entries:
 `root/console-password-hash` (console-only password hash),
 `porkbun/api-key`, `porkbun/secret-api-key` (DNS-01),
 `beszel/agent-token` (outbound agent), and `kuma/backup-push-url` (backup job).
-These are declarations only. The encrypted file/recipient must be added by
-Justin securely under exact board approval; no placeholders or real secret
-values are committed. Missing-file validation remains fail-closed. The
+Infra declared these entries without accessing secret values. Justin added
+the encrypted file and dedicated public recipient in commit 2c9b4eb under
+board approval 247a4edd-d793-43d6-a3d6-3c522f322a5d. Production validation
+and dry-run pass; credential correctness and enrollment remain live checks.
+No plaintext or host private identity is committed. Missing-file validation
+remains fail-closed. The
 separate `eval-test.nix` is test-only and never imported by the deployed host.
 The inference HA credential stays under its existing SOPS path; onboarding
 handles it securely outside git.
