@@ -176,6 +176,7 @@
         openclaw             = mkNixos ./hosts/openclaw/configuration.nix;
         inference            = mkNixos ./hosts/inference/configuration.nix;
         automation           = mkNixos ./hosts/automation/configuration.nix;
+        home-assistant       = mkNixos ./hosts/home-assistant/configuration.nix;
       };
       darwinConfigurations = {
         macmini              = mkDarwin ./hosts/macmini/configuration.nix;
@@ -215,6 +216,9 @@
           automationExample = self.nixosConfigurations.automation.extendModules {
             modules = [ ./hosts/automation/eval-test.nix ];
           };
+          homeAssistantExample = self.nixosConfigurations.home-assistant.extendModules {
+            modules = [ ./hosts/home-assistant/eval-test.nix ];
+          };
         in {
           doppler-secrets = import ./modules/roles/doppler-secrets/check.nix { inherit pkgs lib; };
           sqlite-backup = import ./modules/roles/sqlite-backup/check.nix { inherit pkgs lib; };
@@ -244,6 +248,17 @@
             (builtins.unsafeDiscardStringContext openclawExample.config.system.build.toplevel.drvPath);
           automation-eval = pkgs.writeText "automation-eval"
             (builtins.unsafeDiscardStringContext automationExample.config.system.build.toplevel.drvPath);
+          home-assistant-eval = pkgs.writeText "home-assistant-eval"
+            (builtins.unsafeDiscardStringContext homeAssistantExample.config.system.build.toplevel.drvPath);
+          home-assistant-exposure-guards = import ./hosts/home-assistant/guards-check.nix {
+            inherit pkgs lib;
+            host = homeAssistantExample;
+          };
+          home-assistant-backup = import ./hosts/home-assistant/backup-check.nix { inherit pkgs lib; };
+          home-assistant-runtime = import ./hosts/home-assistant/runtime-check.nix {
+            inherit pkgs;
+            host = homeAssistantExample;
+          };
           # Once with each model in models.nix as the active one.
           inference-eval = pkgs.writeText "inference-eval" (builtins.toJSON (lib.mapAttrs
             (name: _: builtins.unsafeDiscardStringContext (inferenceExample.extendModules {
