@@ -11,8 +11,8 @@
 #
 # The server has `roles.inference.parallel` slots. Two connection limits keep
 # one of them for voice: everything except Home Assistant shares a pool of
-# `parallel - 1`, and each key gets at most 2. Over a limit nginx answers 429,
-# which the agents retry.
+# `parallel - 1`, and each key gets at most 2. Over a limit nginx answers 429
+# straight away.
 #
 # Nothing a client sends is written to disk: request bodies stay in memory,
 # responses aren't buffered, and the access log has the client, status and
@@ -30,7 +30,7 @@ let
   newt = "10.0.0.72";
 
   # Who may call the model. Each needs inference/keys/<name> in SOPS.
-  clients = [ "agents" "ha" "mac" ];
+  clients = [ "ha" "mac" ];
   # Exempt from the shared pool, so it always finds a free slot.
   voiceClient = "ha";
   sharedPool = config.roles.inference.parallel - 1;

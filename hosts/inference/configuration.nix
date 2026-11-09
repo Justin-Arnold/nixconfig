@@ -100,6 +100,10 @@ in
     # Chosen by scripts/inference/model-test.py on 4 November 2026; the
     # results are in docs/inference/REFERENCE.md.
     active = "qwen3.6-35b-a3b";
+    # Voice and the Mac are the only clients: one slot always free for
+    # Home Assistant, one shared. Few slots also keep Home Assistant's long
+    # system prompt cached in one, so a voice request reads little anew.
+    parallel = 2;
   };
 
   roles.beszelAgent = {

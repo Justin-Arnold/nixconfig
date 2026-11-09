@@ -31,11 +31,6 @@ let
   # limit and credits. Only agents that name it get the key.
   claude = name: { provider = "anthropic"; inherit name; };
 
-  # The lab's own model on inference's RTX 3090 (docs/inference/REFERENCE.md),
-  # whatever model the server has loaded. Hermes falls back to Codex when
-  # it's down or busy.
-  local = { provider = "lab-gpu"; name = "local"; };
-
   # Every agent's soul ends with the same section on asking Justin, so a
   # question reaches his phone and his answer wakes the agent.
   soulOf = name: builtins.readFile ./souls/${name}.md + builtins.readFile ./souls/asking-justin.md;
@@ -115,21 +110,12 @@ in
   roles.hermesAgents = {
     enable = true;
 
-    # inference's nginx knows this key as the client `agents`; the same value
-    # is inference/keys/agents in secrets/hosts/inference.yaml.
-    providers.lab-gpu = {
-      baseUrl = "https://inference.servicestack.xyz/v1";
-      keyEnv = "LAB_INFERENCE_KEY";
-      keySecret = "inference/agents-key";
-      # A slot's context, not the model's: llama-server gives each request 64K.
-      models.local.contextLength = 65536;
-    };
-
-    # Session titles and the post-turn memory review, for every agent. The
-    # review passed the model test (5/5), so it's local too.
+    # Session titles and the post-turn memory review, for every agent, on
+    # Codex's middle tier. Left unset they'd run on each agent's main model,
+    # which for the reviewer is Claude on the metered key.
     sideTasks = {
-      title_generation = local;
-      background_review = local;
+      title_generation = codex "gpt-6.1-terra";
+      background_review = codex "gpt-6.1-terra";
     };
 
     anthropic.keySecret = "anthropic/api-key";
@@ -209,15 +195,14 @@ in
         observe.enable = observing;
       };
 
-      # Answers questions and writes them up, on the local model, with Codex's
-      # middle tier behind it. Compression stays on Codex for now. The only
-      # agent that searches the web.
+      # Answers questions and writes them up, on Codex like the coordinator.
+      # Its fallbacks stay on Codex: it has no Anthropic key. The only agent
+      # that searches the web.
       researcher = {
         uid = 3203;
         port = 8644;
-        model = local;
-        fallbacks = [ (codex "gpt-6.1-terra") (codex "gpt-5.6-terra") ];
-        auxiliary.compression = codex "gpt-6.1-terra";
+        model = codex "gpt-6.1-sol";
+        fallbacks = [ (codex "gpt-6-sol") (codex "gpt-6.1-terra") ];
         soul = soulOf "researcher";
         secrets = paperclipKey "researcher";
         observe.enable = observing;
@@ -227,13 +212,13 @@ in
 
       # Watches the lab: triages the alerts n8n hands it and
       # writes the daily health review (Paperclip routines). It only reads,
-      # on the local model with Codex behind it, and has no terminal.
+      # and has no terminal. Codex's middle tier, since it runs up to 30
+      # times a day on the same plan as the others.
       monitor = {
         uid = 3206;
         port = 8647;
-        model = local;
-        fallbacks = [ (codex "gpt-6.1-terra") (codex "gpt-5.6-terra") ];
-        auxiliary.compression = codex "gpt-6.1-terra";
+        model = codex "gpt-6.1-terra";
+        fallbacks = [ (codex "gpt-5.6-terra") ];
         soul = soulOf "monitor";
         secrets = paperclipKey "monitor";
         observe.enable = observing;
@@ -246,10 +231,7 @@ in
   roles.agentEgress = {
     enable = true;
     users = map (name: "hermes-${name}") (lib.attrNames agents);
-    allow = {
-      # Every agent, for its side tasks.
-      inference = { address = "10.0.0.63"; tcpPorts = [ 443 ]; };
-    } // lib.optionalAttrs onWorkbench {
+    allow = lib.optionalAttrs onWorkbench {
       # Only the agents whose terminal is there.
       workbench = {
         address = workbench;

@@ -5,12 +5,11 @@ passed through. It serves one language model, under the name `local`, to
 everything in the lab that needs one, and it does the speech side of Home
 Assistant's voice assistant.
 
-Its clients are the Hermes agents on the agents VM, Home Assistant, the Mac
-for tests, and later a separate work environment. The researcher uses
-`local` as its main model, and every agent uses it for side tasks such as
-session titles. Home Assistant's voice assistant uses it to understand
-commands and answer. The coding agents, the coordinator and the concierge
-stay on cloud models.
+Its clients are Home Assistant and the Mac, for tests and ad-hoc use. Home
+Assistant's voice assistant uses it to understand commands and answer. The
+agents, Paperclip and the concierge all run on cloud models; the researcher
+and the monitor used `local` until November 2026. Other uses come back case
+by case, each as a client with its own key.
 
 It holds no credentials but its own: the clients' keys, its certificate's DNS
 key and the Beszel token. Nothing a client sends is stored on it.
@@ -23,7 +22,7 @@ key and the Beszel token. Nothing a client sends is stored on it.
 | Address | `10.0.0.63` (DHCP reservation) |
 | Name | `inference.servicestack.xyz`, LAN and VPN only, HTTPS only |
 | Model server | llama.cpp's `llama-server` b9608 (CUDA, sm_86), as `inference`, on `127.0.0.1:8080` |
-| Model | `qwen3.6-35b-a3b` (Qwen3.6-35B-A3B, Unsloth's UD-IQ4_XS), served as `local`, 4 slots of 64K tokens |
+| Model | `qwen3.6-35b-a3b` (Qwen3.6-35B-A3B, Unsloth's UD-IQ4_XS), served as `local`, 2 slots of 64K tokens |
 | Voice | Whisper (`distil-large-v3`, on the GPU, port 10300) and Piper (`en_US-lessac-medium`, CPU, port 10200) for Home Assistant |
 | Login | `ssh inference` as `justin`, key only (the Mac Mini key). Root has no SSH. |
 | Console | Proxmox console, root password from SOPS (`root/console-password-hash`) |
@@ -91,17 +90,16 @@ request without a known key gets a 401.
 
 | Client | Key | Uses |
 |---|---|---|
-| `agents` | `inference/keys/agents`, also `inference/agents-key` in the agents VM's SOPS | the researcher, and side tasks for every agent |
 | `ha` | `inference/keys/ha`, entered in Home Assistant's llama.cpp integration | the voice assistant |
 | `mac` | `inference/keys/mac`, read from SOPS when it's needed | the model test and ad-hoc use |
 
 A new client is a name in `clients` in `endpoints.nix` and a key in SOPS. A
 work environment would be one more client, with its own key and addresses.
 
-The server has four slots, one request each. Two connection limits keep one
-of them for voice: every client except `ha` shares a pool of three, and each
-key gets at most two at a time. A request over a limit gets a 429 straight
-away (nginx can't queue), and the agents retry it with backoff. The access
+The server has two slots, one request each. Two connection limits keep one
+of them for voice: every client except `ha` shares a pool of one, and each
+key gets at most two at a time, so Home Assistant can use both. A request
+over a limit gets a 429 straight away (nginx can't queue). The access
 log, `/var/log/nginx/inference.log`, has a line per request with the client,
 status and timings.
 
@@ -111,8 +109,11 @@ llama-server runs one model, chosen by `roles.inference.active`, and answers
 to the name `local` whatever the model is. Changing the model is a change to
 `active` (and a pinned entry in `models.nix`); no client changes.
 
-Each of the four slots has 64K tokens of context, which is the least Hermes
-accepts. The KV cache is q8_0 (half of f16, with no noticeable loss), flash
+Each of the two slots has 64K tokens of context: room for Home Assistant's
+prompt, which lists every exposed entity, and the conversation so far. Two
+slots rather than four also mean Home Assistant's long, unchanging system
+prompt usually stays cached in one, so a voice request only reads what's
+new. The KV cache is q8_0 (half of f16, with no noticeable loss), flash
 attention is on and every layer is on the GPU. It starts with `--fit off`, so
 a model that doesn't fit beside Whisper fails to start instead of quietly
 getting less context or moving layers to the CPU. Context shift is off, so a
@@ -125,8 +126,8 @@ model's memory is sized against what's left on the card.
 
 Each model's defaults suit voice: Home Assistant can't ask for anything, and
 voice wants a quick answer. So gpt-oss-20b reasons at low effort, and Gemma
-and Qwen don't think at all unless asked. Clients that want more reasoning,
-such as the agents, ask for it per request in `chat_template_kwargs`:
+and Qwen don't think at all unless asked. A client that wants more reasoning
+asks for it per request in `chat_template_kwargs`:
 `reasoning_effort` for gpt-oss, `enable_thinking` for Gemma and Qwen. A
 client can send both, since a template ignores the one it doesn't use.
 
@@ -134,7 +135,8 @@ client can send both, since a template ignores the one it doesn't use.
 
 These are in `hosts/inference/models.nix`, each pinned to an upload from
 before llama.cpp b9608 came out, so the build is known to load them. Every
-one fits four 64K slots beside Whisper, which takes 2,112 MiB.
+one fits four 64K slots beside Whisper, which takes 2,112 MiB, so two leave
+room to spare. The figures below were measured with four.
 
 | Model | File | llama-server on the card |
 |---|---|---|
@@ -172,7 +174,9 @@ scenario:
 | Generating, one request | 206 tokens/s | 127 tokens/s | 131 tokens/s |
 | Reading a prompt, one request | 1,184 tokens/s | 1,265 tokens/s | 984 tokens/s |
 
-Qwen was the only one to get every agent task right, and it's `active`.
+Qwen was the only one to get every agent task right, and it's `active`. The
+test was written while the researcher ran here, so it weighs agent work over
+voice; a model chosen for voice alone is still to be picked.
 gpt-oss guessed argument names instead of looking them up, and in both
 recall runs it never searched its past sessions and made up a time instead.
 In an earlier run it said it had posted a comment it hadn't. Gemma's one
@@ -228,8 +232,7 @@ Piper at `10.0.0.63:10200`, through the Wyoming integration.
 ## Monitoring
 
 Beszel's agent reports the host and the GPU, Homarr's tile pings `/health`
-from the dashboard VM, and the agents' smoke test has a `local` stage that
-checks the researcher really runs here. Kuma watches it over the tunnel:
+from the dashboard VM, and Kuma watches it over the tunnel:
 
 | Monitor | Check | Down means |
 |---|---|---|
@@ -246,7 +249,7 @@ operator key, nothing else. On macOS, edit it with
 | `root/console-password-hash` | `mkpasswd -m yescrypt` |
 | `beszel/agent-token` | the hub's universal token |
 | `porkbun/api-key`, `porkbun/secret-api-key` | for DNS-01 |
-| `inference/keys/agents`, `inference/keys/ha`, `inference/keys/mac` | `openssl rand -hex 32` each, the clients' keys |
+| `inference/keys/ha`, `inference/keys/mac` | `openssl rand -hex 32` each, the clients' keys |
 
 The host key is installed by `nix run .#install` from `HOST_AGE_KEY_FILE`
 (`hostAgeKey = true` in `infra/terranix/default.nix`). Until
@@ -282,12 +285,12 @@ switched close together; the old key stops working at once.
 - One model at a time. Switching models drops every client, voice included,
   for as long as the new model takes to load (and to download, the first
   time).
-- Voice shares the card with the agents, and a long new prompt holds up
-  every other request until it's read in. llama-server fills each batch from
-  its slots in order, and the first one with a prompt to read takes the whole
-  batch. In the model test, voice waited 11 to 17 seconds behind a 50K-token
-  prompt, on every model. A slot kept free for voice doesn't help with this;
-  only a change to llama-server's batching would.
+- A long new prompt holds up every other request until it's read in.
+  llama-server fills each batch from its slots in order, and the first one
+  with a prompt to read takes the whole batch. In the model test, voice
+  waited 11 to 17 seconds behind a 50K-token prompt, on every model. With the
+  agents gone, only a long prompt from the Mac can do that now; a slot kept
+  free for voice doesn't help, only a change to llama-server's batching would.
 - The VM can't move: it's tied to proxmox2, where the card is.
 - Whisper and Piper are open to the whole LAN with no authentication, and
   ports Podman publishes don't go through the host firewall.
@@ -296,5 +299,5 @@ switched close together; the old key stops working at once.
 
 ## Related
 
-- `docs/agents/REFERENCE.md`: the Hermes agents, the main client.
+- `docs/agents/REFERENCE.md`: the Hermes agents, which used to be a client.
 - `docs/dashboard/REFERENCE.md`: Homarr and Beszel.

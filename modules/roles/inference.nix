@@ -1,7 +1,7 @@
 # llama.cpp's llama-server with one model loaded, for every client of the
-# GPU: the agents, Home Assistant's voice assistant and later a work
-# environment. Clients ask for the model `local`; which model that is gets
-# decided here, so changing it changes no client.
+# GPU: Home Assistant's voice assistant and the Mac. Clients ask for the
+# model `local`; which model that is gets decided here, so changing it
+# changes no client.
 #
 # The server only listens on loopback and has no network of its own; nginx
 # (hosts/inference/endpoints.nix) is the way in. It runs `parallel` slots of
@@ -189,7 +189,7 @@ in
     contextPerSlot = lib.mkOption {
       type = lib.types.ints.positive;
       default = 65536;
-      description = "Tokens of context each request can use. Hermes refuses models with less than 64,000.";
+      description = "Tokens of context each request can use: room for Home Assistant's prompt, with every exposed entity, and the conversation so far.";
     };
 
     kvCacheType = lib.mkOption {
@@ -210,10 +210,6 @@ in
       {
         assertion = cfg.models ? ${cfg.active};
         message = "roles.inference: active model ${cfg.active} isn't in models (${toString (lib.attrNames cfg.models)}).";
-      }
-      {
-        assertion = cfg.contextPerSlot >= 65536;
-        message = "roles.inference: each slot needs at least 65536 tokens of context; Hermes refuses less (got ${toString cfg.contextPerSlot}).";
       }
       {
         assertion = badFiles == [ ];

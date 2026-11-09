@@ -13,10 +13,6 @@ them, and checks what came back:
             the next agent-watch pass, and cancelling it clears the alert. The
             phone gets both.
   ping      the researcher answers an issue with a comment and closes it
-  local     the same, checked to go through the lab's local model: the
-            researcher's main model is lab-gpu, Hermes logs no fallback while
-            it works, and inference's nginx logs the agents key's chat
-            requests, with at least one 200
   decide    the researcher asks Jev one fixed question with its decide tool
             and comments the call id it got back, which has to be in the Jev
             server's own call log as a successful call
@@ -96,8 +92,8 @@ the agent on an approval.
 Most stages wait on model runs, so the whole test takes 20 to 45 minutes.
 Issues are titled "Smoke test <nonce>: ..." and stay in Paperclip as a record.
 
-It needs gh signed in as Justin, `ssh agents`, `ssh workbench` and
-`ssh inference` with sudo, and for route the operator's age key
+It needs gh signed in as Justin, `ssh agents` and `ssh workbench` with
+sudo, and for route the operator's age key
 (SOPS_AGE_KEY_FILE, by default ~/.config/sops/age/keys.txt). It signs in like paperclip-apply.py, or uses PAPERCLIP_BOARD_KEY, and
 revokes the key it signed in with before it exits. Nothing it prints is a
 secret: the Alerta key is read and used on the agents VM, and the webhook
@@ -139,10 +135,9 @@ ENGINEER_LOGS = "/var/lib/hermes-engineer/.hermes/logs"
 # agents.watch.alertaUrl and the secret agent-watch reads its key from.
 ALERTA = "http://10.118.0.1:5000"
 ALERTA_KEY = "/run/secrets/agent-watch/alerta-key"
-STAGES = ["rulesets", "refused", "watch", "ping", "local", "decide", "observe", "web", "health", "intake", "ask", "approve", "change",
+STAGES = ["rulesets", "refused", "watch", "ping", "decide", "observe", "web", "health", "intake", "ask", "approve", "change",
           "review", "costs", "infra", "gate", "route"]
 RESEARCHER_CONFIG = "/var/lib/hermes-researcher/.hermes/config.yaml"
-RESEARCHER_LOGS = "/var/lib/hermes-researcher/.hermes/logs"
 # The Jev MCP server's call log: one line per call, ids and outcomes only.
 JEV_LOG = "/var/lib/hermes-researcher/.hermes/logs/jev.log"
 # The lab MCP server's call log: one line per call, ids, tools and outcomes only.
@@ -154,10 +149,6 @@ MONITOR_LAB_LOG = "/var/lib/hermes-monitor/.hermes/logs/lab.log"
 # The monitor's routines, by title in paperclip-spec.json.
 FINDINGS_ROUTINE = "Look into {{count}} lab finding(s)"
 TRIAGE_ROUTINE = "Triage {{count}} lab alert(s)"
-# Hermes logs this line, at INFO in agent.log, when a run moves to a fallback model.
-FALLBACKS = 'cat "$logs"/agent.log* 2>/dev/null | grep -c "Fallback activated" || true'
-# inference's access log: time, address, client=<key's name>, method, path, status, ...
-INFERENCE_LOG = "/var/log/nginx/inference.log"
 # Where an agent leaves an issue when its run is over.
 SETTLED = {"done", "in_review", "blocked", "cancelled"}
 # With paperclip-events connected, how soon after a question or approval is
@@ -538,32 +529,6 @@ printf 'Authorization: Key %s\n' "$(cat "$key")" \
         if not any(word in body for body in self.comments(issue, researcher)):
             raise Fail(f"the researcher closed {issue['identifier']} without commenting `{word}`")
         return issue
-
-    def local(self):
-        model = remote("agents", 'sed -n "/^model:/,/^[^ ]/p" "$config"', config=RESEARCHER_CONFIG).stdout
-        if "provider: lab-gpu" not in model:
-            raise Fail(f"the researcher's main model isn't on lab-gpu: {text(model, 120)}")
-        since = remote("inference", "date +%Y-%m-%dT%H:%M:%S%:z").stdout.strip()
-        if not since:
-            raise Fail("couldn't read inference's clock")
-        before = self.fallbacks()
-        issue = self.researcher_ping("researcher ping on the local model", "local")
-        if self.fallbacks() > before:
-            raise Fail(f"{issue['identifier']} was answered, but Hermes fell back from the local model during it; "
-                       f"see {RESEARCHER_LOGS}/agent.log")
-        # Everything from the agents VM's key since the issue was filed, by
-        # status. Titles and memory reviews count too; they're local as well.
-        seen = remote("inference", r'''
-awk -v since="$since" '$1 >= since && $3 == "client=agents" && $5 == "/v1/chat/completions" {print $6}' "$log" \
-  | sort | uniq -c
-''', since=since, log=INFERENCE_LOG).stdout
-        counts = {status: int(n) for n, status in (line.split() for line in seen.splitlines() if line.strip())}
-        if not counts.get("200"):
-            raise Fail(f"{issue['identifier']} was answered, but inference logged no successful requests from the "
-                       f"agents key ({', '.join(f'{n} x {s}' for s, n in sorted(counts.items())) or 'none at all'}), "
-                       "so it ran on a fallback")
-        detail = ", ".join(f"{n} x {s}" for s, n in sorted(counts.items()))
-        return f"the researcher answered {issue['identifier']} through inference ({detail})"
 
     def decide(self):
         researcher = self.agent("Researcher")
@@ -1011,11 +976,6 @@ printf 'Authorization: Key %s\n' "$(cat "$key")" \
             raise Fail(f"couldn't send {resource} to Alerta: {text(proc.stderr) or f'curl exit {proc.returncode}'}")
         return json.loads(proc.stdout)["id"]
 
-    def fallbacks(self):
-        out = remote("agents", FALLBACKS, logs=RESEARCHER_LOGS).stdout.strip()
-        if not out.isdigit():
-            raise Fail(f"couldn't read the researcher's logs: {text(out, 120)}")
-        return int(out)
 
     def change(self):
         engineer = self.agent("Engineer")

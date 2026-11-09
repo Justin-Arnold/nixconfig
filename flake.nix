@@ -315,6 +315,29 @@
             let
               refused = module: !(builtins.tryEval
                 (agentsExample.extendModules { modules = [ module ]; }).config.system.build.toplevel.drvPath).success;
+              # The agents use no local model today, so the provider guards get
+              # one here: inference's endpoint, as the agents had it.
+              labGpu = {
+                roles.hermesAgents.providers.lab-gpu = {
+                  baseUrl = "https://inference.servicestack.xyz/v1";
+                  keyEnv = "LAB_INFERENCE_KEY";
+                  keySecret = "inference/agents-key";
+                  models.local.contextLength = 65536;
+                };
+              };
+              local = { provider = "lab-gpu"; name = "local"; };
+              withLabGpu = module: { imports = [ labGpu module ]; };
+              # The provider alone, with the researcher on it, has to evaluate,
+              # or the cases that use it would pass on a typo.
+              researcherOnLocal = {
+                roles.hermesAgents.instances.researcher = {
+                  model = lib.mkForce local;
+                  auxiliary.compression = { provider = "openai-codex"; name = "gpt-6.1-terra"; };
+                };
+              };
+              labGpuEvaluates = (builtins.tryEval (agentsExample.extendModules {
+                modules = [ labGpu researcherOnLocal ];
+              }).config.system.build.toplevel.drvPath).success;
               vhost = "paperclip.servicestack.xyz";
               triggers = "paperclip-triggers.servicestack.xyz";
               fire = ''~ "^/api/routine-triggers/public/(?<trigger>[0-9a-f]{24})/fire$"'';
@@ -378,19 +401,19 @@
                 egress-allows-range = { roles.agentEgress.allow.lan = { address = "10.0.0.0/24"; tcpPorts = [ 22 ]; }; };
                 egress-allows-whole-host = { roles.agentEgress.allow.nas.address = "10.0.0.20"; };
                 egress-allows-unknown-user = { roles.agentEgress.allow.inference = lib.mkForce { address = "10.0.0.63"; tcpPorts = [ 443 ]; users = [ "justin" ]; }; };
-                provider-plain-http = { roles.hermesAgents.providers.lab-gpu.baseUrl = lib.mkForce "http://10.0.0.63:8080/v1"; };
+                provider-plain-http = withLabGpu { roles.hermesAgents.providers.lab-gpu.baseUrl = lib.mkForce "http://10.0.0.63:8080/v1"; };
                 provider-reserved-name = { roles.hermesAgents.providers.local = { baseUrl = "https://inference.servicestack.xyz/v1"; keyEnv = "LOCAL_KEY"; keySecret = "inference/agents-key"; models.local.contextLength = 65536; }; };
-                provider-short-context = { roles.hermesAgents.providers.lab-gpu.models.local.contextLength = lib.mkForce 32768; };
+                provider-short-context = withLabGpu { roles.hermesAgents.providers.lab-gpu.models.local.contextLength = lib.mkForce 32768; };
                 provider-inline-key = { roles.hermesAgents.instances.coordinator.settings.providers.lab-gpu.api_key = "a-literal-key"; };
                 provider-key-command = { roles.hermesAgents.instances.coordinator.settings.providers.lab-gpu.key_cmd = "cat /run/secrets/x"; };
                 provider-added-plain-http = { roles.hermesAgents.instances.coordinator.settings.providers.other = { base_url = "http://10.0.0.63:8080/v1"; key_env = "LAB_INFERENCE_KEY"; }; };
                 side-task-inline-key = { roles.hermesAgents.instances.engineer.settings.auxiliary.title_generation.api_key = "a-literal-key"; };
                 side-task-own-endpoint = { roles.hermesAgents.instances.engineer.settings.auxiliary.background_review.base_url = "http://10.0.0.63:8080/v1"; };
                 fallback-inline-key = { roles.hermesAgents.instances.researcher.settings.fallback_providers = [ { provider = "lab-gpu"; model = "local"; api_key = "a-literal-key"; } ]; };
-                provider-key-not-from-sops = { roles.hermesAgents.instances.coordinator.secrets.LAB_INFERENCE_KEY = lib.mkForce "hermes/coordinator/paperclip-key"; };
-                provider-unlisted-model = { roles.hermesAgents.instances.researcher.model = lib.mkForce { provider = "lab-gpu"; name = "qwen3.6-35b-a3b"; }; };
-                compression-local = { roles.hermesAgents.instances.coordinator.auxiliary.compression = { provider = "lab-gpu"; name = "local"; }; };
-                compression-follows-local-model = { roles.hermesAgents.instances.researcher.auxiliary = lib.mkForce { }; };
+                provider-key-not-from-sops = withLabGpu { roles.hermesAgents.instances.coordinator.secrets.LAB_INFERENCE_KEY = lib.mkForce "hermes/coordinator/paperclip-key"; };
+                provider-unlisted-model = withLabGpu { roles.hermesAgents.instances.researcher.model = lib.mkForce { provider = "lab-gpu"; name = "qwen3.6-35b-a3b"; }; };
+                compression-local = withLabGpu { roles.hermesAgents.instances.coordinator.auxiliary.compression = local; };
+                compression-follows-local-model = withLabGpu { roles.hermesAgents.instances.researcher = { model = lib.mkForce local; auxiliary = lib.mkForce { }; }; };
                 claude-key-on-researcher = { roles.hermesAgents.instances.researcher.secrets.ANTHROPIC_API_KEY = "anthropic/api-key"; };
                 claude-oauth-token = { roles.hermesAgents.instances.coordinator.secrets.CLAUDE_CODE_OAUTH_TOKEN = "anthropic/api-key"; };
                 claude-token-in-environment = { roles.hermesAgents.instances.engineer.environment.ANTHROPIC_TOKEN = "x"; };
@@ -425,6 +448,8 @@
                 github-through-settings = { roles.hermesAgents.instances.engineer.settings.mcp_servers.github.command = "github-mcp-server"; };
               };
             in
+            assert lib.assertMsg labGpuEvaluates
+              "agents exposure guards: the agents host doesn't evaluate with the test-only lab-gpu provider, so the cases using it prove nothing";
             assert lib.assertMsg (lib.all lib.id (lib.attrValues results))
               "agents exposure guards did not refuse: ${toString (lib.attrNames (lib.filterAttrs (_: ok: !ok) results))}";
             pkgs.writeText "agents-exposure-guards" (builtins.toJSON results);
@@ -527,7 +552,6 @@
                 swap-added = { swapDevices = [ { device = "/swapfile"; size = 1024; } ]; };
                 zram-added = { zramSwap.enable = true; };
                 coredumps-stored = { systemd.coredump.settings.Coredump.Storage = lib.mkForce "external"; };
-                short-context = { roles.inference.contextPerSlot = lib.mkForce 32768; };
                 one-slot = { roles.inference.parallel = lib.mkForce 1; };
                 verbose-logging = { roles.inference.extraFlags = [ "--verbose" ]; };
                 prompt-logging = { roles.inference.extraFlags = [ "--verbose-prompt" ]; };

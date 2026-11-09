@@ -67,8 +67,8 @@ See [docs/openclaw/REFERENCE.md](docs/openclaw/REFERENCE.md).
 
 `inference` is the GPU host: the RTX 3090 passed through on proxmox2, serving
 one model as `local` through llama-server, behind nginx with a key per client,
-to the agents and Home Assistant's voice assistant, plus Home Assistant's
-Whisper and Piper. It has its own age key and no HA, since it's tied to the
+to Home Assistant's voice assistant (and the Mac), plus Home Assistant's
+Whisper and Piper. The agents run on cloud models. It has its own age key and no HA, since it's tied to the
 node with the card. See [docs/inference/REFERENCE.md](docs/inference/REFERENCE.md).
 
 The provisioning flow expects:

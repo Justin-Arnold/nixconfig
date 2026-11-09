@@ -19,7 +19,7 @@ separate execution host.
 | Paperclip | `https://paperclip.servicestack.xyz` (2026.1023.0, official image pinned by digest, under Podman) |
 | Database | PostgreSQL 17 from nixpkgs, socket and localhost only |
 | Agents | Hermes v0.22.5: `coordinator`, `engineer`, `researcher`, `reviewer`, `infra`, `monitor`, one process each, API servers on `127.0.0.1:8642` to `8647` |
-| Models | Codex for the coordinator, engineer and infra, with Claude Opus 5.5 as their last fallback; Claude Opus 5.5 for the reviewer, with Sonnet 5.5 and Codex behind it; the lab's GPU (`local` on inference) for the researcher and the monitor, with Codex behind them, and for every agent's session titles and memory review |
+| Models | Codex for the coordinator, engineer, infra and researcher, with Claude Opus 5.5 as the last fallback for all but the researcher; Claude Opus 5.5 for the reviewer, with Sonnet 5.5 and Codex behind it; Codex's middle tier for the monitor and for every agent's session titles and memory review |
 | Tools from outside | Jev, TypeSafe's decision model, as every agent's `decide` tool; read-only Proxmox, Beszel, Kuma and Alerta for the coordinator, infra, the researcher and the monitor; read-only GitHub for the coordinator and the researcher; web search through the lab's own SearXNG for the researcher |
 | Login | `ssh agents` as `justin`, key only (the Mac Mini key). Root has no SSH. |
 | Console | Proxmox console, root password from SOPS (`root/console-password-hash`) |
@@ -122,8 +122,6 @@ changes, and `.#checks.<system>.agents-exposure-guards` proves they fire.
 These live outside the repo:
 - An AdGuard rewrite for `paperclip.servicestack.xyz` to the VM's address,
   and one for `paperclip-triggers.servicestack.xyz`, which n8n uses.
-- AdGuard's rewrite for `inference.servicestack.xyz`, which the agents use to
-  reach the GPU host.
 - An OPNsense DHCP reservation for `02:01:18:00:00:06`.
 - A `WG_LAB118` rule passing TCP 443 from `10.118.0.1` to the VM, for Kuma's
   check.
@@ -190,8 +188,8 @@ There are no Paperclip budgets, on purpose. Paperclip records every
 `hermes_gateway` run as unpriced, provider `hermes_gateway`, whatever the
 model, and a budget policy blocks on unpriced usage unless its
 `unpricedUsagePolicy` is `allow`; with the default, a budget pauses its agent
-after the first run. A paused agent also stops its free work on Codex and the
-local model. So the limit is the money itself: the Claude credits loaded each
+after the first run. A paused agent also stops its free work on Codex. So
+the limit is the money itself: the Claude credits loaded each
 month and Jev's credits, with alerts as they run low or out ("Spend" below).
 A budget added later needs `unpricedUsagePolicy: allow`, and only counts what
 agent-costs reports.
@@ -217,7 +215,7 @@ Paperclip and an agent talk both ways without a shell on this host:
   to. The upstream MCP server only reads one when it starts, and an agent's
   server outlives its runs, so the package starts from `run-id.mjs`, which
   gives every tool a `paperclipRunId` argument. The agent copies it from the
-  Run ID in its wake prompt. The local model sometimes leaves it out, so a
+  Run ID in its wake prompt. A model sometimes leaves it out, so a
   change without one goes out under the agent's own run in progress when it
   has exactly one; with none or several, Paperclip refuses it as before. The
   `paperclip-mcp` check runs the wrapper against a fake Paperclip.
@@ -238,9 +236,8 @@ user owns, MCP servers and ssh included, and refuses private, link-local and
 multicast addresses. A refusal fails at once rather than timing out, and
 shows up in `journalctl -k` as `agent-egress refused:` with the uid. A LAN
 service an agent needs goes in `roles.agentEgress.allow` in `agents.nix`, one
-address and its ports, optionally for named agents only: every agent may
-reach inference on 443, the agents with a terminal there reach ssh on
-workbench, and the agents with the lab tools reach the Proxmox nodes on 8006,
+address and its ports, optionally for named agents only: the agents with a
+terminal there reach ssh on workbench, and the agents with the lab tools reach the Proxmox nodes on 8006,
 the dashboard VM on 443 and lab118 on 3002 and 5000 over the tunnel. Hermes'
 own `allow_private_urls: false` refuses
 the same addresses in its web tools; the filter is what holds if something
@@ -319,29 +316,20 @@ engineer and infra run on Codex, fall back a Codex generation, and then to
 Claude Opus 5.5 (`claude-opus-5-5`). The reviewer runs on Claude Opus 5.5 with
 high reasoning effort, so code is reviewed by a different model family from
 the one that wrote it, and falls back to Sonnet 5.5 and then Codex. The
-researcher and the monitor run on `local`, the model inference serves to
-the lab (`docs/inference/REFERENCE.md`), with Codex's middle tier behind it. Every
-agent's session titles and post-turn memory review run on `local` too
-(`sideTasks` in `agents.nix`), and context compression stays on Codex, since
-a poor summary loses an agent's context for good.
+researcher runs on Codex too, and falls back a Codex generation and then to
+the middle tier, never to Claude, since it has no Anthropic key. The monitor
+runs on Codex's middle tier, since it works up to 30 times a day on the same
+plan as the others. Every agent's session titles and post-turn memory review
+run on the middle tier (`sideTasks` in `agents.nix`); left unset, they'd run
+on the reviewer's Claude and spend from the Anthropic key. Context
+compression runs on each agent's main model.
 
-Hermes reaches inference as the provider `lab-gpu`, not `local` or
-`llamacpp`, which Hermes already uses for other things. The key is
-`inference/agents-key`, which reaches each agent's `.env` as
-`LAB_INFERENCE_KEY`; config.yaml has only the variable's name. Its context is
-set to a slot's 64K, since llama-server reports the model's own, much larger
-one.
-
-When inference is down or busy, Hermes retries and then falls back: the
-researcher and the monitor to Codex, and side tasks to the agent's main model: Codex for most,
-which quietly uses the plan's limits, and Claude for the reviewer, which
-spends from the Anthropic key. inference's nginx
-gives the `agents` key two requests at a time and answers a third with a 429,
-which Hermes retries.
-
-llama-server only reads a thinking switch from `chat_template_kwargs`, and
-Hermes doesn't send one, so the researcher runs with the model's default, no
-thinking. That's how it passed the model test.
+None of them uses the lab's own model on inference. The researcher and the
+monitor did until November 2026, and its 64K slots and slow reading of long
+prompts made them compress often and run out of time. inference now serves
+Home Assistant's voice assistant and the Mac (`docs/inference/REFERENCE.md`).
+`roles.hermesAgents.providers` can still point agents at an endpoint like it,
+and its guards are tested with a stand-in provider in `flake.nix`.
 
 Claude runs on an Anthropic API key, `anthropic/api-key`, from the Console
 organization's Default workspace, which spends the account's monthly credits.
@@ -836,7 +824,6 @@ names some:
 | `refused` | a push to agent-scratch's default branch, as `agent-engineer` on workbench with the machine account's token, is refused by the ruleset. It isn't tried while the branch ruleset is missing, because it would land. |
 | `watch` | an issue labelled `change` raises a `MarkedChange` alert in Alerta on the next agent-watch pass, and cancelling the issue clears it. The phone gets both. |
 | `ping` | the researcher comments the word it was asked for and closes the issue |
-| `local` | the same, through the lab's local model: the researcher's main model is `lab-gpu`, Hermes logs no fallback while it works, and inference's nginx logs at least one successful request from the `agents` key |
 | `decide` | the researcher asks Jev one fixed question and comments the call id it got back, which is in the Jev server's call log as a successful call |
 | `observe` | the researcher reads each lab source it has once and comments the call ids, each a successful call of that source in the lab server's log; with GitHub on, it quotes nixconfig pull request #1's title, which matches GitHub's |
 | `web` | the researcher searches for NixOS's download page and reads a result on nixos.org, then comments both call ids, the URL and the page's title; both ids are successful calls in the websearch server's log, the read on the URL's host, and the title matches what the Mac fetches |
@@ -856,7 +843,7 @@ Most stages wait on real model runs, so a full run takes 20 to 45 minutes;
 `review` and `infra` are closed and their branches deleted afterwards, unless
 `--keep-pr`. The issues stay in Paperclip,
 titled `Smoke test <nonce>: ...`. It needs `gh` signed in as Justin,
-`ssh agents`, `ssh workbench` and `ssh inference` with sudo, and for `route`
+`ssh agents` and `ssh workbench` with sudo, and for `route`
 the operator's age key, since it reads the webhook secret with sops. The Alerta key never leaves the
 agents VM: the alert lookups and the test alert run there. The flake.lock and
 pull request review routines aren't in it, since they make real pull
@@ -950,7 +937,6 @@ operator key, nothing else. On macOS, edit it with
 | `root/console-password-hash` | `mkpasswd -m yescrypt` |
 | `hermes/<name>/api-server-key` | `openssl rand -hex 32`, one per agent. Also goes into Paperclip as that agent's adapter `apiKey`. |
 | `hermes/<name>/paperclip-key` | the agent's Paperclip key, only for agents listed in `withPaperclipKey`. lab-health uses the monitor's too. |
-| `inference/agents-key` | the agents' key for inference, the same value as `inference/keys/agents` in `secrets/hosts/inference.yaml` |
 | `anthropic/api-key` | an Anthropic API key from the Console's Default workspace, capped only by the organization's limit and credits. Never an OAuth token. |
 | `jev/api-key` | a TypeSafe API key, from console.typesafe.ai |
 | `observe/proxmox-token` | the agents' Proxmox API token, `agents@pve!observe=<secret>`, audit-only, also lab-health's |
@@ -1056,9 +1042,7 @@ host key and the same master key in SOPS, the stored secrets stay readable.
 - Kuma's status page and Alerta go over plain HTTP on the LAN as far as the
   router, then over the tunnel, like agent-watch's alerts.
 - An alert waits 3 minutes for n8n's settle, and up to 5 minutes more after
-  an earlier triage ends. The monitor and the researcher share the
-  `agents` key's two requests at a time on inference with every agent's side
-  tasks.
+  an earlier triage ends.
 - board-bridge holds a board key, the most powerful kind there is; its
   route list is the only thing narrowing it.
 - paperclip-events hears only what the researcher may read, which today is
