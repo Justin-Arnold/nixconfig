@@ -1,0 +1,71 @@
+http:
+  middlewares:
+    redirect-to-https:
+      redirectScheme:
+        scheme: https
+
+  routers:
+    # WILDCARD ROUTER FOR ALL PR PREVIEWS
+    preview-wildcard:
+      rule: "HostRegexp(`^.+\\.preview\\.commongoodlt\\.dev$`)"
+      service: preview-tunnel
+      priority: 200
+      entryPoints:
+        - websecure
+      tls:
+        certResolver: letsencrypt
+        domains:
+          - main: "preview.commongoodlt.dev"
+            sans:
+              - "*.preview.commongoodlt.dev"
+    # HTTP to HTTPS redirect router
+    main-app-router-redirect:
+      rule: "Host(`tunnel.servicestack.xyz`)"
+      service: next-service
+      entryPoints:
+        - web
+      middlewares:
+        - redirect-to-https
+
+    # Next.js router (handles everything except API and WebSocket paths)
+    next-router:
+      rule: "Host(`tunnel.servicestack.xyz`) && !PathPrefix(`/api/v1`)"
+      service: next-service
+      entryPoints:
+        - websecure
+      tls:
+        certResolver: letsencrypt
+
+    # API router (handles /api/v1 paths)
+    api-router:
+      rule: "Host(`tunnel.servicestack.xyz`) && PathPrefix(`/api/v1`)"
+      service: api-service
+      entryPoints:
+        - websecure
+      tls:
+        certResolver: letsencrypt
+
+    # WebSocket router
+    ws-router:
+      rule: "Host(`tunnel.servicestack.xyz`)"
+      service: api-service
+      entryPoints:
+        - websecure
+      tls:
+        certResolver: letsencrypt
+
+  services:
+    next-service:
+      loadBalancer:
+        servers:
+          - url: "http://pangolin:3002"  # Next.js server
+
+    api-service:
+      loadBalancer:
+        servers:
+          - url: "http://pangolin:3000"  # API/WebSocket server
+    preview-tunnel:
+      loadBalancer:
+        servers:
+          - url: "http://100.89.128.4:64463"
+        passHostHeader: true
