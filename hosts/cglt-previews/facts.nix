@@ -36,9 +36,15 @@
   deployId = 2701;
   deployPort = 2222;
 
-  # tank/previews is mounted here; golden/ and live/ are datasets under it,
+  # tank/previews is mounted here; cache/ and live/ are datasets under it,
   # config/ and stacks/ plain directories owned by the deploy user.
   previewsRoot = "/srv/previews";
+  # The NAS pool and where its golden copies are mounted (previews/scripts/lib.sh
+  # COLD_ROOT / COLD_DIR in the monorepo).
+  coldPool = "cold";
+  coldGolden = "cold/golden";
+  coldGoldenDir = "/srv/previews-cold/golden";
+  coldDisk = "/dev/disk/by-id/scsi-0QEMU_QEMU_HARDDISK_drive-scsi1";
 
   # The ops tools listen on loopback; Traefik publishes them (ingress.nix).
   ports = {

@@ -10,7 +10,9 @@ pr-preview: cureum-adelstg, satchel-cps
 
 Each named instance (a tag) becomes a Docker Compose project with two
 containers, the app and MySQL. Its database and files are a ZFS clone of a
-nightly golden copy of that instance.
+golden copy of that instance. Golden copies live on the NAS. The first
+preview of an instance copies its golden copy onto this VM's fast disk, and
+later previews clone that copy in seconds (see "Storage").
 
 The monorepo's `pr-preview.yaml` and `preview-snapshots.yaml` drive all of
 this from GitHub-hosted runners. Each job comes in over SSH, as
@@ -27,8 +29,8 @@ serving until the cutover.
 
 | | |
 |---|---|
-| VM | Proxmox on proxmox4, 12 vCPU (CPU type `host`), 48 GB, 500 GB on `zfs-pool` (proxmox4's local ZFS), VM id 145, MAC `02:01:18:00:00:0b`, not HA, disk excluded from backups |
-| Disk | 8 GB swap; 80 GB ext4 `/` (Docker); the rest is the ZFS pool `tank` (ashift 12, zstd, atime off, xattr sa) |
+| VM | Proxmox on proxmox4, 12 vCPU (CPU type `host`), 48 GB, VM id 145, MAC `02:01:18:00:00:0b`, not HA, disks excluded from backups |
+| Disks | `scsi0`, 500 GB on `zfs-pool` (proxmox4's local ZFS): 8 GB swap, 80 GB ext4 `/` (Docker), and the ZFS pool `tank` for what open PRs use. `scsi1`, 1 TB on `nas-previews` (TrueNAS `Main/cglt-previews`): the ZFS pool `cold` for golden copies. |
 | Previews | `https://<tag>-pr<N>.preview.commongoodlt.dev`, public. The apps have their own login. |
 | Ops tools | `dockhand.`, `files.` and `mail.preview.commongoodlt.dev`, each behind a login |
 | Ingress | Pangolin VPS (wildcard TLS, hand-written route) → home site's Newt (`10.0.0.72`) → this VM, port 80 → Traefik |
@@ -107,8 +109,10 @@ both sides together.
 | Tools on PATH | bash, coreutils, docker 29 (with `compose` and `buildx`), git, jq, yq (yq-go), curl, rsync, openssh, gzip, zstd, util-linux (`flock`), sed, awk, grep, find, tar, and sudo from `/run/wrappers/bin`. Nothing else. |
 | Work directory | `/var/lib/preview-deploy/work/job.XXXXXX`, on the root disk: the unpacked tar, and `host.sh`'s current directory. Removed when `host.sh` exits. |
 | umask | `0022` |
-| Golden copies | dataset `tank/previews/golden` at `/srv/previews/golden` |
+| Golden copies | dataset `cold/golden` at `/srv/previews-cold/golden`, on the NAS pool. It may be missing (NAS down). |
+| Cached copies | dataset `tank/previews/cache` at `/srv/previews/cache` |
 | Live previews | dataset `tank/previews/live` at `/srv/previews/live` |
+| Build scratch | `/srv/previews/build`, a plain directory owned by `preview-deploy` |
 | Config | `/srv/previews/config`, a plain directory owned by `preview-deploy`, mode 0755. File Browser shows it. |
 | Stacks | `/srv/previews/stacks`, a plain directory owned by `preview-deploy`, mode 0755. Dockhand sees it at the same path. |
 | Edge network | the external Docker network `preview-edge` |
@@ -136,31 +140,113 @@ A few things that are easy to get wrong:
   kernel changed, and kill a job in progress. Schedule `preview-snapshots`
   well clear of 03:30–04:00.
 
-## Dataset layout
+## Storage
+
+Two tiers, so the VM's fast disk only holds what open PRs use.
 
 ```
-tank                         mountpoint none; compression zstd, atime off, xattr sa, posixacl
-└─ tank/previews             /srv/previews
-   ├─ golden                 /srv/previews/golden     ← preview-snapshots: golden/<tag>{,/db,/files} @g-<UTC>
-   ├─ live                   /srv/previews/live       ← pr-preview: live/pr-<N>-<tag>{,/db,/files}, clones of golden
-   ├─ config/   (directory)  /srv/previews/config     ← pr-<N>-<tag>/config.instance.php, local-overrides.php
-   └─ stacks/   (directory)  /srv/previews/stacks     ← pr-<N>-<tag>/compose.yaml, .env
+cold                          NAS disk (scsi1); mountpoint none; zstd, sync=disabled, primarycache=metadata
+└─ cold/golden                /srv/previews-cold/golden ← preview-snapshots: golden/<tag>{,/db,/files} @g-<UTC>
+tank                          fast disk (scsi0); mountpoint none; zstd, atime off, xattr sa, posixacl
+└─ tank/previews              /srv/previews
+   ├─ cache                   /srv/previews/cache       ← cache/<tag>{,/db,/files}: a received copy of a golden snapshot
+   ├─ live                    /srv/previews/live        ← live/pr-<N>-<tag>{,/db,/files}, clones of cache/<tag>
+   ├─ build/    (directory)   /srv/previews/build       ← a snapshot's MySQL restore, removed when it's done
+   ├─ config/   (directory)   /srv/previews/config      ← pr-<N>-<tag>/config.instance.php, local-overrides.php
+   └─ stacks/   (directory)   /srv/previews/stacks      ← pr-<N>-<tag>/compose.yaml, .env
 ```
 
-`preview-datasets.service` creates `tank/previews`, `golden` and `live` when
-they're missing, and creates the two directories. It runs after
-`zfs-mount.service` and before Docker. It never touches anything below
-`golden/` or `live/`.
+How data moves (the monorepo's `previews/scripts`):
 
-`docker.service` requires both `zfs-mount.service` and
-`preview-datasets.service`. If the pool doesn't import, Docker stays down.
-That's deliberate: otherwise a preview's MySQL would start on an empty
-directory.
+- **A snapshot** (`snapshot.sh`) rsyncs the instance's config and files
+  straight into `cold/golden/<tag>`, so only changes cross the NAS link. It
+  restores the database into a throwaway MySQL in `build/` on the fast disk,
+  because an InnoDB import is random I/O, then rsyncs the data folder into
+  `cold/golden/<tag>/db`. Last, it takes `@g-<UTC>`, marked
+  `cglt:complete=yes`.
+- **A deploy** (`preview.sh up`) needs the newest complete snapshot in
+  `tank/previews/cache/<tag>`. If it isn't there, `zfs send -R -c` copies it
+  from the NAS: incrementally from the cache's newest snapshot, or in full the
+  first time. Then it clones `db` and `files` into `live/`, as before.
+- **The nightly sweep** (`golden.sh prune`) drops:
+  - cached copies no preview clones;
+  - NAS snapshots beyond `keep_snapshots`, except the one the cache was last
+    built from, which is the base for the next incremental copy;
+  - when `cold` is below `cold_min_free_pct`, whole golden copies with no
+    cache, least recently deployed first.
+- **The nightly refresh** copies again only instances used in the last 14
+  days, on their cadence: staging nightly, others weekly.
 
-The ARC is capped at 6 GB. A scrub runs monthly.
+Datasets:
 
-Never use `zfs destroy -R`: it also destroys the live clones of a golden
+- **`preview-datasets.service`** creates `tank/previews`, `cache` and `live`
+  when they're missing, and the three directories. It runs after
+  `zfs-mount.service` and before Docker, and never touches anything below
+  `cache/` or `live/`. `docker.service` requires it and `zfs-mount.service`:
+  if `tank` doesn't import, Docker stays down, so a preview's MySQL never
+  starts on an empty directory.
+- **`preview-cold-pool.service`** imports `cold`, or creates it on a blank
+  `scsi1` (a host installed before the disk existed), then creates and mounts
+  `cold/golden`. It's never fatal and nothing depends on it.
+
+The ARC is capped at 6 GB. `tank` is scrubbed monthly.
+
+**When the NAS is away:**
+- Running previews keep running, because everything they use is on `tank`.
+- New previews of instances already cached on `tank` still deploy, from the
+  cached copy.
+- Snapshots, and first previews of other instances, fail with "The NAS pool
+  isn't available".
+- `cold` has `failmode=continue`, so a stalled NFS mount returns I/O errors
+  instead of hanging every `zfs` command.
+- **Proxmox can't start the VM while `nas-previews` is offline.** A reboot
+  during a NAS outage keeps every preview down until the NAS is back.
+
+Never use `zfs destroy -R`: it also destroys the previews cloned from a
 snapshot.
+
+### Setting up the NAS storage (once)
+
+On the TrueNAS at `10.0.0.20`:
+
+1. **Datasets → `Main` → Add Dataset.**
+   - Name: `cglt-previews`.
+   - Preset: Generic.
+   - Compression: off. The guest's pool compresses, so compressing again only
+     costs CPU.
+   - Save.
+2. **Data Protection.** Make sure no Periodic Snapshot Task or Replication
+   Task covers `Main/cglt-previews`. If a task covers all of `Main`
+   recursively, add `Main/cglt-previews` to its exclusions. Everything on it
+   can be copied again, and weekly refreshes would replicate hundreds of GB.
+3. **Shares → NFS → Add.**
+   - Path: `/mnt/Main/cglt-previews`.
+   - Networks and hosts: the same as the share behind `nas-shared` (open that
+     share to copy them). Maproot User/Group: also the same.
+   - Save.
+
+In the Proxmox web UI:
+
+4. **Datacenter → Storage → Add → NFS.**
+   - ID: `nas-previews`.
+   - Server: `10.0.0.20`.
+   - Export: `/mnt/Main/cglt-previews`.
+   - Content: `Disk image` only.
+   - Nodes: `proxmox4`.
+   - Add.
+
+   Check it on proxmox4 with `pvesm status --storage nas-previews`.
+   Expected: `active`, with about the dataset's free space.
+
+Then `nix run .#plan -- cglt-previews` shows one change: the VM gains a
+`scsi1` disk on `nas-previews`. `nix run .#switch -- cglt-previews` applies
+it. Proxmox may restart the VM to attach the disk.
+`preview-cold-pool.service` then creates `cold` and `cold/golden`.
+
+Hosts set up before the NAS pool also have `tank/previews/golden`, the old
+local golden copies, which nothing uses now. Once `zfs list -r -o name,clones
+-t snapshot tank/previews/golden` shows `-` for every clone, drop it with
+`sudo zfs destroy -r tank/previews/golden`.
 
 ## How GitHub Actions reaches the host
 
@@ -514,7 +600,7 @@ How it works:
 
 | Tool | URL | Login | Notes |
 |---|---|---|---|
-| Dockhand 1.0.57 | `dockhand.preview.commongoodlt.dev` | Traefik basic auth (`traefik/ops-users`), then Dockhand's own | Starts with its own login off. There's no setting to force it on, hence the basic-auth gate. Turn it on under Settings → Authentication. In the free edition every account is an admin, and Dockhand has the Docker socket, so give accounts to developers only. |
+| Dockhand 1.0.57 | `dockhand.preview.commongoodlt.dev` | Traefik basic auth (`traefik/ops-users`), then Dockhand's own | Starts with its own login off. There's no setting to force it on, hence the basic-auth gate. Turn it on under Settings → Authentication. In the free edition every account is an admin, and Dockhand has the Docker socket, so give accounts to developers only. It also starts with no Docker environment, so it shows nothing until you add one once: Settings → Environments → Add environment, connection type Unix socket, path `/var/run/docker.sock`. The environment is kept in `/var/lib/dockhand`. |
 | File Browser 2.63.23 | `files.preview.commongoodlt.dev` | `filebrowser/admin-username` and the password behind `filebrowser/admin-password-hash` | Runs as uid 33 on `/srv/previews/config`, with the command runner off. The credentials are read only when its database is first created. |
 | Mailpit 1.33.1 | `mail.preview.commongoodlt.dev` | `mailpit/ui-auth` | Keeps the last 5000 messages in `/var/lib/mailpit`. |
 
@@ -637,7 +723,7 @@ Run each step from the repo root, `~/Code/personal/nixconfig`.
 9. Pin the host key in the monorepo. Port 2222 only accepts the Newt, so
    scan port 22 from the LAN; both ports present the same host key:
    ```sh
-   ssh-keyscan -t ed25519 <vm-ip> 2>/dev/null | sed 's/^[^ ]*/cglt-previews/'
+   ssh-keyscan -t ed25519 <vm-ip> 2>/dev/null | grep -v '^#' | sed 's/^[^ ]*/cglt-previews/'
    ssh justin@<vm-ip> ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub
    ```
    Expected output: one line `cglt-previews ssh-ed25519 AAAA…`, then the
@@ -664,17 +750,23 @@ entries (see "Outside the repo").
 Run these on the VM (`ssh justin@<vm-ip>`) unless a step says otherwise.
 
 ```sh
-sudo zpool status tank
-# state: ONLINE … errors: No known data errors
+sudo zpool status tank cold
+# both: state: ONLINE … errors: No known data errors
 
-zfs list -r -o name,mountpoint tank
+zfs list -r -d 2 -o name,mountpoint tank cold
+# cold                  none
+# cold/golden           /srv/previews-cold/golden
 # tank                  none
 # tank/previews         /srv/previews
-# tank/previews/golden  /srv/previews/golden
+# tank/previews/cache   /srv/previews/cache
 # tank/previews/live    /srv/previews/live
+# (plus tank/previews/golden on a host set up before the NAS pool; see "Storage")
 
-ls -ld /srv/previews/config /srv/previews/stacks
-# drwxr-xr-x … preview-deploy preview-deploy …   (both)
+zpool get -H -o value failmode cold; zfs get -H -o value sync,primarycache cold
+# continue, disabled, metadata
+
+ls -ld /srv/previews/build /srv/previews/config /srv/previews/stacks /srv/previews-cold/golden
+# drwxr-xr-x … preview-deploy preview-deploy …   (all four)
 
 docker compose version      # Docker Compose version v2.…
 docker buildx version       # github.com/docker/buildx v0.…
@@ -794,7 +886,9 @@ ls -la /var/lib/preview-deploy/work                       # job directories; emp
 journalctl -u traefik -n 100                              # access log and routing errors
 docker ps --filter label=cglt.preview.pr                  # every preview container
 zfs list -r -o name,used,refer,origin tank/previews/live  # what each preview holds
-sudo zpool list tank                                      # pool free space
+sudo zpool list tank cold                                 # pool free space, fast disk and NAS
+zfs list -o name,used,refer,cglt:last_used -d 1 cold/golden   # golden copies and their last deploy
+zfs list -r -o name,used,origin tank/previews/cache      # what's cached for open PRs
 ```
 
 Rebuilding the VM means running
@@ -805,6 +899,9 @@ redeployed.
 
 ## Outside the repo
 
+- **TrueNAS and Proxmox:** the dataset `Main/cglt-previews` (no snapshots or
+  replication), its NFS share, and the Proxmox storage `nas-previews` on
+  proxmox4 (see "Setting up the NAS storage").
 - **OPNsense:** a DHCP reservation for `02:01:18:00:00:0b`. Optionally, a
   rule that drops this VM's traffic into the LAN, as a fence that holds even
   against root on the VM.
@@ -834,6 +931,9 @@ redeployed.
   client.
 - It isn't HA. When proxmox4 is down, so are the previews and deploys (see
   "Where it runs").
+- Golden copies are on the NAS. Proxmox can't start the VM while the
+  `nas-previews` storage is offline, and snapshots and first previews of
+  uncached instances fail while it's away (see "Storage").
 - The nightly upgrade can restart Docker, or reboot the VM, in the middle of
   a job.
 - File Browser is archived upstream (see "Ops tools").

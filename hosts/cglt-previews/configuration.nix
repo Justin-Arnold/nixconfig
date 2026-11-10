@@ -3,7 +3,8 @@
 # (infra/terranix/hosts/cglt-previews.nix). A pull request that names
 # instances in its body (`pr-preview: cureum-adelstg, satchel-cps`) gets one
 # Docker Compose project per instance, app and MySQL, whose data is a ZFS
-# clone of a nightly golden copy of that instance. The monorepo's
+# clone of a golden copy of that instance (kept on the NAS pool `cold`, cached
+# on `tank` while previews use it). The monorepo's
 # pr-preview.yaml and preview-snapshots.yaml drive it from GitHub-hosted
 # runners, over SSH as preview-deploy on port 2222 (deploy.nix). Traefik routes
 # https://<tag>-pr<N>.preview.commongoodlt.dev to each preview from Docker
@@ -21,6 +22,7 @@ let
   macMiniKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIA80MbGDPmyq9NruBH2oS0vVzFDXSH0oT+YqxrIW89Da hello@justin-arnold.com";
 
   zfs = "${config.boot.zfs.package}/bin/zfs";
+  zpool = "${config.boot.zfs.package}/bin/zpool";
   root = facts.previewsRoot;
 
   fw = config.networking.firewall;
@@ -164,7 +166,9 @@ in
   ## ZFS
   ############################################################
   boot.supportedFilesystems.zfs = true;
-  # Root is ext4; only `tank` is ZFS, imported by name at boot.
+  # Root is ext4; `tank` is ZFS, imported by name at boot. `cold`, on the NAS
+  # disk, is imported by preview-cold-pool.service instead, so a missing or
+  # stalled NAS never fails the boot or holds Docker back.
   boot.zfs.forceImportRoot = false;
   boot.zfs.extraPools = [ "tank" ];
   networking.hostId = "82596a6c";
@@ -176,9 +180,11 @@ in
   };
 
   # tank/previews and its two children, made once and left alone after.
-  # Deploy jobs make everything below golden/ and live/ (`sudo zfs ...`).
-  # config/ and stacks/ are plain directories in tank/previews, made here
-  # rather than by tmpfiles, which runs before the pool's first datasets exist.
+  # Deploy jobs make everything below cache/ and live/ (`sudo zfs ...`).
+  # build/, config/ and stacks/ are plain directories in tank/previews, made
+  # here rather than by tmpfiles, which runs before the pool's first datasets
+  # exist. Hosts set up before the NAS pool also have tank/previews/golden;
+  # nothing uses it any more (REFERENCE.md, "Storage", says how to drop it).
   systemd.services.preview-datasets = {
     description = "Create the preview datasets and directories";
     wantedBy = [ "multi-user.target" ];
@@ -199,18 +205,66 @@ in
         fi
       }
       ensure tank/previews -o mountpoint=${root}
-      ensure tank/previews/golden
+      ensure tank/previews/cache
       ensure tank/previews/live
       ${zfs} mount -a
-      for ds in tank/previews tank/previews/golden tank/previews/live; do
+      for ds in tank/previews tank/previews/cache tank/previews/live; do
         if [[ $(${zfs} get -H -o value mounted "$ds") != yes ]]; then
           echo "$ds isn't mounted" >&2
           exit 1
         fi
       done
-      for dir in config stacks; do
+      for dir in build config stacks; do
         install -d -m 0755 -o ${facts.deployUser} -g ${facts.deployUser} ${root}/$dir
       done
+    '';
+  };
+
+  # The NAS pool `cold` and its dataset cold/golden. Imports the pool, or makes
+  # it on a blank scsi1 disk (a host installed before the disk existed), then
+  # mounts the golden copies. Never fatal and nothing depends on it: when the
+  # NAS is away, previews already cached on tank keep deploying, and the
+  # scripts refuse to touch golden copies (cold_ready in previews/scripts).
+  systemd.services.preview-cold-pool = {
+    description = "Import the NAS pool for golden copies";
+    wantedBy = [ "multi-user.target" ];
+    after = [ "zfs-import.target" "preview-datasets.service" ];
+    path = [ pkgs.util-linux ];
+    serviceConfig = {
+      Type = "oneshot";
+      RemainAfterExit = true;
+    };
+    script = ''
+      set -uo pipefail
+      if ! ${zpool} list -H -o name ${facts.coldPool} >/dev/null 2>&1; then
+        if ! ${zpool} import -N ${facts.coldPool} 2>/dev/null; then
+          if [[ ! -b ${facts.coldDisk} ]]; then
+            echo "No NAS disk (${facts.coldDisk}); golden copies are unavailable" >&2
+            exit 0
+          fi
+          if [[ -n "$(blkid -p -o value -s TYPE ${facts.coldDisk} 2>/dev/null)" ]] \
+            || [[ -n "$(blkid -p -o value -s PTTYPE ${facts.coldDisk} 2>/dev/null)" ]]; then
+            echo "${facts.coldDisk} holds something that isn't the pool ${facts.coldPool}; leaving it alone" >&2
+            exit 0
+          fi
+          echo "Creating the pool ${facts.coldPool} on the blank ${facts.coldDisk}"
+          ${zpool} create -o ashift=12 -o autotrim=on -o failmode=continue \
+            -O compression=zstd -O atime=off -O xattr=sa -O dnodesize=auto -O acltype=posixacl \
+            -O sync=disabled -O primarycache=metadata -O mountpoint=none -O canmount=off \
+            ${facts.coldPool} ${facts.coldDisk} || exit 0
+        fi
+      fi
+      if ! ${zfs} list -H -o name ${facts.coldGolden} >/dev/null 2>&1; then
+        ${zfs} create -o mountpoint=${facts.coldGoldenDir} ${facts.coldGolden} || exit 0
+      fi
+      ${zfs} mount -a || true
+      if [[ $(${zfs} get -H -o value mounted ${facts.coldGolden}) == yes ]]; then
+        chown ${facts.deployUser}:${facts.deployUser} ${facts.coldGoldenDir}
+        echo "${facts.coldGolden} is mounted at ${facts.coldGoldenDir}"
+      else
+        echo "${facts.coldGolden} isn't mounted" >&2
+      fi
+      exit 0
     '';
   };
 
