@@ -36,5 +36,19 @@ mkProxmoxVm {
   # Previews are copies of instances that can be pulled again, and golden
   # snapshots are rebuilt nightly, so no backup job should copy 500 GB of it.
   diskBackup = false;
+  # The golden copies of every instance live on the NAS, not on proxmox4's
+  # fast disk, which only holds what open PRs use (2026-11-10). 1 TB on
+  # `nas-previews`: a TrueNAS dataset of its own (Main/cglt-previews) with no
+  # snapshots or replication, since everything on it can be copied again.
+  # The guest makes the ZFS pool `cold` on it (preview-cold-pool.service).
+  # docs/cglt-previews/REFERENCE.md, "Storage".
+  extraDisks = [
+    {
+      datastore = "nas-previews";
+      interface = "scsi1";
+      sizeGb = 1024;
+      backup = false;
+    }
+  ];
   tags = [ "homelab" "cglt" "preview" ];
 }

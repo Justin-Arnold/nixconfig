@@ -33,6 +33,10 @@
   # { device = "hostpci0"; mapping = "<resource mapping>"; pcie = true; ... }.
   # A VM with one is tied to the node that has the device, so no HA.
   hostPci ? [ ],
+  # More disks after scsi0, each { datastore; interface; sizeGb; backup ? true; }.
+  # They're raw images with discard on, so the guest's TRIM frees space on
+  # file storage (NFS) too.
+  extraDisks ? [ ],
 }:
 let
   hasManagedDisk = diskSizeGb != null;
@@ -143,7 +147,13 @@ assert lib.assertMsg (hostPci == [ ] || machine == "q35")
               size = diskSizeGb;
             }
             // lib.optionalAttrs (!diskBackup) { backup = false; })
-          ];
+          ] ++ map (extra: {
+            datastore_id = extra.datastore;
+            interface = extra.interface;
+            size = extra.sizeGb;
+            file_format = "raw";
+            discard = "on";
+          } // lib.optionalAttrs (!(extra.backup or true)) { backup = false; }) extraDisks;
         }
         // lib.optionalAttrs (machine != null) { inherit machine; }
         // lib.optionalAttrs (hostPci != [ ]) { hostpci = hostPci; }
