@@ -29,7 +29,7 @@ Destroy the managed VM:
 nix run .#destroy -- <host>
 ```
 
-Currently managed hosts: `dockhand`, `notifications`, `uptime-kuma`, `pr-previews`, `dashboard`, `agents`, `workbench`, `openclaw`, `inference` (Proxmox) and `lab118-services` (Contabo).
+Currently managed hosts: `dockhand`, `notifications`, `uptime-kuma`, `pr-previews`, `dashboard`, `agents`, `workbench`, `openclaw`, `inference`, `cglt-previews` (Proxmox) and `lab118-services` (Contabo).
 
 ### Cloud host lab118-services
 
@@ -70,6 +70,19 @@ one model as `local` through llama-server, behind nginx with a key per client,
 to Home Assistant's voice assistant (and the Mac), plus Home Assistant's
 Whisper and Piper. The agents run on cloud models. It has its own age key and no HA, since it's tied to the
 node with the card. See [docs/inference/REFERENCE.md](docs/inference/REFERENCE.md).
+
+### CGLT pull-request previews
+
+`cglt-previews` runs CGLT's pull-request previews: one Docker Compose project
+per tagged instance, its data a ZFS clone of a nightly golden copy, and
+routed by Traefik behind the Pangolin VPS. The monorepo's workflows run on
+GitHub-hosted runners and deploy over SSH: a raw TCP resource on the VPS
+reaches sshd's port 2222, where `preview-deploy` can only run `preview-ctl`.
+There's no runner on the host. It's built like `automation` (its own age
+key) but isn't HA: it stays on proxmox4's local ZFS storage with the `host`
+CPU type, for speed. It's fenced off from the rest of the LAN because deploy
+jobs are root there. It replaces `pr-previews` at cutover. See
+[docs/cglt-previews/REFERENCE.md](docs/cglt-previews/REFERENCE.md).
 
 The provisioning flow expects:
 

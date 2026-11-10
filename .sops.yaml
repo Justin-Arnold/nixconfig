@@ -38,6 +38,11 @@ automation_recipients: &automation_recipients
   - age1kd98t726mqm94n5v8j43y5ryt2p32t7sf3hphsz8cze3c5puhutqn49jtn # automation host
   - age1ljfvx33psxcat4wwjpq6u26f5fv9jzntg8z266mhykpxh78upalqxfflz3 # operator
 
+# Same arrangement for cglt-previews.
+cglt_previews_recipients: &cglt_previews_recipients
+  - age1exah4jl8hx23cmv5yj4xhxwvt20whpkas95x0ryr9veczp8xluhseale32 # cglt-previews host
+  - age1ljfvx33psxcat4wwjpq6u26f5fv9jzntg8z266mhykpxh78upalqxfflz3 # operator
+
 creation_rules:
   - path_regex: ^secrets/hosts/lab118-services\.ya?ml$
     key_groups:
@@ -60,6 +65,9 @@ creation_rules:
   - path_regex: ^secrets/hosts/automation\.ya?ml$
     key_groups:
       - age: *automation_recipients
+  - path_regex: ^secrets/hosts/cglt-previews\.ya?ml$
+    key_groups:
+      - age: *cglt_previews_recipients
   - path_regex: ^secrets/.*\.ya?ml$
     key_groups:
       - age: *age_recipients

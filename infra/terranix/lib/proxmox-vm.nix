@@ -11,6 +11,9 @@
   memoryMb ? 2048,
   diskSizeGb ? 20,
   datastore ? "local-lvm",
+  # Whether Proxmox backup jobs (vzdump) include the disk. false turns the
+  # disk's `backup` flag off, so even a job that covers every VM skips it.
+  diskBackup ? true,
   # Where the cloud-init drive lives. The provider defaults it to local-lvm,
   # which ties the VM to its first node: HA can't recover it elsewhere and
   # migration has to copy it. HA VMs should put it on the same shared storage
@@ -134,11 +137,12 @@ assert lib.assertMsg (hostPci == [ ] || machine == "q35")
         }
         // lib.optionalAttrs hasManagedDisk {
           disk = [
-            {
+            ({
               datastore_id = datastore;
               interface = "scsi0";
               size = diskSizeGb;
             }
+            // lib.optionalAttrs (!diskBackup) { backup = false; })
           ];
         }
         // lib.optionalAttrs (machine != null) { inherit machine; }

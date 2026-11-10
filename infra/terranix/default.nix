@@ -22,6 +22,7 @@ in
   openclaw = proxmox ./hosts/openclaw.nix // { hostAgeKey = true; };
   inference = proxmox ./hosts/inference.nix // { hostAgeKey = true; };
   automation = proxmox ./hosts/automation.nix // { hostAgeKey = true; };
+  cglt-previews = proxmox ./hosts/cglt-previews.nix // { hostAgeKey = true; };
 
   lab118-services = {
     platform = "contabo";
