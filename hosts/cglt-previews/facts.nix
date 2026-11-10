@@ -46,6 +46,15 @@
   coldGoldenDir = "/srv/previews-cold/golden";
   coldDisk = "/dev/disk/by-id/scsi-0QEMU_QEMU_HARDDISK_drive-scsi1";
 
+  # Warpgate on access-01, CGLT's bastion in AWS (the monorepo's
+  # infrastructure/). People reach Dockhand only through it: its HTTP target
+  # `dockhand` is bound to dockhandUrl and proxies to dockhand.<domain>, and
+  # Traefik's dockhand route answers only access-01's Elastic IP (ingress.nix).
+  warpgate = {
+    dockhandUrl = "https://dockhand.access.commongoodlt.dev";
+    egressIp = "18.218.255.106";
+  };
+
   # The ops tools listen on loopback; Traefik publishes them (ingress.nix).
   ports = {
     dockhand = 3000;

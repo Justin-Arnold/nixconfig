@@ -2,9 +2,10 @@
 # publishes (ingress.nix):
 #
 #   dockhand.preview.commongoodlt.dev  Dockhand: live logs, a shell in any
-#                                      container, compose stacks. Behind
-#                                      Traefik's ops-auth, then its own login
-#                                      once someone switches that on.
+#                                      container, compose stacks. Answers only
+#                                      Warpgate, which people open at
+#                                      dockhand.access.commongoodlt.dev
+#                                      (ingress.nix). Its own login stays off.
 #   files.preview.commongoodlt.dev     File Browser on /srv/previews/config,
 #                                      where each preview's local-overrides.php
 #                                      lives. Its own login.
@@ -12,8 +13,12 @@
 #                                      mail to (mailpit:1025 on preview-edge).
 #                                      Its own login.
 #
-# Dockhand has the Docker socket, so its login is root on this host. In the
-# free edition every account is an admin; give accounts to developers only.
+# Dockhand has the Docker socket, so reaching it is root on this host. Its
+# own login would add nothing: in the free edition every account is an admin
+# and nothing is audited. Worse, its 401s make browsers drop the ops-auth
+# login. Warpgate gives each person their own login with MFA and logs every
+# request; give its previews-ops role to developers only. Dockhand still
+# warns "Unsecured exposure" at startup, because it can't see Warpgate.
 #
 # To move an image: look up the new tag's digest
 # (`curl -s https://hub.docker.com/v2/repositories/<repo>/tags/<tag> | jq -r .digest`)
@@ -65,7 +70,8 @@ in
       environment = {
         DATA_DIR = "/var/lib/dockhand";
         HOST_DATA_DIR = "/var/lib/dockhand";
-        ORIGIN = "https://dockhand.${facts.domain}";
+        # Where browsers have it open. Warpgate passes their Origin header on.
+        ORIGIN = facts.warpgate.dockhandUrl;
         # Only Traefik reaches it, and Traefik passes on what the Newt said.
         TRUST_FORWARDED_HEADERS = "true";
         COOKIE_SECURE = "true";

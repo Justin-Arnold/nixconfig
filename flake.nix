@@ -680,6 +680,9 @@
                 traefik-exposed-by-default = traefik { providers.docker.exposedByDefault = lib.mkForce true; };
                 traefik-second-provider = traefik { providers.http.endpoint = "http://10.0.0.20/routes"; };
                 dockhand-without-gate = http { routers.dockhand.middlewares = lib.mkForce [ "preview-noindex" ]; };
+                dockhand-without-warpgate = http { routers.dockhand.middlewares = lib.mkForce [ "ops-auth" "preview-noindex" ]; };
+                dockhand-allowlist-widened = http { middlewares.warpgate-only.ipAllowList.sourceRange = lib.mkForce [ "0.0.0.0/0" ]; };
+                dockhand-allowlist-remote-addr = http { middlewares.warpgate-only.ipAllowList.ipStrategy = lib.mkForce { }; };
                 ops-route-to-lan = http { services.mail.loadBalancer.servers = lib.mkForce [ { url = "http://10.0.0.20:80"; } ]; };
                 extra-file-route = http { routers.lan = { rule = "Host(`lan.preview.commongoodlt.dev`)"; service = "mail"; }; };
                 container-on-all-interfaces = container "mailpit" { ports = lib.mkForce [ "8025:8025" ]; };

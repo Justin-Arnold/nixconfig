@@ -32,7 +32,7 @@ serving until the cutover.
 | VM | Proxmox on proxmox4, 12 vCPU (CPU type `host`), 48 GB, VM id 145, MAC `02:01:18:00:00:0b`, not HA, disks excluded from backups |
 | Disks | `scsi0`, 500 GB on `zfs-pool` (proxmox4's local ZFS): 8 GB swap, 80 GB ext4 `/` (Docker), and the ZFS pool `tank` for what open PRs use. `scsi1`, 1 TB on `nas-previews` (TrueNAS `Main/cglt-previews`): the ZFS pool `cold` for golden copies. |
 | Previews | `https://<tag>-pr<N>.preview.commongoodlt.dev`, public. The apps have their own login. |
-| Ops tools | `dockhand.`, `files.` and `mail.preview.commongoodlt.dev`, each behind a login |
+| Ops tools | Dockhand through Warpgate only, at `https://dockhand.access.commongoodlt.dev`; `files.` and `mail.preview.commongoodlt.dev` behind their own logins |
 | Ingress | Pangolin VPS (wildcard TLS, hand-written route) → home site's Newt (`10.0.0.72`) → this VM, port 80 → Traefik |
 | Deploys | GitHub-hosted runner → Pangolin VPS, raw TCP port 2222 → Newt → this VM, port 2222 → sshd, user `preview-deploy`, forced command `preview-ctl`. No runner on the host. |
 | Login | `ssh justin@<vm-ip>` from the LAN or VPN, Mac Mini key only. Root has no SSH. `preview-deploy` has no login on port 22. |
@@ -384,7 +384,7 @@ replace the secret, then remove the old public half and switch again.
 browser ──https──▶ Pangolin VPS 5.161.94.68 (Traefik, *.preview.commongoodlt.dev wildcard cert)
         ──▶ home site's Newt (pangolin-newt VM, 10.0.0.72) ──http :80──▶ cglt-previews Traefik
             ├─ <tag>-pr<N>.preview…  ▶ container on preview-edge (Docker labels)
-            ├─ dockhand.preview…     ▶ 127.0.0.1:3000  (basic auth "ops-auth", then Dockhand)
+            ├─ dockhand.preview…     ▶ 127.0.0.1:3000  (Warpgate's IP only, then basic auth "ops-auth", then Dockhand)
             ├─ files.preview…        ▶ 127.0.0.1:8081  (File Browser login)
             └─ mail.preview…         ▶ 127.0.0.1:8025  (Mailpit login)
 ```
@@ -600,7 +600,7 @@ How it works:
 
 | Tool | URL | Login | Notes |
 |---|---|---|---|
-| Dockhand 1.0.57 | `dockhand.preview.commongoodlt.dev` | Traefik basic auth (`traefik/ops-users`), then Dockhand's own | Starts with its own login off. There's no setting to force it on, hence the basic-auth gate. Turn it on under Settings → Authentication. In the free edition every account is an admin, and Dockhand has the Docker socket, so give accounts to developers only. It also starts with no Docker environment, so it shows nothing until you add one once: Settings → Environments → Add environment, connection type Unix socket, path `/var/run/docker.sock`. The environment is kept in `/var/lib/dockhand`. |
+| Dockhand 1.0.57 | `https://dockhand.access.commongoodlt.dev` (Warpgate) | Warpgate, role `previews-ops` | Only Warpgate reaches `dockhand.preview.commongoodlt.dev`; see "Dockhand through Warpgate" below. Keep Dockhand's own login off. It also starts with no Docker environment, so it shows nothing until you add one once: Settings → Environments → Add environment, connection type Unix socket, path `/var/run/docker.sock`. The environment is kept in `/var/lib/dockhand`. |
 | File Browser 2.63.23 | `files.preview.commongoodlt.dev` | `filebrowser/admin-username` and the password behind `filebrowser/admin-password-hash` | Runs as uid 33 on `/srv/previews/config`, with the command runner off. The credentials are read only when its database is first created. |
 | Mailpit 1.33.1 | `mail.preview.commongoodlt.dev` | `mailpit/ui-auth` | Keeps the last 5000 messages in `/var/lib/mailpit`. |
 
@@ -614,6 +614,65 @@ curl -s https://hub.docker.com/v2/repositories/<repo>/tags/<tag> | jq -r .digest
 File Browser's repository was archived on 2026-09-01, so there will be no
 more releases or security fixes. 2.63.23 is its last release. It only sits
 behind its own login on config files, but it should be replaced.
+
+### Dockhand through Warpgate
+
+Dockhand has the Docker socket, so whoever reaches it is root here. People
+open it through Warpgate on access-01, CGLT's bastion in AWS (the monorepo's
+`infrastructure/`), at `https://dockhand.access.commongoodlt.dev`. Warpgate
+signs them in with their own account and MFA, checks they hold the
+`previews-ops` role, and logs every request it passes on (method, path,
+status) under their session. That log is Dockhand's audit trail: restarts,
+shells and stack changes are all API calls.
+
+```
+browser ──https──▶ access-01 nginx ──▶ Warpgate (login, role previews-ops)
+        ──https──▶ dockhand.preview.commongoodlt.dev via the Pangolin VPS and the Newt
+        ──▶ Traefik: warpgate-only (18.218.255.106) ▶ ops-auth (header from Warpgate) ▶ Dockhand
+```
+
+Two locks on this host keep everyone else out, in this order on the
+`dockhand` route (`ingress.nix` asserts both):
+
+1. **`warpgate-only`** lets in only access-01's Elastic IP. The Pangolin
+   VPS's Traefik puts the address it was called from at the right end of
+   `X-Forwarded-For`, the Newt passes it on unchanged, and the middleware
+   reads that entry (`ipStrategy.depth = 1`). Anyone else gets `403
+   Forbidden`, without a password prompt.
+2. **`ops-auth`** checks the `traefik/ops-users` login. Nobody types it:
+   Warpgate's `dockhand` target sends it as an `Authorization` header on
+   every request, WebSocket upgrades included.
+
+Dockhand's own login stays off. In the free edition every account is an
+admin and nothing is audited, so it would add nothing. Worse, its 401s break
+the basic-auth gate: a browser that gets a 401 for a request it sent a
+basic-auth login with drops that login and prompts again, so Dockhand's
+login page can't be reached. Dockhand still logs "Unsecured exposure" at
+startup, because it can't see Warpgate. That's expected.
+
+Dockhand's `ORIGIN` is the Warpgate address, because Warpgate passes the
+browser's `Origin` header on unchanged.
+
+**The Warpgate side** (the Warpgate admin UI, `https://access.commongoodlt.dev`):
+
+| Setting | Value |
+|---|---|
+| Target | HTTP, name `dockhand` |
+| URL | `https://dockhand.preview.commongoodlt.dev`, TLS verified |
+| Bind to a domain | `dockhand.access.commongoodlt.dev` |
+| Custom header | `Authorization: Basic <base64 of user:password>` for the `traefik/ops-users` login |
+| Access role | `previews-ops` |
+
+`dockhand.access.commongoodlt.dev` is an A record in Porkbun to
+`18.218.255.106`, and access-01's nginx certificate covers it
+(`cglt.warpgate.boundDomains` in the monorepo). Give `previews-ops` to
+developers only. Taking it away, or disabling the Warpgate account, ends
+their access.
+
+If access-01's Elastic IP changes, change `warpgate.egressIp` in `facts.nix`
+and switch; until then Dockhand answers `403` to everyone. To change the
+gate password, replace `traefik/ops-users`, switch, and update the target's
+`Authorization` header.
 
 ## The network fence
 
@@ -655,7 +714,7 @@ is still `pending`.
 |---|---|---|
 | `root/console-password-hash` | the root password for the Proxmox console | `nix shell nixpkgs#mkpasswd -c mkpasswd -m yescrypt` |
 | `beszel/agent-token` | the Beszel hub's universal token | the hub's UI |
-| `traefik/ops-users` | htpasswd lines (bcrypt) for the gate in front of Dockhand | `nix shell nixpkgs#apacheHttpd -c htpasswd -nB <user>`, one line per person |
+| `traefik/ops-users` | the htpasswd line (bcrypt) for the gate in front of Dockhand. Warpgate's `dockhand` target sends it; nobody types it. | `nix shell nixpkgs#apacheHttpd -c htpasswd -nBC 12 admin` |
 | `dockhand/encryption-key` | encrypts what Dockhand stores. Never change it. | `openssl rand -base64 32` |
 | `filebrowser/admin-username` | File Browser's first admin | e.g. `admin` |
 | `filebrowser/admin-password-hash` | that admin's bcrypt hash | `nix shell nixpkgs#apacheHttpd -c htpasswd -nB admin \| cut -d: -f2` |
