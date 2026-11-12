@@ -11,8 +11,8 @@
 # network. The ops tools are routes in the file provider below, to their
 # loopback ports.
 #
-# Dockhand answers only Warpgate (facts.warpgate): first warpgate-only, then
-# ops-auth, whose password Warpgate's dockhand target sends on every request.
+# The ops tools answer only Warpgate (facts.warpgate): first warpgate-only,
+# then ops-auth, whose password Warpgate's targets send on every request.
 { config, lib, pkgs, ... }:
 let
   facts = import ./facts.nix;
@@ -31,22 +31,21 @@ let
   };
   docker = "${config.virtualisation.docker.package}/bin/docker";
 
+  opsGate = [ "warpgate-only" "ops-auth" ];
   opsRoute = name: port: middlewares: {
     routers.${name} = {
       rule = "Host(`${name}.${facts.domain}`)";
       entryPoints = [ "web" ];
       service = name;
-      inherit middlewares;
+      middlewares = opsGate ++ middlewares;
     };
     services.${name}.loadBalancer.servers = [ { url = "http://127.0.0.1:${toString port}"; } ];
   };
 in
 {
-  # The htpasswd line (bcrypt) for the gate in front of Dockhand. Nobody types
-  # it: Warpgate's dockhand target sends it as an Authorization header.
-  # Dockhand's own login stays off; its 401s would make browsers drop a
-  # basic-auth login (docs/cglt-previews/REFERENCE.md, "Dockhand through
-  # Warpgate").
+  # The htpasswd line (bcrypt) for the gate in front of the ops tools. Nobody
+  # types it: Warpgate's targets send it as an Authorization header
+  # (docs/cglt-previews/REFERENCE.md, "Ops tools through Warpgate").
   sops.secrets."traefik/ops-users" = {
     owner = "traefik";
     restartUnits = [ "traefik.service" ];
@@ -93,8 +92,7 @@ in
           };
         };
       }
-      (opsRoute "dockhand" facts.ports.dockhand [ "warpgate-only" "ops-auth" "preview-noindex" ])
-      # File Browser and Mailpit have their own logins (ops.nix).
+      (opsRoute "dockhand" facts.ports.dockhand [ "preview-noindex" ])
       (opsRoute "files" facts.ports.filebrowser [ "preview-noindex" ])
       (opsRoute "mail" facts.ports.mailpit [ "preview-noindex" ])
     ];
@@ -144,15 +142,15 @@ in
     }
     {
       assertion = lib.sort lib.lessThan (lib.attrNames routers) == [ "dockhand" "files" "mail" ]
-        && lib.elem "ops-auth" (routers.dockhand.middlewares or [ ])
         && lib.all (s: lib.all (srv: lib.hasPrefix "http://127.0.0.1:" (srv.url or "")) (s.loadBalancer.servers or [ ])) (lib.attrValues services)
         && lib.all (s: s ? loadBalancer) (lib.attrValues services);
-      message = "cglt-previews: the file provider routes dockhand., files. and mail. to loopback only, Dockhand behind ops-auth.";
+      message = "cglt-previews: the file provider routes dockhand., files. and mail. to loopback only.";
     }
     {
-      assertion = lib.take 2 (routers.dockhand.middlewares or [ ]) == [ "warpgate-only" "ops-auth" ]
-        && (middlewares.warpgate-only or null) == warpgateOnly;
-      message = "cglt-previews: Dockhand answers only Warpgate (${facts.warpgate.egressIp}, X-Forwarded-For depth 1), then ops-auth.";
+      assertion = lib.all (router: lib.take 2 (router.middlewares or [ ]) == opsGate) (lib.attrValues routers)
+        && (middlewares.warpgate-only or null) == warpgateOnly
+        && (middlewares.ops-auth.basicAuth.usersFile or null) == config.sops.secrets."traefik/ops-users".path;
+      message = "cglt-previews: every ops tool answers only Warpgate (${facts.warpgate.egressIp}, X-Forwarded-For depth 1), then ops-auth.";
     }
   ];
 }

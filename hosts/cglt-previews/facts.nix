@@ -47,11 +47,12 @@
   coldDisk = "/dev/disk/by-id/scsi-0QEMU_QEMU_HARDDISK_drive-scsi1";
 
   # Warpgate on access-01, CGLT's bastion in AWS (the monorepo's
-  # infrastructure/). People reach Dockhand only through it: its HTTP target
-  # `dockhand` is bound to dockhandUrl and proxies to dockhand.<domain>, and
-  # Traefik's dockhand route answers only access-01's Elastic IP (ingress.nix).
+  # infrastructure/). People reach the ops tools only through it: each has an
+  # HTTP target of the same name, bound to <name>.<warpgate.domain> and
+  # proxying to <name>.<domain>, and Traefik's ops routes answer only
+  # access-01's Elastic IP (ingress.nix).
   warpgate = {
-    dockhandUrl = "https://dockhand.access.commongoodlt.dev";
+    domain = "access.commongoodlt.dev";
     egressIp = "18.218.255.106";
   };
 

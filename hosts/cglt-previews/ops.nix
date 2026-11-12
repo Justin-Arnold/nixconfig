@@ -1,24 +1,19 @@
 # The ops tools, each a pinned container on a loopback port that Traefik
-# publishes (ingress.nix):
+# publishes (ingress.nix). Each answers only Warpgate, where people open it at
+# <name>.access.commongoodlt.dev:
 #
-#   dockhand.preview.commongoodlt.dev  Dockhand: live logs, a shell in any
-#                                      container, compose stacks. Answers only
-#                                      Warpgate, which people open at
-#                                      dockhand.access.commongoodlt.dev
-#                                      (ingress.nix). Its own login stays off.
-#   files.preview.commongoodlt.dev     File Browser on /srv/previews/config,
-#                                      where each preview's local-overrides.php
-#                                      lives. Its own login.
-#   mail.preview.commongoodlt.dev      Mailpit, which every preview sends its
-#                                      mail to (mailpit:1025 on preview-edge).
-#                                      Its own login.
+#   dockhand  Dockhand: live logs, a shell in any container, compose stacks.
+#   files     File Browser on /srv/previews/config, where each preview's
+#             local-overrides.php lives.
+#   mail      Mailpit, which every preview sends its mail to (mailpit:1025 on
+#             preview-edge).
 #
-# Dockhand has the Docker socket, so reaching it is root on this host. Its
-# own login would add nothing: in the free edition every account is an admin
-# and nothing is audited. Worse, its 401s make browsers drop the ops-auth
-# login. Warpgate gives each person their own login with MFA and logs every
-# request; give its previews-ops role to developers only. Dockhand still
-# warns "Unsecured exposure" at startup, because it can't see Warpgate.
+# None has a login of its own. Warpgate gives each person their own login
+# with MFA and logs every request; its previews-ops role is the one thing to
+# grant or take away, so give it to developers only. The tools' own logins
+# would only be shared accounts on top: Dockhand's free edition makes every
+# account an admin and audits nothing. Dockhand still warns "Unsecured
+# exposure" at startup, because it can't see Warpgate.
 #
 # To move an image: look up the new tag's digest
 # (`curl -s https://hub.docker.com/v2/repositories/<repo>/tags/<tag> | jq -r .digest`)
@@ -29,26 +24,14 @@ let
   root = facts.previewsRoot;
   containers = config.virtualisation.oci-containers.containers;
   loopback = port: "127.0.0.1:${toString port}";
+  docker = "${config.virtualisation.docker.package}/bin/docker";
 in
 {
-  sops.secrets = {
-    "dockhand/encryption-key".restartUnits = [ "docker-dockhand.service" ];
-    "filebrowser/admin-username".restartUnits = [ "docker-filebrowser.service" ];
-    "filebrowser/admin-password-hash".restartUnits = [ "docker-filebrowser.service" ];
-    "mailpit/ui-auth".restartUnits = [ "docker-mailpit.service" ];
-  };
+  sops.secrets."dockhand/encryption-key".restartUnits = [ "docker-dockhand.service" ];
 
-  sops.templates = {
-    "dockhand.env".content = ''
-      ENCRYPTION_KEY=${config.sops.placeholder."dockhand/encryption-key"}
-    '';
-    # Read only when the database doesn't exist yet (File Browser's quick
-    # setup). Change the password in File Browser after that.
-    "filebrowser.env".content = ''
-      FB_USERNAME=${config.sops.placeholder."filebrowser/admin-username"}
-      FB_PASSWORD=${config.sops.placeholder."filebrowser/admin-password-hash"}
-    '';
-  };
+  sops.templates."dockhand.env".content = ''
+    ENCRYPTION_KEY=${config.sops.placeholder."dockhand/encryption-key"}
+  '';
 
   systemd.tmpfiles.rules = [
     "d /var/lib/dockhand 0750 root root -"
@@ -71,7 +54,7 @@ in
         DATA_DIR = "/var/lib/dockhand";
         HOST_DATA_DIR = "/var/lib/dockhand";
         # Where browsers have it open. Warpgate passes their Origin header on.
-        ORIGIN = facts.warpgate.dockhandUrl;
+        ORIGIN = "https://dockhand.${facts.warpgate.domain}";
         # Only Traefik reaches it, and Traefik passes on what the Newt said.
         TRUST_FORWARDED_HEADERS = "true";
         COOKIE_SECURE = "true";
@@ -102,8 +85,11 @@ in
         "--database=/database/filebrowser.db"
         # The command runner runs shell commands as uid 33 in the container.
         "--disableExec=true"
+        # No login: everyone works as its first user, admin. This sets it
+        # when File Browser creates its database; the preStart below sets it
+        # on an existing one.
+        "--noauth"
       ];
-      environmentFiles = [ config.sops.templates."filebrowser.env".path ];
       # The image's check reads the settings file this setup doesn't use.
       extraOptions = [ "--no-healthcheck" ];
     };
@@ -113,14 +99,10 @@ in
       ports = [ "${loopback facts.ports.mailpit}:8025" ];
       networks = [ facts.edgeNetwork ];
       extraOptions = [ "--network-alias=mailpit" ];
-      volumes = [
-        "/var/lib/mailpit:/data"
-        "${config.sops.secrets."mailpit/ui-auth".path}:/run/mailpit/ui-auth:ro"
-      ];
+      volumes = [ "/var/lib/mailpit:/data" ];
       environment = {
         MP_SMTP_BIND_ADDR = "0.0.0.0:1025";
         MP_UI_BIND_ADDR = "0.0.0.0:8025";
-        MP_UI_AUTH_FILE = "/run/mailpit/ui-auth";
         # Previews send with whatever their instance config says: any sender,
         # any SMTP login or none, no TLS.
         MP_SMTP_AUTH_ACCEPT_ANY = "true";
@@ -130,6 +112,19 @@ in
       };
     };
   };
+
+  # File Browser keeps its login method in its database, and --noauth only
+  # applies when it creates one. Set it on the existing database before each
+  # start, once no container holds the database's lock.
+  systemd.services.docker-filebrowser.preStart = lib.mkAfter ''
+    ${docker} rm -f filebrowser >/dev/null 2>&1 || true
+    if [ -e /var/lib/filebrowser/filebrowser.db ]; then
+      ${docker} run --rm --network none --user 33:33 \
+        -v /var/lib/filebrowser:/database --entrypoint /bin/filebrowser \
+        ${containers.filebrowser.image} \
+        config set --auth.method=noauth --database /database/filebrowser.db >/dev/null
+    fi
+  '';
 
   systemd.services.docker-mailpit = {
     requires = [ "preview-edge-network.service" ];
@@ -148,10 +143,6 @@ in
     {
       assertion = lib.elem "--disableExec=true" containers.filebrowser.cmd && containers.filebrowser.user == "33:33";
       message = "cglt-previews: File Browser runs as uid 33 with its command runner off.";
-    }
-    {
-      assertion = containers.mailpit.environment ? MP_UI_AUTH_FILE && !(containers.mailpit.environment ? MP_UI_AUTH);
-      message = "cglt-previews: Mailpit's UI asks for a login from the SOPS file.";
     }
   ];
 }
