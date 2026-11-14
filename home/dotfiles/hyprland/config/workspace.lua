@@ -17,19 +17,19 @@ hl.workspace_rule({
 })
 
 hl.workspace_rule({
-    workspace = "4",
+    workspace = "2",
     monitor = displays.center.desc,
 })
 
 hl.workspace_rule({
-    workspace = "7",
+    workspace = "3",
     monitor = displays.center.desc,
 })
 
 
 -- Left Monitor
 hl.workspace_rule({
-    workspace = "2",
+    workspace = "4",
     monitor = displays.left.desc,
     default = true,
 })
@@ -40,20 +40,20 @@ hl.workspace_rule({
 })
 
 hl.workspace_rule({
-    workspace = "8",
+    workspace = "6",
     monitor = displays.left.desc,
 })
 
 
 -- Right Monitor
 hl.workspace_rule({
-    workspace = "3",
+    workspace = "7",
     monitor = displays.right.desc,
     default = true,
 })
 
 hl.workspace_rule({
-    workspace = "6",
+    workspace = "8",
     monitor = displays.right.desc,
 })
 

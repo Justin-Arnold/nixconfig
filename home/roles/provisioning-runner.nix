@@ -21,8 +21,8 @@
     pkgs.jq
     pkgs.openssh
     pkgs.terraform
-    inputs.nixos-anywhere.packages.${pkgs.system}.default
-    inputs.terranix.packages.${pkgs.system}.default
+    inputs.nixos-anywhere.packages.${pkgs.stdenv.hostPlatform.system}.default
+    inputs.terranix.packages.${pkgs.stdenv.hostPlatform.system}.default
   ];
 
   programs.zsh.initContent = ''
