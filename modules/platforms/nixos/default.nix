@@ -27,6 +27,9 @@
 
   modules = {
     apps = {
+      blueman = {
+        enable = config.systemProfile.hasGui;
+      };
       # 1Password desktop app (and its SSH agent) only where there is a GUI.
       # Every host keeps the `op` CLI from modules/common.
       onepassword = {
