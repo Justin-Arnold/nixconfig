@@ -33,6 +33,10 @@
     };
     codex-desktop-linux.url = "github:ilysenko/codex-desktop-linux";
     codex-cli-nix.url = "github:sadjow/codex-cli-nix/main";
+    claude-desktop = {
+      url = "github:aaddrick/claude-desktop-debian";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
     # The agents VM's Hermes instances (roles.hermesAgents), pinned to a
     # release. Its own nixpkgs builds it; home-manager is only for its checks.
     hermes-agent = {

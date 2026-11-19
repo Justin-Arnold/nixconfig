@@ -26,6 +26,16 @@
   boot.loader.timeout = 5;
   boot.kernelPackages = pkgs.linuxPackages_latest;
 
+  # Claude Cowork uses the KVM support from hardware-configuration.nix.
+  boot.kernelModules = [ "vhost_vsock" ];
+  users.users.${config.systemProfile.username}.extraGroups = [ "kvm" ];
+  # Claude probes these paths directly when preparing its QEMU guest.
+  systemd.tmpfiles.rules = [
+    "L+ /usr/share/OVMF/OVMF_CODE_4M.fd - - - - ${pkgs.OVMF.firmware}"
+    "L+ /usr/share/OVMF/OVMF_VARS_4M.fd - - - - ${pkgs.OVMF.variables}"
+    "L+ /usr/libexec/virtiofsd - - - - ${pkgs.virtiofsd}/bin/virtiofsd"
+  ];
+
   ############################################################
   ## Networking
   ############################################################
@@ -67,6 +77,7 @@
   ## Home Manager Configuration
   ##############################################################
   home-manager.users.justin = { ... }: {
+    home.packages = [ pkgs.qemu_kvm ];
     imports = [ 
       ../../home/roles/provisioning-runner.nix
     ];
