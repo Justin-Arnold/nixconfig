@@ -14,10 +14,9 @@ in {
 
   programs.codexDesktopLinux = {
     enable = true;
-    cliPackage = codexCli;
     
     computerUseUi.enable = true;
-    remoteControl.enable = true;
+    remoteControl.enable = false;
     remoteMobileControl.enable = true;
 
     linuxFeatures = [
