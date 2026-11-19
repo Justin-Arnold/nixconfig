@@ -1,4 +1,4 @@
-# Apps that only exist on NixOS: Flatpak and the apps it installs. The
+# Apps that only exist on NixOS: Blueman, Flatpak and the apps it installs. The
 # options keep the shared modules.apps names; apps that work on both
 # platforms live in modules/apps.
 { lib, ... }:
