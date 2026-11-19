@@ -57,6 +57,7 @@
   };
 
   programs.zsh.enable = true;
+  programs.nix-ld.enable = true;
   #programs.ssh.startAgent = true;
   #programs.ssh.extraConfig = ''
   # Host *
