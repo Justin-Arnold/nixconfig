@@ -227,6 +227,7 @@
         in {
           doppler-secrets = import ./modules/roles/doppler-secrets/check.nix { inherit pkgs lib; };
           sqlite-backup = import ./modules/roles/sqlite-backup/check.nix { inherit pkgs lib; };
+          scene = import ./modules/roles/scene/check.nix { inherit pkgs; };
           agent-watch = import ./hosts/agents/agent-watch/check.nix { inherit pkgs; };
           agent-costs = import ./hosts/agents/agent-costs/check.nix { inherit pkgs; };
           lab-health = import ./hosts/agents/lab-health/check.nix { inherit pkgs; };

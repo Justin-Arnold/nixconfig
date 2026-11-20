@@ -4,6 +4,7 @@ local applications = require("hyprland.data.applications")
 local keybindings = require("hyprland.data.keybindings")
 
 require("hyprland.config.popout")
+require("hyprland.config.scenes")
 require("hyprland.config.animation")
 require("hyprland.config.autostart")
 require("hyprland.config.decoration")

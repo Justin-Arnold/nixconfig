@@ -1,5 +1,5 @@
 { home-manager, pkgs, inputs, lib, sops-nix, zen-browser, config, ... }: {
-  imports = [ home-manager.nixosModules.home-manager ./desktopEnvironments ./apps ../../roles/text-expansion ];
+  imports = [ home-manager.nixosModules.home-manager ./desktopEnvironments ./apps ../../roles/text-expansion ../../roles/scene ];
 
   system.stateVersion = config.systemProfile.stateVersion;
 
