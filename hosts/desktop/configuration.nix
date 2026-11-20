@@ -16,6 +16,7 @@
     hostname = "desktop";
     stateVersion = "24.05";
     hasGui = true;
+    forCglt = true;
   };
 
   ############################################################
