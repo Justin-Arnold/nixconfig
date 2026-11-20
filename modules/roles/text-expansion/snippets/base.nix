@@ -3,5 +3,6 @@
 {
   roles.textExpansion.groups.base = {
     ";em" = config.systemProfile.email;
+    ";eface" = "👁️🫦👁️";
   };
 }
