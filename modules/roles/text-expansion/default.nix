@@ -2,8 +2,9 @@
 #
 # Text expansion for NixOS GUI hosts (espanso on Wayland).
 #
-# Expansions are declared as groups of `trigger = replacement` pairs under
-# roles.textExpansion.groups. Every .nix file in ./snippets is imported
+# Expansions are declared as groups of `name = replacement` pairs under
+# roles.textExpansion.groups. The module adds ";" to each name to form its
+# trigger. Every .nix file in ./snippets is imported
 # automatically, so an area of expansions is added by dropping a file there
 # and removed by deleting it.
 #
@@ -18,7 +19,10 @@ let
 
   # espanso reads YAML; JSON is valid YAML.
   matchFile = snippets: builtins.toJSON {
-    matches = lib.mapAttrsToList (trigger: replace: { inherit trigger replace; }) snippets;
+    matches = lib.mapAttrsToList (name: replace: {
+      trigger = ";${name}";
+      inherit replace;
+    }) snippets;
   };
 
   configDir = "/etc/espanso";
@@ -37,8 +41,8 @@ in
     groups = lib.mkOption {
       type = lib.types.attrsOf (lib.types.attrsOf lib.types.str);
       default = { };
-      example = { base = { ";em" = "me@example.com"; }; };
-      description = "Named groups of expansions, each mapping a trigger to its replacement text.";
+      example = { base = { em = "me@example.com"; }; };
+      description = "Named groups of expansions mapping unprefixed snippet names to replacement text. Each trigger starts with a semicolon.";
     };
   };
 

@@ -4,7 +4,7 @@
 {
   config = lib.mkIf config.systemProfile.forCglt {
     roles.textExpansion.groups.cglt = {
-      ";cgem" = "justin@commongoodlt.com";
+      cgem = "justin@commongoodlt.com";
     };
   };
 }
