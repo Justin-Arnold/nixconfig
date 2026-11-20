@@ -31,6 +31,12 @@
       };
 
       modules.hyprland-workspaces.app-icons-show = true;
+
+      # Wayle's default, `loginctl terminate-session $XDG_SESSION_ID`, does
+      # nothing here: Wayle runs as a user service, which has no
+      # XDG_SESSION_ID. The session is run by UWSM (see
+      # desktopEnvironments/hyprland.nix), so ask it to stop.
+      modules.dashboard.dropdown-logout-command = "uwsm stop";
     };
   };
 }
