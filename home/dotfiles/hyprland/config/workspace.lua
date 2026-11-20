@@ -1,86 +1,16 @@
 -- https://wiki.hypr.land/Configuring/Basics/Workspace-Rules/
 
-local displays = require("hyprland.data.displays")
 local keybindings = require("hyprland.data.keybindings")
+local groups = require("hyprland.config.workspace_navigation")
 
-local hy3 = assert(
-    hl.plugin.hy3,
-    "hy3 plugin is not loaded"
-)
-
-
--- Center Monitor
-hl.workspace_rule({
-    workspace = "1",
-    monitor = displays.center.desc,
-    default = true,
-})
-
-hl.workspace_rule({
-    workspace = "2",
-    monitor = displays.center.desc,
-})
-
-hl.workspace_rule({
-    workspace = "3",
-    monitor = displays.center.desc,
-})
-
-
--- Left Monitor
-hl.workspace_rule({
-    workspace = "4",
-    monitor = displays.left.desc,
-    default = true,
-})
-
-hl.workspace_rule({
-    workspace = "5",
-    monitor = displays.left.desc,
-})
-
-hl.workspace_rule({
-    workspace = "6",
-    monitor = displays.left.desc,
-})
-
-
--- Right Monitor
-hl.workspace_rule({
-    workspace = "7",
-    monitor = displays.right.desc,
-    default = true,
-})
-
-hl.workspace_rule({
-    workspace = "8",
-    monitor = displays.right.desc,
-})
-
-hl.workspace_rule({
-    workspace = "9",
-    monitor = displays.right.desc,
-})
-
-
--- ---- KEYBINDINGS ----
-
--- Switch workspaces with mainMod + [0-9]
--- Move active hy3 node to a workspace with mainMod + SHIFT + [0-9]
-for i = 1, 10 do
-    local key = i % 10 -- 10 maps to key 0
-
-    hl.bind(
-        keybindings.main_mod .. " + " .. key,
-        hl.dsp.focus({ workspace = i })
-    )
-
-    hl.bind(
-        keybindings.main_mod .. " + SHIFT + " .. key,
-        hy3.move_to_workspace(tostring(i), {
-            follow = false,
+for _, group in ipairs(groups) do
+    for slot, workspace in ipairs(group.workspaces) do
+        hl.workspace_rule({
+            workspace = tostring(workspace),
+            monitor = group.monitor,
+            default = slot == 1 or nil,
         })
-    )
+    end
 end
 
 
