@@ -863,7 +863,7 @@ ssh -i ~/cglt-previews-deploy -o IdentitiesOnly=yes preview-deploy@<vm-ip> true
 # preview-deploy@<vm-ip>: Permission denied (publickey).
 ```
 
-Through Pangolin, from a monorepo checkout (`cd ~/Code/cglt/monorepo`),
+Through Pangolin, from a monorepo checkout (`cd ~/code/cglt/monorepo`),
 with the host key pinned (First install, step 9):
 
 ```sh
