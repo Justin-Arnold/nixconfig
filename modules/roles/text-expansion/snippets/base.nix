@@ -3,6 +3,8 @@
 {
   roles.textExpansion.groups.base = {
     em = config.systemProfile.email;
+    pem = "justin-arnold@programmer.net";
+    oem = "justintaylorarnold@gmail.com";
     eface = "👁️🫦👁️";
   };
 }
