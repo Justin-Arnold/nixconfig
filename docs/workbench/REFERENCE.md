@@ -37,6 +37,7 @@ backed up, and rebuilding it loses nothing that matters.
 | `hosts/workbench/prune-worktrees.sh` | Removes finished worktrees. |
 | `hosts/workbench/scripts.nix` | Packages those three scripts, for the host and the `agents-packages` check. |
 | `hosts/workbench/eval-test.nix` | Example values for the flake checks, not used by the real host. |
+| `hosts/workbench/exposure-guards.nix` | The cases `.#checks.<system>.workbench-exposure-guards` tries: each breaks the exposure policy, and evaluation has to refuse it. |
 | `infra/terranix/hosts/workbench.nix` | The VM, its node and storage. |
 | `hosts/agents/agents.nix` | The other end: the engineer's, reviewer's and infra's ssh terminals, and workbench's host key. |
 | `scripts/flake-check.sh` | What infra, the reviewer and CI run to check nixconfig: every host evaluates and every flake check builds. |

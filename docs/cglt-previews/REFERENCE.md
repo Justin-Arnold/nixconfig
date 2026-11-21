@@ -85,6 +85,7 @@ contents can all be pulled again from the instances.
 | `hosts/cglt-previews/ingress.nix` | Traefik, its middlewares and ops routes, and the `preview-edge` network. |
 | `hosts/cglt-previews/ops.nix` | Dockhand, File Browser and Mailpit. |
 | `hosts/cglt-previews/eval-test.nix` | Example values for the flake checks. The real host doesn't use it. |
+| `hosts/cglt-previews/exposure-guards.nix` | The cases `.#checks.<system>.cglt-previews-exposure-guards` tries: each breaks the exposure policy, and evaluation has to refuse it. |
 | `infra/terranix/hosts/cglt-previews.nix` | The VM: its node, storage and CPU type, and why it isn't HA. |
 | `secrets/hosts/cglt-previews.yaml` | The host's secrets. |
 

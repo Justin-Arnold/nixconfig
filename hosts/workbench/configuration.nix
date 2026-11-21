@@ -121,7 +121,8 @@ in
   ## Guards
   ############################################################
   # The exposure policy. .#checks.<system>.workbench-exposure-guards breaks
-  # each of these and fails unless evaluation refuses it.
+  # each of these (the cases are in ./exposure-guards.nix) and fails unless
+  # evaluation refuses it.
   assertions = [
     {
       assertion = publicTcpPorts == [ 22 ];

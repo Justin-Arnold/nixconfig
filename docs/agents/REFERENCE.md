@@ -42,6 +42,8 @@ separate execution host.
 | `hosts/agents/paperclip-events.nix`, `hosts/agents/paperclip-events/` | The relay that turns Paperclip's live events into nudges for agent-watch, board-bridge and agent-costs, and its test against a fake Paperclip. |
 | `hosts/agents/packages-check.nix` | The `agents-packages` check: builds the MCP servers, the services' Python and workbench's scripts as they're deployed. |
 | `hosts/agents/eval-test.nix` | Example values for the flake checks, not used by the real host. |
+| `hosts/agents/exposure-guards.nix` | The cases `.#checks.<system>.agents-exposure-guards` tries: each breaks the exposure policy, and evaluation has to refuse it. |
+| `hosts/agents/paperclip-spec-check.nix` | The `paperclip-spec` flake check: the spec's Hermes agents and routines match this host. |
 | `infra/terranix/hosts/agents.nix` | The VM, its storage, CPU type and HA resource. |
 | `hosts/agents/agents.nix` | The Hermes agents, their models, which ones have a Paperclip key, and what they may reach in the LAN. |
 | `hosts/agents/souls/` | Each agent's SOUL.md: its job and its limits, each ending with `asking-justin.md`, how to ask you a question. |
@@ -329,7 +331,7 @@ monitor did until November 2026, and its 64K slots and slow reading of long
 prompts made them compress often and run out of time. inference now serves
 Home Assistant's voice assistant and the Mac (`docs/inference/REFERENCE.md`).
 `roles.hermesAgents.providers` can still point agents at an endpoint like it,
-and its guards are tested with a stand-in provider in `flake.nix`.
+and its guards are tested with a stand-in provider in `hosts/agents/exposure-guards.nix`.
 
 Claude runs on an Anthropic API key, `anthropic/api-key`, from the Console
 organization's Default workspace, which spends the account's monthly credits.

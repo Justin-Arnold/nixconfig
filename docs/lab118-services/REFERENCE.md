@@ -33,6 +33,7 @@ the alert over cellular.
 | `hosts/lab118-services/doppler-secrets.nix` | Which Doppler keys exist and which runtime files they turn into. |
 | `hosts/lab118-services/disko.nix` | Disk layout (hybrid BIOS/UEFI GRUB). |
 | `hosts/lab118-services/eval-test.nix` | Example values used by a flake check, not by the real host. |
+| `hosts/lab118-services/exposure-guards.nix` | The cases `.#checks.<system>.lab118-services-exposure-guards` tries: each breaks the exposure policy, and evaluation has to refuse it. |
 | `modules/roles/notifications-stack.nix` | Alerta + PostgreSQL + Alerta web UI, ntfy, Apprise, Node-RED and the forwarder, as a reusable role. |
 | `modules/roles/notifications-stack/` | The forwarder, Alerta's `push` plugin and the Alerta build that includes it, with their tests. |
 | `modules/roles/uptime-kuma.nix` | Kuma in Docker with a pinned image. |

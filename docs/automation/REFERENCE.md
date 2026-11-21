@@ -38,6 +38,7 @@ it, and a switch that moves its version builds it on the VM from source.
 | `hosts/automation/n8n-credentials.json` | The n8n credentials, each field naming where its value is in SOPS. |
 | `hosts/automation/workflows/` | One file per workflow, as n8n's public API takes it. |
 | `hosts/automation/eval-test.nix` | Example values for the flake checks, not used by the real host. |
+| `hosts/automation/exposure-guards.nix` | The cases `.#checks.<system>.automation-exposure-guards` tries: each breaks the exposure policy, and evaluation has to refuse it. |
 | `infra/terranix/hosts/automation.nix` | The VM, its storage, CPU type and HA resource. |
 | `scripts/automation/n8n-apply.py` | Brings n8n's credentials and workflows in line with the repo. |
 | `scripts/automation/post-install-check.sh` | Read-only health report: `ssh automation 'sudo bash -s' < scripts/automation/post-install-check.sh`. |

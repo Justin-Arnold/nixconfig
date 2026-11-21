@@ -32,6 +32,7 @@ resource view and puts everything on one board.
 | `hosts/dashboard/nginx/homarr-guard.conf` | The locations that keep Homarr's MCP and OAuth routes unreachable. |
 | `hosts/dashboard/backup.nix` | The NFS mount and what gets backed up. |
 | `hosts/dashboard/eval-test.nix` | Example values for the flake checks, not used by the real host. |
+| `hosts/dashboard/exposure-guards.nix` | The cases `.#checks.<system>.dashboard-exposure-guards` tries: each breaks the exposure policy, and evaluation has to refuse it. |
 | `infra/terranix/hosts/dashboard.nix` | The VM, its storage, CPU type and HA resource. |
 | `modules/roles/homarr.nix` | Homarr in Docker, the key guard and the health watch. |
 | `modules/roles/beszel-agent.nix` | The agent every monitored host uses. |

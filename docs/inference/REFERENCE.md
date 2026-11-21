@@ -37,6 +37,8 @@ key and the Beszel token. Nothing a client sends is stored on it.
 | `hosts/inference/models.nix` | The models it can serve, each pinned to a Hugging Face commit and a sha256. |
 | `hosts/inference/endpoints.nix` | nginx: the certificate, the client keys, the connection limits. |
 | `hosts/inference/eval-test.nix` | Example values for the flake checks, not used by the real host. |
+| `hosts/inference/exposure-guards.nix` | The cases `.#checks.<system>.inference-exposure-guards` tries: each breaks the exposure policy, and evaluation has to refuse it. |
+| `hosts/inference/models-check.nix` | The `inference-eval` flake check: the host evaluates with each model in `models.nix` active. |
 | `modules/roles/inference.nix` | llama-server's unit, the model download and the flags it refuses. |
 | `modules/roles/nvidia-gpu.nix` | The NVIDIA driver, headless. |
 | `modules/roles/ai-voice.nix` | Whisper and Piper. |
