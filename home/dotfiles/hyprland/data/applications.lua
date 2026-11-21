@@ -1,5 +1,5 @@
 return {
     terminal = "alacritty",
     file_manager = "",
-    menu = "",
+    menu = "vicinae toggle",
 }

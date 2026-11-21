@@ -10,15 +10,6 @@
       settings = {
         windows = {
           enable = true;
-          overview = {
-            enable = true;
-            key = "Space";
-            modifier = "super";
-            launcher = {
-              default_terminal = "alacritty";
-              max_items = 8;
-            };
-          };
           switch = {
             enable = true;
             modifier = "alt";
@@ -27,6 +18,9 @@
       };
     };
 
-    systemd.user.services.hyprshell.Unit.ConditionEnvironment = "HYPRLAND_INSTANCE_SIGNATURE";
+    systemd.user.services.hyprshell.Unit = {
+      ConditionEnvironment = "HYPRLAND_INSTANCE_SIGNATURE";
+      X-Restart-Triggers = [ config.xdg.configFile."hyprshell/config.json".source ];
+    };
   };
 }

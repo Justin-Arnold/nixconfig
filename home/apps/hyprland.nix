@@ -116,6 +116,21 @@
     })
   ];
 
+  programs.vicinae = {
+    enable = true;
+    systemd.enable = true;
+    mutableSettings = true;
+    enableFirefoxIntegration = false;
+    settings = {
+      close_on_focus_loss = true;
+      pop_to_root_on_close = true;
+      search_files_in_root = false;
+      # Hyprland handles Meta+Space through vicinae toggle.
+      global_shortcuts.toggle = "";
+      launcher_window.layer_shell.enabled = true;
+    };
+  };
+
   wayland.windowManager.hyprland = {
     enable = true;
 

@@ -44,6 +44,12 @@ hl.bind(
     hl.dsp.exec_cmd(applications.terminal)
 )
 
+-- Open the application launcher
+hl.bind(
+    keybindings.main_mod .. " + Space",
+    hl.dsp.exec_cmd(applications.menu)
+)
+
 -- Close active window
 hl.bind(
     keybindings.main_mod .. " + Q",
