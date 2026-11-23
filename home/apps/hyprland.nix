@@ -4,6 +4,8 @@ let
   vicinaeTheme = {
     zenwritten-dark = "zenwritten-dark";
     nord = "nord";
+    # Until Gneiss has a Vicinae port: Zenwritten, also on neutral grays.
+    gneiss = "zenwritten-dark";
   }.${osConfig.systemProfile.theme};
 
   # Every Hyprland bind with a description, searchable by what it does.

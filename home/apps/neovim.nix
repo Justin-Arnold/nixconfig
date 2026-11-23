@@ -1,7 +1,7 @@
 { pkgs, osConfig, ... }:
 let
   # Each theme's Neovim plugin, and the Lua that turns it on.
-  colorscheme = {
+  ports = rec {
     zenwritten-dark = {
       # Zenbones uses Lush when it is installed; without it, it would need
       # g:zenbones_compat = 1.
@@ -20,7 +20,10 @@ let
         vim.cmd.colorscheme("nord")
       '';
     };
-  }.${osConfig.systemProfile.theme};
+    # Until Gneiss has a Neovim port: Zenwritten, also on neutral grays.
+    gneiss = zenwritten-dark;
+  };
+  colorscheme = ports.${osConfig.systemProfile.theme};
 in
 {
   programs.neovim = {

@@ -1,9 +1,12 @@
 { pkgs, lib, osConfig, ... }:
 let
+  gneiss = import ../../modules/common/themes/gneiss { inherit lib pkgs; };
+
   # The label each theme's extension gives it in VS Code.
   colorTheme = {
     zenwritten-dark = "Zenbones Zenwritten Dark";
     nord = "Nord";
+    gneiss = "Gneiss";
   }.${osConfig.systemProfile.theme};
 in
 {
@@ -26,6 +29,8 @@ in
           arcticicestudio.nord-visual-studio-code
           jnoortheen.nix-ide
           github.copilot
+          # Built here, from modules/common/themes/gneiss.
+          gneiss.vscode
         ] ++ pkgs.vscode-utils.extensionsFromVscodeMarketplace [
           # Zenbones themes, including Zenwritten. Not in nixpkgs.
           {
@@ -45,6 +50,7 @@ in
             "Nord"
             "Zenbones"
             "Zenwritten"
+            "Gneiss"
           ];
           "[json].editor.defaultFormatter" = "esbenp.prettier-vscode";
           "workbench.iconTheme" = "vscode-icons";

@@ -1,20 +1,26 @@
 { lib, osConfig, pkgs, ... }:
 let
   inherit (osConfig.systemProfile) theme;
+  gneiss = import ../../modules/common/themes/gneiss { inherit lib pkgs; };
+
+  # The colors file to import, for the themes that aren't in the
+  # alacritty-theme collection.
+  colorsFile = {
+    # Zenbones ships its own Alacritty export alongside the Neovim theme.
+    zenwritten-dark = "${pkgs.vimPlugins.zenbones-nvim}/extras/alacritty/zenwritten_dark.toml";
+    gneiss = "${gneiss.alacritty}";
+  };
 in
 {
   config = lib.mkIf osConfig.systemProfile.hasGui {
     programs.alacritty = {
       enable = true;
 
-      # Nord comes from the alacritty-theme collection, which has no Zenwritten.
+      # Nord comes from the alacritty-theme collection.
       theme = lib.mkIf (theme == "nord") "nord";
 
       settings = {
-        # Zenbones ships its own Alacritty export alongside the Neovim theme.
-        general.import = lib.mkIf (theme == "zenwritten-dark") [
-          "${pkgs.vimPlugins.zenbones-nvim}/extras/alacritty/zenwritten_dark.toml"
-        ];
+        general.import = lib.mkIf (colorsFile ? ${theme}) [ colorsFile.${theme} ];
 
         font = {
           normal = {

@@ -1,0 +1,1382 @@
+{
+  "colors": {
+    "activityBar.activeBackground": "{{gneiss1}}",
+    "activityBar.activeBorder": "{{gneiss8}}",
+    "activityBar.background": "{{gneiss0}}",
+    "activityBar.dropBackground": "{{gneiss1}}",
+    "activityBar.foreground": "{{gneiss4}}",
+    "activityBarBadge.background": "{{gneiss8}}",
+    "activityBarBadge.foreground": "{{gneiss0}}",
+    "badge.background": "{{gneiss8}}",
+    "badge.foreground": "{{gneiss0}}",
+    "button.background": "{{gneiss8}}ee",
+    "button.foreground": "{{gneiss0}}",
+    "button.hoverBackground": "{{gneiss8}}",
+    "button.secondaryBackground": "{{gneiss2}}",
+    "button.secondaryForeground": "{{gneiss4}}",
+    "button.secondaryHoverBackground": "{{gneiss3}}",
+    "charts.blue": "{{gneiss9}}",
+    "charts.foreground": "{{gneiss4}}",
+    "charts.green": "{{gneiss14}}",
+    "charts.lines": "{{gneiss8}}",
+    "charts.orange": "{{gneiss12}}",
+    "charts.purple": "{{gneiss15}}",
+    "charts.red": "{{gneiss11}}",
+    "charts.yellow": "{{gneiss13}}",
+    "debugConsole.errorForeground": "{{gneiss11}}",
+    "debugConsole.infoForeground": "{{gneiss8}}",
+    "debugConsole.sourceForeground": "{{gneiss-comment}}",
+    "debugConsole.warningForeground": "{{gneiss13}}",
+    "debugConsoleInputIcon.foreground": "{{gneiss9}}",
+    "debugExceptionWidget.background": "{{gneiss3}}",
+    "debugExceptionWidget.border": "{{gneiss0}}",
+    "debugToolBar.background": "{{gneiss1}}",
+    "descriptionForeground": "{{gneiss4}}e6",
+    "diffEditor.insertedTextBackground": "{{gneiss9}}33",
+    "diffEditor.removedTextBackground": "{{gneiss11}}4d",
+    "dropdown.background": "{{gneiss1}}",
+    "dropdown.border": "{{gneiss1}}",
+    "dropdown.foreground": "{{gneiss4}}",
+    "editor.background": "{{gneiss0}}",
+    "editor.findMatchBackground": "{{gneiss8}}66",
+    "editor.findMatchHighlightBackground": "{{gneiss8}}33",
+    "editor.findRangeHighlightBackground": "{{gneiss8}}33",
+    "editor.focusedStackFrameHighlightBackground": "{{gneiss10}}",
+    "editor.foreground": "{{gneiss4}}",
+    "editor.hoverHighlightBackground": "{{gneiss1}}",
+    "editor.inactiveSelectionBackground": "{{gneiss2}}cc",
+    "editor.inlineValuesBackground": "{{gneiss3}}",
+    "editor.inlineValuesForeground": "{{gneiss6}}",
+    "editor.lineHighlightBackground": "{{gneiss1}}",
+    "editor.lineHighlightBorder": "{{gneiss1}}",
+    "editor.rangeHighlightBackground": "{{gneiss2}}52",
+    "editor.selectionBackground": "{{gneiss2}}cc",
+    "editor.selectionHighlightBackground": "{{gneiss2}}cc",
+    "editor.stackFrameHighlightBackground": "{{gneiss10}}",
+    "editor.wordHighlightBackground": "{{gneiss9}}66",
+    "editor.wordHighlightStrongBackground": "{{gneiss9}}99",
+    "editorActiveLineNumber.foreground": "{{gneiss4}}cc",
+    "editorBracketHighlight.foreground1": "{{gneiss7}}",
+    "editorBracketHighlight.foreground2": "{{gneiss8}}",
+    "editorBracketHighlight.foreground3": "{{gneiss9}}",
+    "editorBracketHighlight.foreground4": "{{gneiss10}}",
+    "editorBracketHighlight.foreground5": "{{gneiss7}}",
+    "editorBracketHighlight.foreground6": "{{gneiss8}}",
+    "editorBracketHighlight.unexpectedBracket.foreground": "{{gneiss11}}",
+    "editorBracketMatch.background": "{{gneiss0}}00",
+    "editorBracketMatch.border": "{{gneiss8}}",
+    "editorCodeLens.foreground": "{{gneiss3}}",
+    "editorCursor.foreground": "{{gneiss4}}",
+    "editorError.border": "{{gneiss11}}00",
+    "editorError.foreground": "{{gneiss11}}",
+    "editorGroup.background": "{{gneiss0}}",
+    "editorGroup.border": "{{gneiss1}}01",
+    "editorGroup.dropBackground": "{{gneiss1}}99",
+    "editorGroupHeader.border": "{{gneiss1}}00",
+    "editorGroupHeader.noTabsBackground": "{{gneiss0}}",
+    "editorGroupHeader.tabsBackground": "{{gneiss0}}",
+    "editorGroupHeader.tabsBorder": "{{gneiss1}}00",
+    "editorGutter.addedBackground": "{{gneiss14}}",
+    "editorGutter.background": "{{gneiss0}}",
+    "editorGutter.deletedBackground": "{{gneiss11}}",
+    "editorGutter.modifiedBackground": "{{gneiss13}}",
+    "editorHint.border": "{{gneiss13}}00",
+    "editorHint.foreground": "{{gneiss13}}",
+    "editorHoverWidget.background": "{{gneiss1}}",
+    "editorHoverWidget.border": "{{gneiss1}}",
+    "editorIndentGuide.activeBackground": "{{gneiss3}}",
+    "editorIndentGuide.background": "{{gneiss2}}b3",
+    "editorInlayHint.background": "{{gneiss2}}",
+    "editorInlayHint.foreground": "{{gneiss4}}",
+    "editorLineNumber.activeForeground": "{{gneiss4}}",
+    "editorLineNumber.foreground": "{{gneiss3}}",
+    "editorLink.activeForeground": "{{gneiss8}}",
+    "editorMarkerNavigation.background": "{{gneiss10}}c0",
+    "editorMarkerNavigationError.background": "{{gneiss11}}c0",
+    "editorMarkerNavigationWarning.background": "{{gneiss13}}c0",
+    "editorOverviewRuler.addedForeground": "{{gneiss14}}",
+    "editorOverviewRuler.border": "{{gneiss1}}",
+    "editorOverviewRuler.currentContentForeground": "{{gneiss1}}",
+    "editorOverviewRuler.deletedForeground": "{{gneiss11}}",
+    "editorOverviewRuler.errorForeground": "{{gneiss11}}",
+    "editorOverviewRuler.findMatchForeground": "{{gneiss8}}66",
+    "editorOverviewRuler.incomingContentForeground": "{{gneiss1}}",
+    "editorOverviewRuler.infoForeground": "{{gneiss9}}",
+    "editorOverviewRuler.modifiedForeground": "{{gneiss13}}",
+    "editorOverviewRuler.rangeHighlightForeground": "{{gneiss8}}66",
+    "editorOverviewRuler.selectionHighlightForeground": "{{gneiss8}}66",
+    "editorOverviewRuler.warningForeground": "{{gneiss13}}",
+    "editorOverviewRuler.wordHighlightForeground": "{{gneiss8}}66",
+    "editorOverviewRuler.wordHighlightStrongForeground": "{{gneiss8}}66",
+    "editorRuler.foreground": "{{gneiss2}}",
+    "editorSuggestWidget.background": "{{gneiss0}}",
+    "editorSuggestWidget.border": "{{gneiss1}}",
+    "editorSuggestWidget.focusHighlightForeground": "{{gneiss8}}",
+    "editorSuggestWidget.foreground": "{{gneiss4}}",
+    "editorSuggestWidget.highlightForeground": "{{gneiss8}}",
+    "editorSuggestWidget.selectedBackground": "{{gneiss2}}",
+    "editorSuggestWidget.selectedForeground": "{{gneiss4}}",
+    "editorWarning.border": "{{gneiss13}}00",
+    "editorWarning.foreground": "{{gneiss13}}",
+    "editorWhitespace.foreground": "{{gneiss3}}b3",
+    "editorWidget.background": "{{gneiss0}}",
+    "editorWidget.border": "{{gneiss1}}",
+    "errorForeground": "{{gneiss11}}",
+    "extensionButton.prominentBackground": "{{gneiss2}}",
+    "extensionButton.prominentForeground": "{{gneiss4}}",
+    "extensionButton.prominentHoverBackground": "{{gneiss3}}",
+    "focusBorder": "{{gneiss1}}",
+    "foreground": "{{gneiss4}}",
+    "gitDecoration.conflictingResourceForeground": "{{gneiss10}}",
+    "gitDecoration.deletedResourceForeground": "{{gneiss11}}",
+    "gitDecoration.ignoredResourceForeground": "{{gneiss4}}66",
+    "gitDecoration.modifiedResourceForeground": "{{gneiss13}}",
+    "gitDecoration.stageDeletedResourceForeground": "{{gneiss11}}",
+    "gitDecoration.stageModifiedResourceForeground": "{{gneiss13}}",
+    "gitDecoration.submoduleResourceForeground": "{{gneiss7}}",
+    "gitDecoration.untrackedResourceForeground": "{{gneiss14}}",
+    "input.background": "{{gneiss1}}",
+    "input.border": "{{gneiss1}}",
+    "input.foreground": "{{gneiss4}}",
+    "input.placeholderForeground": "{{gneiss4}}99",
+    "inputOption.activeBackground": "{{gneiss10}}",
+    "inputOption.activeBorder": "{{gneiss10}}",
+    "inputOption.activeForeground": "{{gneiss6}}",
+    "inputValidation.errorBackground": "{{gneiss11}}",
+    "inputValidation.errorBorder": "{{gneiss11}}",
+    "inputValidation.infoBackground": "{{gneiss9}}",
+    "inputValidation.infoBorder": "{{gneiss9}}",
+    "inputValidation.warningBackground": "{{gneiss12}}",
+    "inputValidation.warningBorder": "{{gneiss12}}",
+    "keybindingLabel.background": "{{gneiss3}}",
+    "keybindingLabel.border": "{{gneiss3}}",
+    "keybindingLabel.bottomBorder": "{{gneiss3}}",
+    "keybindingLabel.foreground": "{{gneiss4}}",
+    "list.activeSelectionBackground": "{{gneiss8}}",
+    "list.activeSelectionForeground": "{{gneiss0}}",
+    "list.dropBackground": "{{gneiss8}}99",
+    "list.errorForeground": "{{gneiss11}}",
+    "list.focusBackground": "{{gneiss8}}99",
+    "list.focusForeground": "{{gneiss4}}",
+    "list.focusHighlightForeground": "{{gneiss6}}",
+    "list.highlightForeground": "{{gneiss8}}",
+    "list.hoverBackground": "{{gneiss1}}",
+    "list.hoverForeground": "{{gneiss6}}",
+    "list.inactiveFocusBackground": "{{gneiss2}}cc",
+    "list.inactiveSelectionBackground": "{{gneiss2}}",
+    "list.inactiveSelectionForeground": "{{gneiss4}}",
+    "list.warningForeground": "{{gneiss13}}",
+    "merge.border": "{{gneiss1}}00",
+    "merge.currentContentBackground": "{{gneiss9}}4d",
+    "merge.currentHeaderBackground": "{{gneiss9}}66",
+    "merge.incomingContentBackground": "{{gneiss7}}4d",
+    "merge.incomingHeaderBackground": "{{gneiss7}}66",
+    "minimap.background": "{{gneiss0}}",
+    "minimap.errorHighlight": "{{gneiss11}}cc",
+    "minimap.findMatchHighlight": "{{gneiss8}}",
+    "minimap.selectionHighlight": "{{gneiss8}}cc",
+    "minimap.warningHighlight": "{{gneiss13}}cc",
+    "minimapGutter.addedBackground": "{{gneiss14}}",
+    "minimapGutter.deletedBackground": "{{gneiss11}}",
+    "minimapGutter.modifiedBackground": "{{gneiss13}}",
+    "minimapSlider.activeBackground": "{{gneiss2}}aa",
+    "minimapSlider.background": "{{gneiss2}}99",
+    "minimapSlider.hoverBackground": "{{gneiss2}}aa",
+    "notification.background": "{{gneiss1}}",
+    "notification.buttonBackground": "{{gneiss2}}",
+    "notification.buttonForeground": "{{gneiss4}}",
+    "notification.buttonHoverBackground": "{{gneiss3}}",
+    "notification.errorBackground": "{{gneiss11}}",
+    "notification.errorForeground": "{{gneiss0}}",
+    "notification.foreground": "{{gneiss4}}",
+    "notification.infoBackground": "{{gneiss8}}",
+    "notification.infoForeground": "{{gneiss0}}",
+    "notification.warningBackground": "{{gneiss13}}",
+    "notification.warningForeground": "{{gneiss0}}",
+    "notificationCenter.border": "{{gneiss1}}00",
+    "notificationCenterHeader.background": "{{gneiss0}}",
+    "notificationCenterHeader.foreground": "{{gneiss8}}",
+    "notificationLink.foreground": "{{gneiss8}}",
+    "notificationToast.border": "{{gneiss1}}00",
+    "notifications.background": "{{gneiss1}}",
+    "notifications.border": "{{gneiss0}}",
+    "notifications.foreground": "{{gneiss4}}",
+    "panel.background": "{{gneiss0}}",
+    "panel.border": "{{gneiss1}}",
+    "panelTitle.activeBorder": "{{gneiss8}}00",
+    "panelTitle.activeForeground": "{{gneiss8}}",
+    "panelTitle.inactiveForeground": "{{gneiss4}}",
+    "peekView.border": "{{gneiss3}}",
+    "peekViewEditor.background": "{{gneiss0}}",
+    "peekViewEditor.matchHighlightBackground": "{{gneiss8}}4d",
+    "peekViewEditorGutter.background": "{{gneiss0}}",
+    "peekViewResult.background": "{{gneiss0}}",
+    "peekViewResult.fileForeground": "{{gneiss8}}",
+    "peekViewResult.lineForeground": "{{gneiss4}}66",
+    "peekViewResult.matchHighlightBackground": "{{gneiss8}}cc",
+    "peekViewResult.selectionBackground": "{{gneiss2}}",
+    "peekViewResult.selectionForeground": "{{gneiss4}}",
+    "peekViewTitle.background": "{{gneiss1}}",
+    "peekViewTitleDescription.foreground": "{{gneiss4}}",
+    "peekViewTitleLabel.foreground": "{{gneiss8}}",
+    "pickerGroup.border": "{{gneiss1}}",
+    "pickerGroup.foreground": "{{gneiss8}}",
+    "progressBar.background": "{{gneiss8}}",
+    "quickInputList.focusBackground": "{{gneiss8}}",
+    "quickInputList.focusForeground": "{{gneiss0}}",
+    "sash.hoverBorder": "{{gneiss8}}",
+    "scrollbar.shadow": "#00000066",
+    "scrollbarSlider.activeBackground": "{{gneiss2}}aa",
+    "scrollbarSlider.background": "{{gneiss2}}99",
+    "scrollbarSlider.hoverBackground": "{{gneiss2}}aa",
+    "selection.background": "{{gneiss8}}99",
+    "sideBar.background": "{{gneiss0}}",
+    "sideBar.border": "{{gneiss1}}",
+    "sideBar.foreground": "{{gneiss4}}",
+    "sideBarSectionHeader.background": "{{gneiss1}}",
+    "sideBarSectionHeader.foreground": "{{gneiss4}}",
+    "sideBarTitle.foreground": "{{gneiss4}}",
+    "statusBar.background": "{{gneiss1}}",
+    "statusBar.border": "{{gneiss1}}00",
+    "statusBar.debuggingBackground": "{{gneiss10}}",
+    "statusBar.debuggingForeground": "{{gneiss4}}",
+    "statusBar.foreground": "{{gneiss4}}",
+    "statusBar.noFolderBackground": "{{gneiss1}}",
+    "statusBar.noFolderForeground": "{{gneiss4}}",
+    "statusBarItem.activeBackground": "{{gneiss3}}",
+    "statusBarItem.errorBackground": "{{gneiss1}}",
+    "statusBarItem.errorForeground": "{{gneiss11}}",
+    "statusBarItem.hoverBackground": "{{gneiss2}}",
+    "statusBarItem.prominentBackground": "{{gneiss1}}",
+    "statusBarItem.prominentHoverBackground": "{{gneiss2}}",
+    "statusBarItem.warningBackground": "{{gneiss13}}",
+    "statusBarItem.warningForeground": "{{gneiss0}}",
+    "tab.activeBackground": "{{gneiss1}}",
+    "tab.activeBorder": "{{gneiss8}}00",
+    "tab.activeBorderTop": "{{gneiss8}}00",
+    "tab.activeForeground": "{{gneiss4}}",
+    "tab.border": "{{gneiss1}}00",
+    "tab.hoverBackground": "{{gneiss1}}cc",
+    "tab.hoverBorder": "{{gneiss8}}00",
+    "tab.inactiveBackground": "{{gneiss0}}",
+    "tab.inactiveForeground": "{{gneiss4}}66",
+    "tab.lastPinnedBorder": "{{gneiss3}}",
+    "tab.unfocusedActiveBorder": "{{gneiss8}}00",
+    "tab.unfocusedActiveBorderTop": "{{gneiss8}}00",
+    "tab.unfocusedActiveForeground": "{{gneiss4}}99",
+    "tab.unfocusedHoverBackground": "{{gneiss1}}b3",
+    "tab.unfocusedHoverBorder": "{{gneiss8}}00",
+    "tab.unfocusedInactiveForeground": "{{gneiss4}}66",
+    "terminal.ansiBlack": "{{gneiss1}}",
+    "terminal.ansiBlue": "{{gneiss9}}",
+    "terminal.ansiBrightBlack": "{{gneiss-comment}}",
+    "terminal.ansiBrightBlue": "{{gneiss9}}",
+    "terminal.ansiBrightCyan": "{{gneiss7}}",
+    "terminal.ansiBrightGreen": "{{gneiss14}}",
+    "terminal.ansiBrightMagenta": "{{gneiss15}}",
+    "terminal.ansiBrightRed": "{{gneiss11}}",
+    "terminal.ansiBrightWhite": "{{gneiss6}}",
+    "terminal.ansiBrightYellow": "{{gneiss13}}",
+    "terminal.ansiCyan": "{{gneiss8}}",
+    "terminal.ansiGreen": "{{gneiss14}}",
+    "terminal.ansiMagenta": "{{gneiss15}}",
+    "terminal.ansiRed": "{{gneiss11}}",
+    "terminal.ansiWhite": "{{gneiss5}}",
+    "terminal.ansiYellow": "{{gneiss13}}",
+    "terminal.background": "{{gneiss0}}",
+    "terminal.foreground": "{{gneiss4}}",
+    "terminal.tab.activeBorder": "{{gneiss8}}",
+    "textBlockQuote.background": "{{gneiss1}}",
+    "textBlockQuote.border": "{{gneiss9}}",
+    "textCodeBlock.background": "{{gneiss3}}",
+    "textLink.activeForeground": "{{gneiss8}}",
+    "textLink.foreground": "{{gneiss8}}",
+    "textPreformat.foreground": "{{gneiss7}}",
+    "textSeparator.foreground": "{{gneiss6}}",
+    "titleBar.activeBackground": "{{gneiss0}}",
+    "titleBar.activeForeground": "{{gneiss4}}",
+    "titleBar.border": "{{gneiss0}}00",
+    "titleBar.inactiveBackground": "{{gneiss0}}",
+    "titleBar.inactiveForeground": "{{gneiss4}}66",
+    "tree.indentGuidesStroke": "{{gneiss-comment}}",
+    "walkThrough.embeddedEditorBackground": "{{gneiss0}}",
+    "welcomePage.buttonBackground": "{{gneiss2}}",
+    "welcomePage.buttonHoverBackground": "{{gneiss3}}",
+    "widget.shadow": "#00000066"
+  },
+  "name": "Gneiss",
+  "semanticHighlighting": true,
+  "tokenColors": [
+    {
+      "settings": {
+        "background": "{{gneiss0}}ff",
+        "foreground": "{{gneiss4}}ff"
+      }
+    },
+    {
+      "scope": "emphasis",
+      "settings": {
+        "fontStyle": "italic"
+      }
+    },
+    {
+      "scope": "strong",
+      "settings": {
+        "fontStyle": "bold"
+      }
+    },
+    {
+      "name": "Comment",
+      "scope": "comment",
+      "settings": {
+        "foreground": "{{gneiss-comment}}"
+      }
+    },
+    {
+      "name": "Constant Character",
+      "scope": "constant.character",
+      "settings": {
+        "foreground": "{{gneiss13}}"
+      }
+    },
+    {
+      "name": "Constant Character Escape",
+      "scope": "constant.character.escape",
+      "settings": {
+        "foreground": "{{gneiss13}}"
+      }
+    },
+    {
+      "name": "Constant Language",
+      "scope": "constant.language",
+      "settings": {
+        "foreground": "{{gneiss9}}"
+      }
+    },
+    {
+      "name": "Constant Numeric",
+      "scope": "constant.numeric",
+      "settings": {
+        "foreground": "{{gneiss15}}"
+      }
+    },
+    {
+      "name": "Constant Regexp",
+      "scope": "constant.regexp",
+      "settings": {
+        "foreground": "{{gneiss13}}"
+      }
+    },
+    {
+      "name": "Entity Name Class/Type",
+      "scope": [
+        "entity.name.class",
+        "entity.name.type.class"
+      ],
+      "settings": {
+        "foreground": "{{gneiss7}}"
+      }
+    },
+    {
+      "name": "Entity Name Function",
+      "scope": "entity.name.function",
+      "settings": {
+        "foreground": "{{gneiss8}}"
+      }
+    },
+    {
+      "name": "Entity Name Tag",
+      "scope": "entity.name.tag",
+      "settings": {
+        "foreground": "{{gneiss9}}"
+      }
+    },
+    {
+      "name": "Entity Other Attribute Name",
+      "scope": "entity.other.attribute-name",
+      "settings": {
+        "foreground": "{{gneiss7}}"
+      }
+    },
+    {
+      "name": "Entity Other Inherited Class",
+      "scope": "entity.other.inherited-class",
+      "settings": {
+        "fontStyle": "bold",
+        "foreground": "{{gneiss7}}"
+      }
+    },
+    {
+      "name": "Invalid Deprecated",
+      "scope": "invalid.deprecated",
+      "settings": {
+        "background": "{{gneiss13}}",
+        "foreground": "{{gneiss4}}"
+      }
+    },
+    {
+      "name": "Invalid Illegal",
+      "scope": "invalid.illegal",
+      "settings": {
+        "background": "{{gneiss11}}",
+        "foreground": "{{gneiss4}}"
+      }
+    },
+    {
+      "name": "Keyword",
+      "scope": "keyword",
+      "settings": {
+        "foreground": "{{gneiss9}}"
+      }
+    },
+    {
+      "name": "Keyword Operator",
+      "scope": "keyword.operator",
+      "settings": {
+        "foreground": "{{gneiss9}}"
+      }
+    },
+    {
+      "name": "Keyword Other New",
+      "scope": "keyword.other.new",
+      "settings": {
+        "foreground": "{{gneiss9}}"
+      }
+    },
+    {
+      "name": "Markup Bold",
+      "scope": "markup.bold",
+      "settings": {
+        "fontStyle": "bold"
+      }
+    },
+    {
+      "name": "Markup Changed",
+      "scope": "markup.changed",
+      "settings": {
+        "foreground": "{{gneiss13}}"
+      }
+    },
+    {
+      "name": "Markup Deleted",
+      "scope": "markup.deleted",
+      "settings": {
+        "foreground": "{{gneiss11}}"
+      }
+    },
+    {
+      "name": "Markup Inserted",
+      "scope": "markup.inserted",
+      "settings": {
+        "foreground": "{{gneiss14}}"
+      }
+    },
+    {
+      "name": "Meta Preprocessor",
+      "scope": "meta.preprocessor",
+      "settings": {
+        "foreground": "{{gneiss10}}"
+      }
+    },
+    {
+      "name": "Punctuation",
+      "scope": "punctuation",
+      "settings": {
+        "foreground": "{{gneiss6}}"
+      }
+    },
+    {
+      "name": "Punctuation Definition Parameters",
+      "scope": [
+        "punctuation.definition.method-parameters",
+        "punctuation.definition.function-parameters",
+        "punctuation.definition.parameters"
+      ],
+      "settings": {
+        "foreground": "{{gneiss6}}"
+      }
+    },
+    {
+      "name": "Punctuation Definition Tag",
+      "scope": "punctuation.definition.tag",
+      "settings": {
+        "foreground": "{{gneiss9}}"
+      }
+    },
+    {
+      "name": "Punctuation Definition Comment",
+      "scope": [
+        "punctuation.definition.comment",
+        "punctuation.end.definition.comment",
+        "punctuation.start.definition.comment"
+      ],
+      "settings": {
+        "foreground": "{{gneiss-comment}}"
+      }
+    },
+    {
+      "name": "Punctuation Section",
+      "scope": "punctuation.section",
+      "settings": {
+        "foreground": "{{gneiss6}}"
+      }
+    },
+    {
+      "name": "Punctuation Section Embedded",
+      "scope": [
+        "punctuation.section.embedded.begin",
+        "punctuation.section.embedded.end"
+      ],
+      "settings": {
+        "foreground": "{{gneiss9}}"
+      }
+    },
+    {
+      "name": "Punctuation Terminator",
+      "scope": "punctuation.terminator",
+      "settings": {
+        "foreground": "{{gneiss9}}"
+      }
+    },
+    {
+      "name": "Punctuation Variable",
+      "scope": "punctuation.definition.variable",
+      "settings": {
+        "foreground": "{{gneiss9}}"
+      }
+    },
+    {
+      "name": "Storage",
+      "scope": "storage",
+      "settings": {
+        "foreground": "{{gneiss9}}"
+      }
+    },
+    {
+      "name": "String",
+      "scope": "string",
+      "settings": {
+        "foreground": "{{gneiss14}}"
+      }
+    },
+    {
+      "name": "String Regexp",
+      "scope": "string.regexp",
+      "settings": {
+        "foreground": "{{gneiss13}}"
+      }
+    },
+    {
+      "name": "Support Class",
+      "scope": "support.class",
+      "settings": {
+        "foreground": "{{gneiss7}}"
+      }
+    },
+    {
+      "name": "Support Constant",
+      "scope": "support.constant",
+      "settings": {
+        "foreground": "{{gneiss9}}"
+      }
+    },
+    {
+      "name": "Support Function",
+      "scope": "support.function",
+      "settings": {
+        "foreground": "{{gneiss8}}"
+      }
+    },
+    {
+      "name": "Support Function Construct",
+      "scope": "support.function.construct",
+      "settings": {
+        "foreground": "{{gneiss9}}"
+      }
+    },
+    {
+      "name": "Support Type",
+      "scope": "support.type",
+      "settings": {
+        "foreground": "{{gneiss7}}"
+      }
+    },
+    {
+      "name": "Support Type Exception",
+      "scope": "support.type.exception",
+      "settings": {
+        "foreground": "{{gneiss7}}"
+      }
+    },
+    {
+      "name": "Token Debug",
+      "scope": "token.debug-token",
+      "settings": {
+        "foreground": "{{gneiss15}}"
+      }
+    },
+    {
+      "name": "Token Error",
+      "scope": "token.error-token",
+      "settings": {
+        "foreground": "{{gneiss11}}"
+      }
+    },
+    {
+      "name": "Token Info",
+      "scope": "token.info-token",
+      "settings": {
+        "foreground": "{{gneiss8}}"
+      }
+    },
+    {
+      "name": "Token Warning",
+      "scope": "token.warn-token",
+      "settings": {
+        "foreground": "{{gneiss13}}"
+      }
+    },
+    {
+      "name": "Variable",
+      "scope": "variable.other",
+      "settings": {
+        "foreground": "{{gneiss4}}"
+      }
+    },
+    {
+      "name": "Variable Language",
+      "scope": "variable.language",
+      "settings": {
+        "foreground": "{{gneiss9}}"
+      }
+    },
+    {
+      "name": "Variable Parameter",
+      "scope": "variable.parameter",
+      "settings": {
+        "foreground": "{{gneiss4}}"
+      }
+    },
+    {
+      "name": "[C/CPP] Punctuation Separator Pointer-Access",
+      "scope": "punctuation.separator.pointer-access.c",
+      "settings": {
+        "foreground": "{{gneiss9}}"
+      }
+    },
+    {
+      "name": "[C/CPP] Meta Preprocessor Include",
+      "scope": [
+        "source.c meta.preprocessor.include",
+        "source.c string.quoted.other.lt-gt.include"
+      ],
+      "settings": {
+        "foreground": "{{gneiss7}}"
+      }
+    },
+    {
+      "name": "[C/CPP] Conditional Directive",
+      "scope": [
+        "source.cpp keyword.control.directive.conditional",
+        "source.cpp punctuation.definition.directive",
+        "source.c keyword.control.directive.conditional",
+        "source.c punctuation.definition.directive"
+      ],
+      "settings": {
+        "fontStyle": "bold",
+        "foreground": "{{gneiss10}}"
+      }
+    },
+    {
+      "name": "[CSS] Constant Other Color RGB Value",
+      "scope": "source.css constant.other.color.rgb-value",
+      "settings": {
+        "foreground": "{{gneiss15}}"
+      }
+    },
+    {
+      "name": "[CSS](Function) Meta Property-Value",
+      "scope": "source.css meta.property-value",
+      "settings": {
+        "foreground": "{{gneiss8}}"
+      }
+    },
+    {
+      "name": "[CSS] Media Queries",
+      "scope": [
+        "source.css keyword.control.at-rule.media",
+        "source.css keyword.control.at-rule.media punctuation.definition.keyword"
+      ],
+      "settings": {
+        "foreground": "{{gneiss12}}"
+      }
+    },
+    {
+      "name": "[CSS] Punctuation Definition Keyword",
+      "scope": "source.css punctuation.definition.keyword",
+      "settings": {
+        "foreground": "{{gneiss9}}"
+      }
+    },
+    {
+      "name": "[CSS] Support Type Property Name",
+      "scope": "source.css support.type.property-name",
+      "settings": {
+        "foreground": "{{gneiss4}}"
+      }
+    },
+    {
+      "name": "[diff] Meta Range Context",
+      "scope": "source.diff meta.diff.range.context",
+      "settings": {
+        "foreground": "{{gneiss7}}"
+      }
+    },
+    {
+      "name": "[diff] Meta Header From-File",
+      "scope": "source.diff meta.diff.header.from-file",
+      "settings": {
+        "foreground": "{{gneiss7}}"
+      }
+    },
+    {
+      "name": "[diff] Punctuation Definition From-File",
+      "scope": "source.diff punctuation.definition.from-file",
+      "settings": {
+        "foreground": "{{gneiss7}}"
+      }
+    },
+    {
+      "name": "[diff] Punctuation Definition Range",
+      "scope": "source.diff punctuation.definition.range",
+      "settings": {
+        "foreground": "{{gneiss7}}"
+      }
+    },
+    {
+      "name": "[diff] Punctuation Definition Separator",
+      "scope": "source.diff punctuation.definition.separator",
+      "settings": {
+        "foreground": "{{gneiss9}}"
+      }
+    },
+    {
+      "name": "[Elixir](JakeBecker.elixir-ls) module names",
+      "scope": "entity.name.type.module.elixir",
+      "settings": {
+        "foreground": "{{gneiss7}}"
+      }
+    },
+    {
+      "name": "[Elixir](JakeBecker.elixir-ls) module attributes",
+      "scope": "variable.other.readwrite.module.elixir",
+      "settings": {
+        "fontStyle": "bold",
+        "foreground": "{{gneiss4}}"
+      }
+    },
+    {
+      "name": "[Elixir](JakeBecker.elixir-ls) atoms",
+      "scope": "constant.other.symbol.elixir",
+      "settings": {
+        "fontStyle": "bold",
+        "foreground": "{{gneiss4}}"
+      }
+    },
+    {
+      "name": "[Elixir](JakeBecker.elixir-ls) modules",
+      "scope": "variable.other.constant.elixir",
+      "settings": {
+        "foreground": "{{gneiss7}}"
+      }
+    },
+    {
+      "name": "[Go] String Format Placeholder",
+      "scope": "source.go constant.other.placeholder.go",
+      "settings": {
+        "foreground": "{{gneiss13}}"
+      }
+    },
+    {
+      "name": "[Java](JavaDoc) Comment Block Documentation HTML Entities",
+      "scope": "source.java comment.block.documentation.javadoc punctuation.definition.entity.html",
+      "settings": {
+        "foreground": "{{gneiss9}}"
+      }
+    },
+    {
+      "name": "[Java](JavaDoc) Constant Other",
+      "scope": "source.java constant.other",
+      "settings": {
+        "foreground": "{{gneiss4}}"
+      }
+    },
+    {
+      "name": "[Java](JavaDoc) Keyword Other Documentation",
+      "scope": "source.java keyword.other.documentation",
+      "settings": {
+        "foreground": "{{gneiss7}}"
+      }
+    },
+    {
+      "name": "[Java](JavaDoc) Keyword Other Documentation Author",
+      "scope": "source.java keyword.other.documentation.author.javadoc",
+      "settings": {
+        "foreground": "{{gneiss7}}"
+      }
+    },
+    {
+      "name": "[Java](JavaDoc) Keyword Other Documentation Directive/Custom",
+      "scope": [
+        "source.java keyword.other.documentation.directive",
+        "source.java keyword.other.documentation.custom"
+      ],
+      "settings": {
+        "foreground": "{{gneiss7}}"
+      }
+    },
+    {
+      "name": "[Java](JavaDoc) Keyword Other Documentation See",
+      "scope": "source.java keyword.other.documentation.see.javadoc",
+      "settings": {
+        "foreground": "{{gneiss7}}"
+      }
+    },
+    {
+      "name": "[Java] Meta Method-Call",
+      "scope": "source.java meta.method-call meta.method",
+      "settings": {
+        "foreground": "{{gneiss8}}"
+      }
+    },
+    {
+      "name": "[Java](JavaDoc) Meta Tag Template Link",
+      "scope": [
+        "source.java meta.tag.template.link.javadoc",
+        "source.java string.other.link.title.javadoc"
+      ],
+      "settings": {
+        "foreground": "{{gneiss7}}"
+      }
+    },
+    {
+      "name": "[Java](JavaDoc) Meta Tag Template Value",
+      "scope": "source.java meta.tag.template.value.javadoc",
+      "settings": {
+        "foreground": "{{gneiss8}}"
+      }
+    },
+    {
+      "name": "[Java](JavaDoc) Punctuation Definition Keyword",
+      "scope": "source.java punctuation.definition.keyword.javadoc",
+      "settings": {
+        "foreground": "{{gneiss7}}"
+      }
+    },
+    {
+      "name": "[Java](JavaDoc) Punctuation Definition Tag",
+      "scope": [
+        "source.java punctuation.definition.tag.begin.javadoc",
+        "source.java punctuation.definition.tag.end.javadoc"
+      ],
+      "settings": {
+        "foreground": "{{gneiss-comment}}"
+      }
+    },
+    {
+      "name": "[Java] Storage Modifier Import",
+      "scope": "source.java storage.modifier.import",
+      "settings": {
+        "foreground": "{{gneiss7}}"
+      }
+    },
+    {
+      "name": "[Java] Storage Modifier Package",
+      "scope": "source.java storage.modifier.package",
+      "settings": {
+        "foreground": "{{gneiss7}}"
+      }
+    },
+    {
+      "name": "[Java] Storage Type",
+      "scope": "source.java storage.type",
+      "settings": {
+        "foreground": "{{gneiss7}}"
+      }
+    },
+    {
+      "name": "[Java] Storage Type Annotation",
+      "scope": "source.java storage.type.annotation",
+      "settings": {
+        "foreground": "{{gneiss12}}"
+      }
+    },
+    {
+      "name": "[Java] Storage Type Generic",
+      "scope": "source.java storage.type.generic",
+      "settings": {
+        "foreground": "{{gneiss7}}"
+      }
+    },
+    {
+      "name": "[Java] Storage Type Primitive",
+      "scope": "source.java storage.type.primitive",
+      "settings": {
+        "foreground": "{{gneiss9}}"
+      }
+    },
+    {
+      "name": "[JavaScript] Decorator",
+      "scope": [
+        "source.js punctuation.decorator",
+        "source.js meta.decorator variable.other.readwrite",
+        "source.js meta.decorator entity.name.function"
+      ],
+      "settings": {
+        "foreground": "{{gneiss12}}"
+      }
+    },
+    {
+      "name": "[JavaScript] Meta Object-Literal Key",
+      "scope": "source.js meta.object-literal.key",
+      "settings": {
+        "foreground": "{{gneiss8}}"
+      }
+    },
+    {
+      "name": "[JavaScript](JSDoc) Storage Type Class",
+      "scope": "source.js storage.type.class.jsdoc",
+      "settings": {
+        "foreground": "{{gneiss7}}"
+      }
+    },
+    {
+      "name": "[JavaScript] String Template Literals Punctuation",
+      "scope": [
+        "source.js string.quoted.template punctuation.quasi.element.begin",
+        "source.js string.quoted.template punctuation.quasi.element.end",
+        "source.js string.template punctuation.definition.template-expression"
+      ],
+      "settings": {
+        "foreground": "{{gneiss9}}"
+      }
+    },
+    {
+      "name": "[JavaScript] Interpolated String Template Punctuation Functions",
+      "scope": "source.js string.quoted.template meta.method-call.with-arguments",
+      "settings": {
+        "foreground": "{{gneiss6}}"
+      }
+    },
+    {
+      "name": "[JavaScript] String Template Literal Variable",
+      "scope": [
+        "source.js string.template meta.template.expression support.variable.property",
+        "source.js string.template meta.template.expression variable.other.object"
+      ],
+      "settings": {
+        "foreground": "{{gneiss4}}"
+      }
+    },
+    {
+      "name": "[JavaScript] Support Type Primitive",
+      "scope": "source.js support.type.primitive",
+      "settings": {
+        "foreground": "{{gneiss9}}"
+      }
+    },
+    {
+      "name": "[JavaScript] Variable Other Object",
+      "scope": "source.js variable.other.object",
+      "settings": {
+        "foreground": "{{gneiss4}}"
+      }
+    },
+    {
+      "name": "[JavaScript] Variable Other Read-Write Alias",
+      "scope": "source.js variable.other.readwrite.alias",
+      "settings": {
+        "foreground": "{{gneiss7}}"
+      }
+    },
+    {
+      "name": "[JavaScript] Parentheses in Template Strings",
+      "scope": [
+        "source.js meta.embedded.line meta.brace.square",
+        "source.js meta.embedded.line meta.brace.round",
+        "source.js string.quoted.template meta.brace.square",
+        "source.js string.quoted.template meta.brace.round"
+      ],
+      "settings": {
+        "foreground": "{{gneiss6}}"
+      }
+    },
+    {
+      "name": "[HTML] Constant Character Entity",
+      "scope": "text.html.basic constant.character.entity.html",
+      "settings": {
+        "foreground": "{{gneiss13}}"
+      }
+    },
+    {
+      "name": "[HTML] Constant Other Inline-Data",
+      "scope": "text.html.basic constant.other.inline-data",
+      "settings": {
+        "fontStyle": "italic",
+        "foreground": "{{gneiss12}}"
+      }
+    },
+    {
+      "name": "[HTML] Meta Tag SGML Doctype",
+      "scope": "text.html.basic meta.tag.sgml.doctype",
+      "settings": {
+        "foreground": "{{gneiss10}}"
+      }
+    },
+    {
+      "name": "[HTML] Punctuation Definition Entity",
+      "scope": "text.html.basic punctuation.definition.entity",
+      "settings": {
+        "foreground": "{{gneiss9}}"
+      }
+    },
+    {
+      "name": "[INI] Entity Name Section Group-Title",
+      "scope": "source.properties entity.name.section.group-title.ini",
+      "settings": {
+        "foreground": "{{gneiss8}}"
+      }
+    },
+    {
+      "name": "[INI] Punctuation Separator Key-Value",
+      "scope": "source.properties punctuation.separator.key-value.ini",
+      "settings": {
+        "foreground": "{{gneiss9}}"
+      }
+    },
+    {
+      "name": "[Markdown] Markup Fenced Code Block",
+      "scope": [
+        "text.html.markdown markup.fenced_code.block",
+        "text.html.markdown markup.fenced_code.block punctuation.definition"
+      ],
+      "settings": {
+        "foreground": "{{gneiss7}}"
+      }
+    },
+    {
+      "name": "[Markdown] Markup Heading",
+      "scope": "markup.heading",
+      "settings": {
+        "foreground": "{{gneiss8}}"
+      }
+    },
+    {
+      "name": "[Markdown] Markup Inline",
+      "scope": [
+        "text.html.markdown markup.inline.raw",
+        "text.html.markdown markup.inline.raw punctuation.definition.raw"
+      ],
+      "settings": {
+        "foreground": "{{gneiss7}}"
+      }
+    },
+    {
+      "name": "[Markdown] Markup Italic",
+      "scope": "text.html.markdown markup.italic",
+      "settings": {
+        "fontStyle": "italic"
+      }
+    },
+    {
+      "name": "[Markdown] Markup Link",
+      "scope": "text.html.markdown markup.underline.link",
+      "settings": {
+        "fontStyle": "underline"
+      }
+    },
+    {
+      "name": "[Markdown] Markup List Numbered/Unnumbered",
+      "scope": "text.html.markdown beginning.punctuation.definition.list",
+      "settings": {
+        "foreground": "{{gneiss9}}"
+      }
+    },
+    {
+      "name": "[Markdown] Markup Quote Punctuation Definition",
+      "scope": "text.html.markdown beginning.punctuation.definition.quote",
+      "settings": {
+        "foreground": "{{gneiss7}}"
+      }
+    },
+    {
+      "name": "[Markdown] Markup Quote Punctuation Definition",
+      "scope": "text.html.markdown markup.quote",
+      "settings": {
+        "foreground": "{{gneiss-comment}}"
+      }
+    },
+    {
+      "name": "[Markdown] Markup Math Constant",
+      "scope": "text.html.markdown constant.character.math.tex",
+      "settings": {
+        "foreground": "{{gneiss9}}"
+      }
+    },
+    {
+      "name": "[Markdown] Markup Math Definition Marker",
+      "scope": [
+        "text.html.markdown punctuation.definition.math.begin",
+        "text.html.markdown punctuation.definition.math.end"
+      ],
+      "settings": {
+        "foreground": "{{gneiss10}}"
+      }
+    },
+    {
+      "name": "[Markdown] Markup Math Function Definition Marker",
+      "scope": "text.html.markdown punctuation.definition.function.math.tex",
+      "settings": {
+        "foreground": "{{gneiss8}}"
+      }
+    },
+    {
+      "name": "[Markdown] Markup Math Operator",
+      "scope": "text.html.markdown punctuation.math.operator.latex",
+      "settings": {
+        "foreground": "{{gneiss9}}"
+      }
+    },
+    {
+      "name": "[Markdown] Punctuation Definition Heading",
+      "scope": "text.html.markdown punctuation.definition.heading",
+      "settings": {
+        "foreground": "{{gneiss9}}"
+      }
+    },
+    {
+      "name": "[Markdown] Punctuation Definition Constant/String",
+      "scope": [
+        "text.html.markdown punctuation.definition.constant",
+        "text.html.markdown punctuation.definition.string"
+      ],
+      "settings": {
+        "foreground": "{{gneiss9}}"
+      }
+    },
+    {
+      "name": "[Markdown] String Other Link Description/Title",
+      "scope": [
+        "text.html.markdown constant.other.reference.link",
+        "text.html.markdown string.other.link.description",
+        "text.html.markdown string.other.link.title"
+      ],
+      "settings": {
+        "foreground": "{{gneiss8}}"
+      }
+    },
+    {
+      "name": "[Perl] Perl Sigils",
+      "scope": "source.perl punctuation.definition.variable",
+      "settings": {
+        "foreground": "{{gneiss4}}"
+      }
+    },
+    {
+      "name": "[PHP] Meta Function-Call Object",
+      "scope": [
+        "source.php meta.function-call",
+        "source.php meta.function-call.object"
+      ],
+      "settings": {
+        "foreground": "{{gneiss8}}"
+      }
+    },
+    {
+      "name": "[Python] Decorator",
+      "scope": [
+        "source.python entity.name.function.decorator",
+        "source.python meta.function.decorator support.type"
+      ],
+      "settings": {
+        "foreground": "{{gneiss12}}"
+      }
+    },
+    {
+      "name": "[Python] Function Call",
+      "scope": "source.python meta.function-call.generic",
+      "settings": {
+        "foreground": "{{gneiss8}}"
+      }
+    },
+    {
+      "name": "[Python] Support Type",
+      "scope": "source.python support.type",
+      "settings": {
+        "foreground": "{{gneiss8}}"
+      }
+    },
+    {
+      "name": "[Python] Function Parameter",
+      "scope": [
+        "source.python variable.parameter.function.language"
+      ],
+      "settings": {
+        "foreground": "{{gneiss4}}"
+      }
+    },
+    {
+      "name": "[Python] Function Parameter Special",
+      "scope": [
+        "source.python meta.function.parameters variable.parameter.function.language.special.self"
+      ],
+      "settings": {
+        "foreground": "{{gneiss9}}"
+      }
+    },
+    {
+      "name": "[SCSS] Punctuation Definition Interpolation Bracket Curly",
+      "scope": [
+        "source.css.scss punctuation.definition.interpolation.begin.bracket.curly",
+        "source.css.scss punctuation.definition.interpolation.end.bracket.curly"
+      ],
+      "settings": {
+        "foreground": "{{gneiss9}}"
+      }
+    },
+    {
+      "name": "[SCSS] Variable Interpolation",
+      "scope": "source.css.scss variable.interpolation",
+      "settings": {
+        "fontStyle": "italic",
+        "foreground": "{{gneiss4}}"
+      }
+    },
+    {
+      "name": "[TypeScript] Decorators",
+      "scope": [
+        "source.ts punctuation.decorator",
+        "source.ts meta.decorator variable.other.readwrite",
+        "source.ts meta.decorator entity.name.function",
+        "source.tsx punctuation.decorator",
+        "source.tsx meta.decorator variable.other.readwrite",
+        "source.tsx meta.decorator entity.name.function"
+      ],
+      "settings": {
+        "foreground": "{{gneiss12}}"
+      }
+    },
+    {
+      "name": "[TypeScript] Object-literal keys",
+      "scope": [
+        "source.ts meta.object-literal.key",
+        "source.tsx meta.object-literal.key"
+      ],
+      "settings": {
+        "foreground": "{{gneiss4}}"
+      }
+    },
+    {
+      "name": "[TypeScript] Object-literal functions",
+      "scope": [
+        "source.ts meta.object-literal.key entity.name.function",
+        "source.tsx meta.object-literal.key entity.name.function"
+      ],
+      "settings": {
+        "foreground": "{{gneiss8}}"
+      }
+    },
+    {
+      "name": "[TypeScript] Type/Class",
+      "scope": [
+        "source.ts support.class",
+        "source.ts support.type",
+        "source.ts entity.name.type",
+        "source.ts entity.name.class",
+        "source.tsx support.class",
+        "source.tsx support.type",
+        "source.tsx entity.name.type",
+        "source.tsx entity.name.class"
+      ],
+      "settings": {
+        "foreground": "{{gneiss7}}"
+      }
+    },
+    {
+      "name": "[TypeScript] Static Class Support",
+      "scope": [
+        "source.ts support.constant.math",
+        "source.ts support.constant.dom",
+        "source.ts support.constant.json",
+        "source.tsx support.constant.math",
+        "source.tsx support.constant.dom",
+        "source.tsx support.constant.json"
+      ],
+      "settings": {
+        "foreground": "{{gneiss7}}"
+      }
+    },
+    {
+      "name": "[TypeScript] Variables",
+      "scope": [
+        "source.ts support.variable",
+        "source.tsx support.variable"
+      ],
+      "settings": {
+        "foreground": "{{gneiss4}}"
+      }
+    },
+    {
+      "name": "[TypeScript] Parentheses in Template Strings",
+      "scope": [
+        "source.ts meta.embedded.line meta.brace.square",
+        "source.ts meta.embedded.line meta.brace.round",
+        "source.tsx meta.embedded.line meta.brace.square",
+        "source.tsx meta.embedded.line meta.brace.round"
+      ],
+      "settings": {
+        "foreground": "{{gneiss6}}"
+      }
+    },
+    {
+      "name": "[XML] Entity Name Tag Namespace",
+      "scope": "text.xml entity.name.tag.namespace",
+      "settings": {
+        "foreground": "{{gneiss7}}"
+      }
+    },
+    {
+      "name": "[XML] Keyword Other Doctype",
+      "scope": "text.xml keyword.other.doctype",
+      "settings": {
+        "foreground": "{{gneiss10}}"
+      }
+    },
+    {
+      "name": "[XML] Meta Tag Preprocessor",
+      "scope": "text.xml meta.tag.preprocessor entity.name.tag",
+      "settings": {
+        "foreground": "{{gneiss10}}"
+      }
+    },
+    {
+      "name": "[XML] Entity Name Tag Namespace",
+      "scope": [
+        "text.xml string.unquoted.cdata",
+        "text.xml string.unquoted.cdata punctuation.definition.string"
+      ],
+      "settings": {
+        "fontStyle": "italic",
+        "foreground": "{{gneiss12}}"
+      }
+    },
+    {
+      "name": "[YAML] Entity Name Tag",
+      "scope": "source.yaml entity.name.tag",
+      "settings": {
+        "foreground": "{{gneiss7}}"
+      }
+    }
+  ],
+  "type": "dark"
+}
