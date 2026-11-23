@@ -1,6 +1,6 @@
-{ pkgs, lib, osConfig, ... }:
+{ inputs, pkgs, osConfig, ... }:
 let
-  gneiss = import ../../modules/common/themes/gneiss { inherit lib pkgs; };
+  gneiss = inputs.gneiss.packages.${pkgs.stdenv.hostPlatform.system};
 
   # Each theme's Neovim plugin, and the Lua that turns it on.
   ports = {
@@ -22,7 +22,7 @@ let
         vim.cmd.colorscheme("nord")
       '';
     };
-    # Built here, from modules/common/themes/gneiss.
+    # From the gneiss flake input.
     gneiss = {
       plugins = [ ];
       plugin = gneiss.neovim;

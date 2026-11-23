@@ -1,6 +1,6 @@
-{ pkgs, lib, osConfig, ... }:
+{ inputs, pkgs, lib, osConfig, ... }:
 let
-  gneiss = import ../../modules/common/themes/gneiss { inherit lib pkgs; };
+  gneiss = inputs.gneiss.packages.${pkgs.stdenv.hostPlatform.system};
 
   # The label each theme's extension gives it in VS Code.
   colorTheme = {
@@ -29,7 +29,7 @@ in
           arcticicestudio.nord-visual-studio-code
           jnoortheen.nix-ide
           github.copilot
-          # Built here, from modules/common/themes/gneiss.
+          # From the gneiss flake input.
           gneiss.vscode
         ] ++ pkgs.vscode-utils.extensionsFromVscodeMarketplace [
           # Zenbones themes, including Zenwritten. Not in nixpkgs.

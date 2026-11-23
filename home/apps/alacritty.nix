@@ -1,7 +1,7 @@
-{ lib, osConfig, pkgs, ... }:
+{ inputs, lib, osConfig, pkgs, ... }:
 let
   inherit (osConfig.systemProfile) theme;
-  gneiss = import ../../modules/common/themes/gneiss { inherit lib pkgs; };
+  gneiss = inputs.gneiss.packages.${pkgs.stdenv.hostPlatform.system};
 
   # The colors file to import, for the themes that aren't in the
   # alacritty-theme collection.

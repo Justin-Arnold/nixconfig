@@ -13,9 +13,9 @@
 # These options are intended to be set once per host and referenced by other
 # modules to make configuration decisions, promoting consistency and reducing
 # duplication across the system configuration.
-{ config, pkgs, lib, ... }:
+{ config, pkgs, lib, inputs, ... }:
 let
-  palettes = import ./themes { inherit lib; };
+  palettes = import ./themes { inherit lib; inherit (inputs) gneiss; };
 in
 {
   options.systemProfile = {

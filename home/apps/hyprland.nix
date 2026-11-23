@@ -1,6 +1,6 @@
-{ config, lib, osConfig, pkgs, ... }:
+{ config, inputs, lib, osConfig, pkgs, ... }:
 let
-  gneiss = import ../../modules/common/themes/gneiss { inherit lib pkgs; };
+  gneiss = inputs.gneiss.packages.${pkgs.stdenv.hostPlatform.system};
 
   # Each theme's name in Vicinae's theme list. Vicinae ships the first two;
   # Gneiss's is installed below.
@@ -191,8 +191,8 @@ in
     };
   };
 
-  # Gneiss's Vicinae theme, built from modules/common/themes/gneiss. Vicinae
-  # restarts when it changes, as it does for programs.vicinae.themes.
+  # Gneiss's Vicinae theme, from the gneiss flake input. Vicinae restarts
+  # when it changes, as it does for programs.vicinae.themes.
   xdg.configFile."vicinae/themes/gneiss.toml".source = gneiss.vicinae;
   systemd.user.services.vicinae.Unit.X-Restart-Triggers = [ "${gneiss.vicinae}" ];
 

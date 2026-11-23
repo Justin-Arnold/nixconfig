@@ -1,8 +1,8 @@
 # theming
 
 The desktop apps share one color theme, chosen by `systemProfile.theme` in
-`modules/common/systemProfile.nix`. It is `"gneiss"` by default, this
-repo's own theme (below); `"zenwritten-dark"` and `"nord"` are the other
+`modules/common/systemProfile.nix`. It is `"gneiss"` by default, a theme
+that began here (below); `"zenwritten-dark"` and `"nord"` are the other
 choices. Each app maps it to that app's own port of the theme, so switching
 is one line and a rebuild. Fonts are separate: `systemProfile.fonts.primary`.
 
@@ -14,32 +14,17 @@ already has a port of Zenwritten or Nord, it's used as is and pinned by
 ## Gneiss
 
 Gneiss (pronounced "nice") is Nord's colors on neutral dark grays. It
-started as a copy of Nord's values and is maintained here on its own, so a
-change to Nord doesn't change it. Everything is in
-`modules/common/themes/gneiss/`:
+began in this repo and is now a project of its own,
+[gneiss-theme/gneiss](https://github.com/gneiss-theme/gneiss), which holds
+its palette, its ports and their docs. nixconfig takes it as the `gneiss`
+flake input, with nixpkgs following nixconfig's:
 
-- `palette.toml`: the base colors, `gneiss0` to `gneiss15` and
-  `gneiss-comment`, numbered like Nord's, and the shared roles. The four
-  background grays keep Nord's steps between its own (1.24, 1.45 and 1.69
-  to 1 against the background); the text and accent colors are Nord's.
-- `vscode/`: the extension. `themes/gneiss-color-theme.json` began as
-  Nord's VS Code theme with each Nord color replaced by the Gneiss color in
-  its place, written as `{{gneiss0}}` and so on.
-- `neovim.lua`: the colorscheme. It began as the highlights that
-  [nord.nvim](https://github.com/gbprod/nord.nvim) sets with its default
-  options, Nord's colors replaced the same way.
-- `alacritty.toml` and `vicinae.toml`: the terminal colors and the launcher
-  theme, the same way. The Vicinae theme follows the Nord theme Vicinae
-  ships, with the accent the rest of the desktop uses (`gneiss8`).
-- `default.nix`: builds them all, filling in the colors from
-  `palette.toml`. It fails if a template names a color that isn't one of
-  the base colors.
-- `NOTICE`: the licenses of the two ports forked from Nord's, VS Code's
-  (MIT) and nord.nvim (WTFPL).
+- `inputs.gneiss.lib.palette.colors`: its roles, one of the palettes below.
+- `inputs.gneiss.packages.<system>`: its ports, `neovim`, `vscode`,
+  `alacritty` and `vicinae`.
 
-Two changes from Nord so far: every terminal (Alacritty, VS Code's,
-Neovim's) uses the comment gray for bright black, where Nord uses its border
-gray (1.7:1, too faint to read), and the grays are neutral.
+To change a Gneiss color or port, change it there, then run
+`nix flake update gneiss` here.
 
 ## Switching
 
@@ -55,10 +40,10 @@ Then rebuild. Apps that are already open pick it up when restarted.
 
 | App | Zenwritten Dark | Nord | Gneiss | Module | Hosts |
 |---|---|---|---|---|---|
-| Vicinae | built in (`zenwritten-dark`) | built in (`nord`) | Gneiss's `vicinae.toml`, installed as `gneiss` | `home/apps/hyprland.nix` | Hyprland desktops |
-| Alacritty | Zenbones' own export, `extras/alacritty/zenwritten_dark.toml` in `pkgs.vimPlugins.zenbones-nvim` | `nord` from `pkgs.alacritty-theme` | Gneiss's `alacritty.toml` | `home/apps/alacritty.nix` | GUI hosts, incl. Macs |
-| VS Code | `rpbritton.zenbones` from the Marketplace (not in nixpkgs), theme `Zenbones Zenwritten Dark` | `arcticicestudio.nord-visual-studio-code`, theme `Nord` | Gneiss's extension, theme `Gneiss` | `home/apps/vscode.nix` | GUI hosts, incl. Macs |
-| Neovim | `pkgs.vimPlugins.zenbones-nvim` with `lush-nvim`, colorscheme `zenwritten` | `pkgs.vimPlugins.gbprod-nord`, colorscheme `nord` | Gneiss's plugin, colorscheme `gneiss` | `home/apps/neovim.nix` | every host |
+| Vicinae | built in (`zenwritten-dark`) | built in (`nord`) | the gneiss input's `vicinae`, installed as `gneiss` | `home/apps/hyprland.nix` | Hyprland desktops |
+| Alacritty | Zenbones' own export, `extras/alacritty/zenwritten_dark.toml` in `pkgs.vimPlugins.zenbones-nvim` | `nord` from `pkgs.alacritty-theme` | the gneiss input's `alacritty` | `home/apps/alacritty.nix` | GUI hosts, incl. Macs |
+| VS Code | `rpbritton.zenbones` from the Marketplace (not in nixpkgs), theme `Zenbones Zenwritten Dark` | `arcticicestudio.nord-visual-studio-code`, theme `Nord` | the gneiss input's `vscode`, theme `Gneiss` | `home/apps/vscode.nix` | GUI hosts, incl. Macs |
+| Neovim | `pkgs.vimPlugins.zenbones-nvim` with `lush-nvim`, colorscheme `zenwritten` | `pkgs.vimPlugins.gbprod-nord`, colorscheme `nord` | the gneiss input's `neovim`, colorscheme `gneiss` | `home/apps/neovim.nix` | every host |
 | Wayle | the palette, plus a `zenwritten-dark` theme file so it's listed in Wayle's settings | the palette (Wayle's own Nord values) | the palette, plus a `gneiss` theme file | `home/apps/wayle.nix` | Hyprland desktops |
 | Hyprland borders | the palette: `accent` for the focused window, `border` for the rest | the palette | the palette | `home/apps/hyprland.nix`, `home/dotfiles/hyprland/init.lua` | Hyprland desktops |
 | hy3 tab bars | the palette: `accent` for the focused tab, grays for the others, `red` urgent, `yellow` locked | the palette | the palette | `home/dotfiles/hyprland/config/layout.lua` | Hyprland desktops |
@@ -80,14 +65,13 @@ installed by hand.
 
 Apps with no port of the theme, or none that can be picked by name from
 their config, are themed from raw colors: `systemProfile.palette`, the
-`[colors]` table of `modules/common/themes/<theme>.toml`, or of
-`<theme>/palette.toml` for Gneiss. Each file gives every color a role,
-such as `bg`, `surface`, `fg-muted`, `accent` or `red`, with a comment on
-where it comes from and what it's for; a role can name one of the file's
-`[base]` colors instead of giving a hex. Every value in
-`zenwritten-dark.toml` is Zenbones' own.
+`[colors]` table of `modules/common/themes/<theme>.toml`, or Gneiss's
+roles from its input. Each gives every color a role, such as `bg`,
+`surface`, `fg-muted`, `accent` or `red`; the TOML files here say where each
+comes from and what it's for. Every value in `zenwritten-dark.toml` is
+Zenbones' own.
 
-Every palette must have the same roles; evaluation fails if one doesn't.
+Every palette must have Gneiss's roles; evaluation fails if one doesn't.
 Adding a theme means adding a palette with those roles, which also adds it
 to `systemProfile.theme`, and mapping it in each app above that uses a port.
 

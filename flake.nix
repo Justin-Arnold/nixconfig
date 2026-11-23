@@ -31,6 +31,12 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    # Gneiss, the default color theme: its palette and ports.
+    gneiss = {
+      url = "github:gneiss-theme/gneiss";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
     # Apps for the desktops and Macs.
     zen-browser.url = "github:0xc000022070/zen-browser-flake";
     _1password-shell-plugins.url = "github:1Password/shell-plugins";
