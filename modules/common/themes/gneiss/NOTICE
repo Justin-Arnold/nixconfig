@@ -1,9 +1,20 @@
-Gneiss's VS Code theme (vscode/themes/gneiss-color-theme.json) is a fork of
-Nord's VS Code theme, version 0.19.0, from
-https://github.com/nordtheme/visual-studio-code. It started as the same choice
-of color for each part of the editor, with Gneiss's colors in place of Nord's,
-and is maintained here on its own. Gneiss's base colors started as Nord's
-palette. Nord is under the MIT License below.
+Gneiss's base colors started as Nord's palette (https://www.nordtheme.com).
+Two of its ports started as forks of Nord ports, and are maintained here on
+their own:
+
+- The VS Code theme (vscode/themes/gneiss-color-theme.json) is a fork of
+  Nord's VS Code theme, version 0.19.0, from
+  https://github.com/nordtheme/visual-studio-code, under the MIT License
+  below. It started as the same choice of color for each part of the editor,
+  with Gneiss's colors in place of Nord's.
+
+- The Neovim colorscheme (neovim.lua) is a fork of nord.nvim, at commit
+  87394d4fc35c901bbe38326a78d31ab1ead826b6 (2026-04-14), from
+  https://github.com/gbprod/nord.nvim, under the WTFPL below. It started as
+  the same highlights, with that plugin's default options and Gneiss's colors
+  in place of Nord's.
+
+Nord's VS Code theme:
 
 MIT License (MIT)
 
@@ -27,3 +38,18 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+nord.nvim:
+
+DO WHAT THE FUCK YOU WANT TO PUBLIC LICENSE
+
+Everyone is permitted to copy and distribute verbatim or modified
+copies of this license document, and changing it is allowed as long
+as the name is changed.
+
+DO WHAT THE FUCK YOU WANT TO PUBLIC LICENSE
+
+TERMS AND CONDITIONS FOR COPYING, DISTRIBUTION AND MODIFICATION
+
+0.  You just DO WHAT THE FUCK YOU WANT TO.
+

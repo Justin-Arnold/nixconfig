@@ -10,6 +10,9 @@
 
 [meta]
 name = "Gneiss"
+# The version of the ports built here. VS Code's keeps its own, in its
+# package.json.
+version = "0.1.0"
 
 # The base colors, numbered like Nord's so each port can be compared with
 # Nord's. Ports name them in double braces, such as {{gneiss0}}.

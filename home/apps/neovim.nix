@@ -1,7 +1,9 @@
-{ pkgs, osConfig, ... }:
+{ pkgs, lib, osConfig, ... }:
 let
+  gneiss = import ../../modules/common/themes/gneiss { inherit lib pkgs; };
+
   # Each theme's Neovim plugin, and the Lua that turns it on.
-  ports = rec {
+  ports = {
     zenwritten-dark = {
       # Zenbones uses Lush when it is installed; without it, it would need
       # g:zenbones_compat = 1.
@@ -20,8 +22,14 @@ let
         vim.cmd.colorscheme("nord")
       '';
     };
-    # Until Gneiss has a Neovim port: Zenwritten, also on neutral grays.
-    gneiss = zenwritten-dark;
+    # Built here, from modules/common/themes/gneiss.
+    gneiss = {
+      plugins = [ ];
+      plugin = gneiss.neovim;
+      config = ''
+        vim.cmd.colorscheme("gneiss")
+      '';
+    };
   };
   colorscheme = ports.${osConfig.systemProfile.theme};
 in

@@ -3,7 +3,7 @@
 # palette.toml.
 { lib, pkgs }:
 let
-  inherit (builtins.fromTOML (builtins.readFile ./palette.toml)) base;
+  inherit (builtins.fromTOML (builtins.readFile ./palette.toml)) base meta;
   colorNames = builtins.attrNames base;
 
   render = name: template:
@@ -22,6 +22,19 @@ in
 {
   # An Alacritty config file with the colors, to import.
   alacritty = render "gneiss-alacritty.toml" ./alacritty.toml;
+
+  # A Neovim plugin with the "gneiss" colorscheme.
+  neovim = pkgs.vimUtils.buildVimPlugin {
+    pname = "gneiss";
+    inherit (meta) version;
+    src = pkgs.runCommandLocal "gneiss-nvim" { } ''
+      install -Dm644 ${render "gneiss.lua" ./neovim.lua} "$out/colors/gneiss.lua"
+      install -Dm644 ${./NOTICE} "$out/NOTICE"
+    '';
+  };
+
+  # A Vicinae theme file, for Vicinae's themes folder.
+  vicinae = render "gneiss.toml" ./vicinae.toml;
 
   # A VS Code extension with the "Gneiss" color theme.
   vscode = pkgs.vscode-utils.buildVscodeExtension {

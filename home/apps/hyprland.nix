@@ -1,11 +1,13 @@
 { config, lib, osConfig, pkgs, ... }:
 let
-  # Vicinae ships both themes; these are their names in its theme list.
+  gneiss = import ../../modules/common/themes/gneiss { inherit lib pkgs; };
+
+  # Each theme's name in Vicinae's theme list. Vicinae ships the first two;
+  # Gneiss's is installed below.
   vicinaeTheme = {
     zenwritten-dark = "zenwritten-dark";
     nord = "nord";
-    # Until Gneiss has a Vicinae port: Zenwritten, also on neutral grays.
-    gneiss = "zenwritten-dark";
+    gneiss = "gneiss";
   }.${osConfig.systemProfile.theme};
 
   # Every Hyprland bind with a description, searchable by what it does.
@@ -188,6 +190,11 @@ in
       };
     };
   };
+
+  # Gneiss's Vicinae theme, built from modules/common/themes/gneiss. Vicinae
+  # restarts when it changes, as it does for programs.vicinae.themes.
+  xdg.configFile."vicinae/themes/gneiss.toml".source = gneiss.vicinae;
+  systemd.user.services.vicinae.Unit.X-Restart-Triggers = [ "${gneiss.vicinae}" ];
 
   wayland.windowManager.hyprland = {
     enable = true;

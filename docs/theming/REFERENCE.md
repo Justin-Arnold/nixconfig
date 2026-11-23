@@ -26,14 +26,21 @@ change to Nord doesn't change it. Everything is in
 - `vscode/`: the extension. `themes/gneiss-color-theme.json` began as
   Nord's VS Code theme with each Nord color replaced by the Gneiss color in
   its place, written as `{{gneiss0}}` and so on.
-- `alacritty.toml`: the terminal colors, the same way.
-- `default.nix`: builds both, filling in the colors from `palette.toml`.
-  It fails if a template names a color that isn't one of the base colors.
-- `NOTICE`: Nord's MIT license, for the VS Code theme forked from it.
+- `neovim.lua`: the colorscheme. It began as the highlights that
+  [nord.nvim](https://github.com/gbprod/nord.nvim) sets with its default
+  options, Nord's colors replaced the same way.
+- `alacritty.toml` and `vicinae.toml`: the terminal colors and the launcher
+  theme, the same way. The Vicinae theme follows the Nord theme Vicinae
+  ships, with the accent the rest of the desktop uses (`gneiss8`).
+- `default.nix`: builds them all, filling in the colors from
+  `palette.toml`. It fails if a template names a color that isn't one of
+  the base colors.
+- `NOTICE`: the licenses of the two ports forked from Nord's, VS Code's
+  (MIT) and nord.nvim (WTFPL).
 
-Two changes from Nord so far: both terminals use the comment gray for
-bright black, where Nord uses its border gray (1.7:1, too faint to read),
-and the grays are neutral.
+Two changes from Nord so far: every terminal (Alacritty, VS Code's,
+Neovim's) uses the comment gray for bright black, where Nord uses its border
+gray (1.7:1, too faint to read), and the grays are neutral.
 
 ## Switching
 
@@ -49,10 +56,10 @@ Then rebuild. Apps that are already open pick it up when restarted.
 
 | App | Zenwritten Dark | Nord | Gneiss | Module | Hosts |
 |---|---|---|---|---|---|
-| Vicinae | built in (`zenwritten-dark`) | built in (`nord`) | Zenwritten's, for now | `home/apps/hyprland.nix` | Hyprland desktops |
+| Vicinae | built in (`zenwritten-dark`) | built in (`nord`) | Gneiss's `vicinae.toml`, installed as `gneiss` | `home/apps/hyprland.nix` | Hyprland desktops |
 | Alacritty | Zenbones' own export, `extras/alacritty/zenwritten_dark.toml` in `pkgs.vimPlugins.zenbones-nvim` | `nord` from `pkgs.alacritty-theme` | Gneiss's `alacritty.toml` | `home/apps/alacritty.nix` | GUI hosts, incl. Macs |
 | VS Code | `rpbritton.zenbones` from the Marketplace (not in nixpkgs), theme `Zenbones Zenwritten Dark` | `arcticicestudio.nord-visual-studio-code`, theme `Nord` | Gneiss's extension, theme `Gneiss` | `home/apps/vscode.nix` | GUI hosts, incl. Macs |
-| Neovim | `pkgs.vimPlugins.zenbones-nvim` with `lush-nvim`, colorscheme `zenwritten` | `pkgs.vimPlugins.gbprod-nord`, colorscheme `nord` | Zenwritten's, for now | `home/apps/neovim.nix` | every host |
+| Neovim | `pkgs.vimPlugins.zenbones-nvim` with `lush-nvim`, colorscheme `zenwritten` | `pkgs.vimPlugins.gbprod-nord`, colorscheme `nord` | Gneiss's plugin, colorscheme `gneiss` | `home/apps/neovim.nix` | every host |
 | Wayle | the palette, plus a `zenwritten-dark` theme file so it's listed in Wayle's settings | the palette (Wayle's own Nord values) | the palette, plus a `gneiss` theme file | `home/apps/wayle.nix` | Hyprland desktops |
 | Hyprland borders | the palette: `accent` for the focused window, `border` for the rest | the palette | the palette | `home/apps/hyprland.nix`, `home/dotfiles/hyprland/init.lua` | Hyprland desktops |
 | hy3 tab bars | the palette: `accent` for the focused tab, grays for the others, `red` urgent, `yellow` locked | the palette | the palette | `home/dotfiles/hyprland/config/layout.lua` | Hyprland desktops |
