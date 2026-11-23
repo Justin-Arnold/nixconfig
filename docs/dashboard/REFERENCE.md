@@ -31,8 +31,6 @@ resource view and puts everything on one board.
 | `hosts/dashboard/endpoints.nix` | ACME (Porkbun DNS-01), nginx vhosts and allow-lists, and what Pangolin may reach. |
 | `hosts/dashboard/nginx/homarr-guard.conf` | The locations that keep Homarr's MCP and OAuth routes unreachable. |
 | `hosts/dashboard/backup.nix` | The NFS mount and what gets backed up. |
-| `hosts/dashboard/eval-test.nix` | Example values for the flake checks, not used by the real host. |
-| `hosts/dashboard/exposure-guards.nix` | The cases `.#checks.<system>.dashboard-exposure-guards` tries: each breaks the exposure policy, and evaluation has to refuse it. |
 | `infra/terranix/hosts/dashboard.nix` | The VM, its storage, CPU type and HA resource. |
 | `modules/roles/homarr.nix` | Homarr in Docker, the key guard and the health watch. |
 | `modules/roles/beszel-agent.nix` | The agent every monitored host uses. |
@@ -71,8 +69,7 @@ that deny isn't first.
 
 The firewall opens TCP 22, 80 and 443 and nothing else. Containers publish on
 127.0.0.1 only, and the hub listens on 127.0.0.1. The assertions in
-`configuration.nix` and `endpoints.nix` fail the build if any of that changes,
-and `.#checks.<system>.dashboard-exposure-guards` proves they fire.
+`configuration.nix` and `endpoints.nix` fail the build if any of that changes.
 
 Homarr's MCP endpoint (`/api/mcp`), its OAuth routes (`/api/mcp/oauth/*`,
 `/.well-known/*`) and the page that approves MCP clients (`/<locale>/auth/mcp`)

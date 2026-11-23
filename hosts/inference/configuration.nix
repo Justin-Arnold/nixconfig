@@ -117,9 +117,7 @@ in
   ############################################################
   ## Guards
   ############################################################
-  # The exposure policy. .#checks.<system>.inference-exposure-guards breaks
-  # each of these (the cases are in ./exposure-guards.nix) and fails unless
-  # evaluation refuses it.
+  # The exposure policy: the build fails if any of these stops holding.
   assertions = [
     {
       # SSH, the model over HTTPS, and Home Assistant's Piper (10200) and

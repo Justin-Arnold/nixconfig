@@ -36,7 +36,6 @@ bots' tokens, and nothing else.
 | `hosts/openclaw/endpoints.nix` | nginx and the certificate. |
 | `hosts/openclaw/backup.nix` | The nightly backup. |
 | `hosts/openclaw/eval-test.nix` | Example values for the flake checks, not used by the real host. |
-| `hosts/openclaw/exposure-guards.nix` | The cases `.#checks.<system>.openclaw-exposure-guards` tries: each breaks the exposure policy, and evaluation has to refuse it. |
 | `modules/roles/openclaw.nix` | The gateway's unit, its config file and `openclaw-admin`. |
 | `infra/terranix/hosts/openclaw.nix` | The VM, its storage and the HA resource. |
 | `modules/roles/hermes-agents/paperclip-mcp/` | The Paperclip MCP server, shared with the Hermes agents. |
@@ -67,7 +66,7 @@ its headers would pass on what the client sent.
 
 The firewall opens TCP 22, 80 and 443 and nothing else. The assertions in
 `configuration.nix` and `endpoints.nix` fail the build if any of this
-changes, and `.#checks.<system>.openclaw-exposure-guards` proves they fire.
+changes.
 
 ### DNS and router settings this depends on
 

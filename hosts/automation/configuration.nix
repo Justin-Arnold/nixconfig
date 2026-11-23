@@ -93,8 +93,7 @@ in
   ############################################################
   ## Guards
   ############################################################
-  # The exposure policy. .#checks.<system>.automation-exposure-guards breaks
-  # each of these and fails unless evaluation refuses it.
+  # The exposure policy: the build fails if any of these stops holding.
   assertions = [
     {
       assertion = publicTcpPorts == [ 22 80 443 ];

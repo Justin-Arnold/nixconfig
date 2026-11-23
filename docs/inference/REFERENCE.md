@@ -36,8 +36,6 @@ key and the Beszel token. Nothing a client sends is stored on it.
 | `hosts/inference/configuration.nix` | The host: SOPS, the active model, the Beszel agent, and the exposure assertions. |
 | `hosts/inference/models.nix` | The models it can serve, each pinned to a Hugging Face commit and a sha256. |
 | `hosts/inference/endpoints.nix` | nginx: the certificate, the client keys, the connection limits. |
-| `hosts/inference/eval-test.nix` | Example values for the flake checks, not used by the real host. |
-| `hosts/inference/exposure-guards.nix` | The cases `.#checks.<system>.inference-exposure-guards` tries: each breaks the exposure policy, and evaluation has to refuse it. |
 | `hosts/inference/models-check.nix` | The `inference-eval` flake check: the host evaluates with each model in `models.nix` active. |
 | `modules/roles/inference.nix` | llama-server's unit, the model download and the flags it refuses. |
 | `modules/roles/nvidia-gpu.nix` | The NVIDIA driver, headless. |
@@ -68,8 +66,7 @@ well.
 The firewall opens TCP 22, 443, 10200 and 10300 and nothing else. Whisper and
 Piper on 10200 and 10300 have no authentication, as Home Assistant expects.
 The assertions in `configuration.nix`, `endpoints.nix` and the role fail the
-build if any of this changes, and `.#checks.<system>.inference-exposure-guards`
-proves they fire.
+build if any of this changes.
 
 ### DNS and router settings this depends on
 

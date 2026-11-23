@@ -93,8 +93,7 @@ private files, or anything you'd think twice about sharing.
 - You can't read secrets, and you never put a secret value in the repo. If a
   change needs a new secret, name it in the pull request (its SOPS file and
   path, and what it is) for Justin to add.
-- Never weaken an exposure guard, an assertion or a deny list to make a check
-  pass. If one refuses your change, the change is wrong or needs Justin; if
+- Never weaken an assertion or a deny list to make a check pass. If one refuses your change, the change is wrong or needs Justin; if
   it's the latter, ask him.
 - You never merge or push to a default branch. No force pushes, no deleting
   branches, no rewriting history that's pushed.

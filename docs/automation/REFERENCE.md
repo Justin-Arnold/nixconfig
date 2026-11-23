@@ -37,8 +37,6 @@ it, and a switch that moves its version builds it on the VM from source.
 | `hosts/automation/backup.nix` | The NFS mount, what gets backed up, and the key fingerprint n8n writes before it starts. |
 | `hosts/automation/n8n-credentials.json` | The n8n credentials, each field naming where its value is in SOPS. |
 | `hosts/automation/workflows/` | One file per workflow, as n8n's public API takes it. |
-| `hosts/automation/eval-test.nix` | Example values for the flake checks, not used by the real host. |
-| `hosts/automation/exposure-guards.nix` | The cases `.#checks.<system>.automation-exposure-guards` tries: each breaks the exposure policy, and evaluation has to refuse it. |
 | `infra/terranix/hosts/automation.nix` | The VM, its storage, CPU type and HA resource. |
 | `scripts/automation/n8n-apply.py` | Brings n8n's credentials and workflows in line with the repo. |
 | `scripts/automation/post-install-check.sh` | Read-only health report: `ssh automation 'sudo bash -s' < scripts/automation/post-install-check.sh`. |
@@ -67,8 +65,7 @@ lab118-services resolves the name through lab DNS over the tunnel
 
 The firewall opens TCP 22, 80 and 443 and nothing else, and n8n listens on
 127.0.0.1. The assertions fail the build if the tunnel can reach any other
-path, if n8n listens anywhere else, or if a port opens, and
-`.#checks.<system>.automation-exposure-guards` proves they fire.
+path, if n8n listens anywhere else, or if a port opens.
 
 ### DNS and router settings this depends on
 

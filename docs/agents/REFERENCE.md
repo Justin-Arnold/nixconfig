@@ -42,7 +42,6 @@ separate execution host.
 | `hosts/agents/paperclip-events.nix`, `hosts/agents/paperclip-events/` | The relay that turns Paperclip's live events into nudges for agent-watch, board-bridge and agent-costs, and its test against a fake Paperclip. |
 | `hosts/agents/packages-check.nix` | The `agents-packages` check: builds the MCP servers, the services' Python and workbench's scripts as they're deployed. |
 | `hosts/agents/eval-test.nix` | Example values for the flake checks, not used by the real host. |
-| `hosts/agents/exposure-guards.nix` | The cases `.#checks.<system>.agents-exposure-guards` tries: each breaks the exposure policy, and evaluation has to refuse it. |
 | `hosts/agents/paperclip-spec-check.nix` | The `paperclip-spec` flake check: the spec's Hermes agents and routines match this host. |
 | `infra/terranix/hosts/agents.nix` | The VM, its storage, CPU type and HA resource. |
 | `hosts/agents/agents.nix` | The Hermes agents, their models, which ones have a Paperclip key, and what they may reach in the LAN. |
@@ -117,7 +116,7 @@ The firewall opens TCP 22, 80 and 443 and nothing else. Paperclip shares the
 host's network and listens on 127.0.0.1, so nothing is published past the
 firewall. PostgreSQL listens on its socket and on localhost. The assertions
 in `configuration.nix` and `endpoints.nix` fail the build if any of that
-changes, and `.#checks.<system>.agents-exposure-guards` proves they fire.
+changes.
 
 ### DNS and router settings this depends on
 
@@ -267,7 +266,7 @@ of every agent with a terminal says to run commands directly. config.yaml,
 .env and SOUL.md belong to root, so an agent can read
 them but not change them, and Hermes runs managed, so it refuses to rewrite
 its own config. The assertions in the role refuse a build that opens any of
-this up; `agents-exposure-guards` proves they fire.
+this up.
 
 Every agent logs in to Codex with its own ChatGPT device code, so one agent's
 token refresh can't sign the others out. `hermes-agent` runs the CLI as an
@@ -331,7 +330,7 @@ monitor did until November 2026, and its 64K slots and slow reading of long
 prompts made them compress often and run out of time. inference now serves
 Home Assistant's voice assistant and the Mac (`docs/inference/REFERENCE.md`).
 `roles.hermesAgents.providers` can still point agents at an endpoint like it,
-and its guards are tested with a stand-in provider in `hosts/agents/exposure-guards.nix`.
+and the role's assertions hold one to HTTPS and at least 64,000 tokens of context.
 
 Claude runs on an Anthropic API key, `anthropic/api-key`, from the Console
 organization's Default workspace, which spends the account's monthly credits.

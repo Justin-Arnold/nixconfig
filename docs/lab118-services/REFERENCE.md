@@ -33,7 +33,6 @@ the alert over cellular.
 | `hosts/lab118-services/doppler-secrets.nix` | Which Doppler keys exist and which runtime files they turn into. |
 | `hosts/lab118-services/disko.nix` | Disk layout (hybrid BIOS/UEFI GRUB). |
 | `hosts/lab118-services/eval-test.nix` | Example values used by a flake check, not by the real host. |
-| `hosts/lab118-services/exposure-guards.nix` | The cases `.#checks.<system>.lab118-services-exposure-guards` tries: each breaks the exposure policy, and evaluation has to refuse it. |
 | `modules/roles/notifications-stack.nix` | Alerta + PostgreSQL + Alerta web UI, ntfy, Apprise, Node-RED and the forwarder, as a reusable role. |
 | `modules/roles/notifications-stack/` | The forwarder, Alerta's `push` plugin and the Alerta build that includes it, with their tests. |
 | `modules/roles/uptime-kuma.nix` | Kuma in Docker with a pinned image. |
@@ -212,8 +211,7 @@ exactly 22/80/443, if a UDP port other than the WireGuard one opens, or if any
 container port is published on something other than `127.0.0.1`.
 
 The last one matters because Docker-published ports skip the NixOS firewall
-entirely. The `lab118-services-exposure-guards` flake check proves the
-assertions actually fire.
+entirely.
 
 ### Pangolin
 
@@ -458,7 +456,6 @@ Before deploying, these all run on the Mac:
 nix build .#checks.aarch64-darwin.doppler-secrets
 nix build .#checks.aarch64-darwin.provisioning
 nix build .#checks.aarch64-darwin.lab118-services-eval
-nix build .#checks.aarch64-darwin.lab118-services-exposure-guards
 ```
 
 Then on the host:

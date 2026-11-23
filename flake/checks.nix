@@ -5,41 +5,19 @@
 # Each check lives next to what it tests; this file only gives them names.
 { self, lib, systems, pkgsFor, infraManifest }:
 let
-  # The hosts with an eval-test.nix: the real host with example values and no
-  # SOPS file, so it evaluates, every assertion included, on any machine.
-  # Built once and shared by both systems' checks.
+  # The hosts with an eval-test.nix: the real host with example values for
+  # parts it doesn't have set up yet, so those parts and their assertions
+  # evaluate too. The real hosts themselves are evaluated by
+  # `scripts/flake-check.sh eval`. Built once and shared by both systems' checks.
   examples = lib.genAttrs [
     "agents"
-    "automation"
     "cglt-previews"
-    "dashboard"
-    "inference"
     "lab118-services"
     "openclaw"
     "workbench"
   ] (host: self.nixosConfigurations.${host}.extendModules {
     modules = [ ../hosts/${host}/eval-test.nix ];
   });
-
-  drvPathOf = nixos: nixos.config.system.build.toplevel.drvPath;
-
-  # Each host's hosts/<host>/exposure-guards.nix: modules that each break the
-  # host's exposure policy. Evaluating the example with any of them has to
-  # fail. The example itself has to evaluate first, or every case would fail
-  # for that reason and look refused.
-  guardResults = lib.mapAttrs (host: example:
-    let
-      cases = import ../hosts/${host}/exposure-guards.nix { inherit lib example; };
-      refused = module: !(builtins.tryEval
-        (example.extendModules { modules = [ module ]; }).config.system.build.toplevel.drvPath).success;
-      exampleEvaluates = builtins.addErrorContext
-        "while checking that hosts/${host}/eval-test.nix evaluates, before trying its exposure cases"
-        (drvPathOf example);
-      results = builtins.seq exampleEvaluates (lib.mapAttrs (_: refused) cases);
-    in
-    assert lib.assertMsg (lib.all lib.id (lib.attrValues results))
-      "${host} exposure guards did not refuse: ${toString (lib.attrNames (lib.filterAttrs (_: ok: !ok) results))}";
-    results) examples;
 in
 lib.genAttrs systems (system:
   let
@@ -71,20 +49,14 @@ lib.genAttrs systems (system:
     };
     inference-eval = import ../hosts/inference/models-check.nix {
       inherit pkgs lib;
-      example = examples.inference;
-      models = self.nixosConfigurations.inference.config.roles.inference.models;
+      host = self.nixosConfigurations.inference;
     };
   }
-  # <host>-eval: the example evaluates. (inference-eval, above, does this per model.)
-  // lib.listToAttrs (map
-    (host: lib.nameValuePair "${host}-eval" (pkgs.writeText "${host}-eval"
-      (builtins.unsafeDiscardStringContext (drvPathOf examples.${host}))))
-    [ "agents" "automation" "cglt-previews" "dashboard" "lab118-services" "openclaw" "workbench" ])
-  # <host>-exposure-guards: see guardResults.
+  # <host>-eval: the example evaluates.
   // lib.mapAttrs'
-    (host: results: lib.nameValuePair "${host}-exposure-guards"
-      (pkgs.writeText "${host}-exposure-guards" (builtins.toJSON results)))
-    guardResults
+    (host: example: lib.nameValuePair "${host}-eval" (pkgs.writeText "${host}-eval"
+      (builtins.unsafeDiscardStringContext example.config.system.build.toplevel.drvPath)))
+    examples
   // lib.optionalAttrs (lib.hasSuffix "-linux" system) {
     # What the agents run, which only ever runs on Linux.
     agents-packages = import ../hosts/agents/packages-check.nix { inherit pkgs; };

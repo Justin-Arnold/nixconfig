@@ -1,4 +1,4 @@
-# Used only by the `lab118-services-eval` and exposure-guard flake checks:
+# Used only by the `lab118-services-eval` flake check:
 # documentation-range values, so the full configuration and every assertion
 # can be evaluated without the real facts or the real SOPS file.
 { lib, ... }:
