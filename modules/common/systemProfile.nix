@@ -69,6 +69,14 @@
         package = pkgs.nerd-fonts.hasklug;
       };
     };
+    theme = lib.mkOption {
+      type = lib.types.enum [ "zenwritten-dark" "nord" ];
+      description = ''
+        Color theme for applications that follow the system profile. Each app
+        maps it to its own port of that theme (docs/theming/REFERENCE.md).
+      '';
+      default = "zenwritten-dark";
+    };
     stateVersion = lib.mkOption {
       type = lib.types.str;
       description = "The NixOS state version, indicating the system's configuration version.";

@@ -1,44 +1,27 @@
-{ lib, osConfig, ... }:
+{ lib, osConfig, pkgs, ... }:
+let
+  inherit (osConfig.systemProfile) theme;
+in
 {
   config = lib.mkIf osConfig.systemProfile.hasGui {
     programs.alacritty = {
       enable = true;
+
+      # Nord comes from the alacritty-theme collection, which has no Zenwritten.
+      theme = lib.mkIf (theme == "nord") "nord";
+
       settings = {
+        # Zenbones ships its own Alacritty export alongside the Neovim theme.
+        general.import = lib.mkIf (theme == "zenwritten-dark") [
+          "${pkgs.vimPlugins.zenbones-nvim}/extras/alacritty/zenwritten_dark.toml"
+        ];
+
         font = {
           normal = {
             family = osConfig.systemProfile.fonts.primary.family;
             style = "Regular";
           };
           size = 14;
-        };
-
-        colors = {
-          primary = {
-            background = "#2E3440";
-            foreground = "#D8DEE9";
-          };
-
-          normal = {
-            black   = "#3B4252";
-            red     = "#BF616A";
-            green   = "#A3BE8C";
-            yellow  = "#EBCB8B";
-            blue    = "#81A1C1";
-            magenta = "#B48EAD";
-            cyan    = "#88C0D0";
-            white   = "#E5E9F0";
-          };
-
-          bright = {
-            black   = "#4C566A";
-            red     = "#BF616A";
-            green   = "#A3BE8C";
-            yellow  = "#EBCB8B";
-            blue    = "#81A1C1";
-            magenta = "#B48EAD";
-            cyan    = "#8FBCBB";
-            white   = "#ECEFF4";
-          };
         };
 
         window = {

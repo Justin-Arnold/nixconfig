@@ -1,5 +1,11 @@
-{ config, pkgs, ... }:
+{ config, osConfig, pkgs, ... }:
 let
+  # Vicinae ships both themes; these are their names in its theme list.
+  vicinaeTheme = {
+    zenwritten-dark = "zenwritten-dark";
+    nord = "nord";
+  }.${osConfig.systemProfile.theme};
+
   # Every Hyprland bind with a description, searchable by what it does.
   # Bound to Super + / (config/hotkeys.lua) and listed in the launcher as
   # "Hotkeys". hyprctl comes from the session, to match the running Hyprland.
@@ -172,6 +178,12 @@ in
       # Hyprland handles Meta+Space through vicinae toggle.
       global_shortcuts.toggle = "";
       launcher_window.layer_shell.enabled = true;
+      # These override a theme picked in Vicinae's settings, which it saves
+      # to its own settings.json.
+      theme = {
+        dark.name = vicinaeTheme;
+        light.name = vicinaeTheme;
+      };
     };
   };
 
