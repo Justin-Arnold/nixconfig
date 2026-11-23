@@ -79,7 +79,7 @@ in
         Color theme for applications that follow the system profile. Each app
         maps it to its own port of that theme (docs/theming/REFERENCE.md).
       '';
-      default = "zenwritten-dark";
+      default = "gneiss";
     };
     palette = lib.mkOption {
       type = lib.types.attrsOf lib.types.str;

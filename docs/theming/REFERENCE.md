@@ -1,16 +1,15 @@
 # theming
 
 The desktop apps share one color theme, chosen by `systemProfile.theme` in
-`modules/common/systemProfile.nix`. It is `"zenwritten-dark"` by default;
-`"nord"` and `"gneiss"` are the other choices. Each app maps it to that
-app's own port of the theme, so switching is one line and a rebuild. Fonts
-are separate: `systemProfile.fonts.primary`.
+`modules/common/systemProfile.nix`. It is `"gneiss"` by default, this
+repo's own theme (below); `"zenwritten-dark"` and `"nord"` are the other
+choices. Each app maps it to that app's own port of the theme, so switching
+is one line and a rebuild. Fonts are separate: `systemProfile.fonts.primary`.
 
 Zenwritten is the zero-saturation variant of
 [Zenbones](https://github.com/zenbones-theme/zenbones.nvim). Where an app
 already has a port of Zenwritten or Nord, it's used as is and pinned by
-`flake.lock`, and its app-specific colors stay with that port. Gneiss is
-this repo's own theme, below.
+`flake.lock`, and its app-specific colors stay with that port.
 
 ## Gneiss
 

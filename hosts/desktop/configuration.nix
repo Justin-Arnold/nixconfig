@@ -17,8 +17,6 @@
     stateVersion = "24.05";
     hasGui = true;
     forCglt = true;
-    # Trying Gneiss here before it becomes the default (docs/theming).
-    theme = "gneiss";
   };
 
   ############################################################
