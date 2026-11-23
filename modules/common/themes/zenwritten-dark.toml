@@ -1,0 +1,48 @@
+# Zenwritten Dark: the zero-saturation variant of Zenbones.
+#
+# Only for apps themed here from raw colors (Wayle, Hyprland). Apps with
+# their own port of the theme use that port; see docs/theming/REFERENCE.md.
+#
+# Every value is Zenbones' own: the dark highlight groups in
+# colors/zenwritten.vim, or its Alacritty export, both at v4.12.0. The
+# comment names where each one comes from. nord.toml has the same roles.
+
+[meta]
+name = "Zenwritten Dark"
+upstream = "https://github.com/zenbones-theme/zenbones.nvim"
+
+[colors]
+# Surfaces, darkest first
+bg = "#191919"            # Normal background
+bg-subtle = "#222222"     # CursorLine: hover row, current line
+surface = "#242424"       # StatusLineNC: sidebars, bars, cards
+overlay = "#2C2C2C"       # Pmenu, NormalFloat: menus, popovers
+elevated = "#303030"      # StatusLine: raised or active controls
+selection = "#404040"     # Visual: selected items and text
+border = "#434343"        # Vicinae's border: dividers, inactive borders
+border-strong = "#616161" # WinSeparator: separators that need contrast
+
+# Text. fg-muted is too faint for small text on elevated (about 4:1);
+# fg-faint is for placeholders and disabled things, not text to read.
+fg = "#BBBBBB"            # Normal
+fg-muted = "#8E8E8E"      # ANSI bright white: secondary text
+fg-faint = "#686868"      # Comment
+cursor = "#C9C9C9"        # Cursor
+
+# Accent and its text. Text on an accent fill is bg, not fg.
+accent = "#6099C0"        # ANSI blue
+on-accent = "#191919"
+
+# Status and syntax colors (ANSI normal), then their bright variants
+blue = "#6099C0"
+green = "#819B69"         # success, additions
+red = "#DE6E7C"           # errors, deletions
+yellow = "#B77E64"        # warnings; Zenwritten's yellow is an orange-brown
+magenta = "#B279A7"       # hints
+cyan = "#66A5AD"          # info
+blue-bright = "#61ABDA"
+green-bright = "#8BAE68"
+red-bright = "#E8838F"
+yellow-bright = "#D68C67"
+magenta-bright = "#CF86C1"
+cyan-bright = "#65B8C1"

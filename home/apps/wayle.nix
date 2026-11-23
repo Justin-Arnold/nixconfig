@@ -3,16 +3,48 @@
 { config, lib, osConfig, pkgs, ... }:
 let
   fontFamily = osConfig.systemProfile.fonts.primary.family;
+  inherit (osConfig.systemProfile) theme palette;
   wayle = lib.getExe' config.services.wayle.package "wayle";
+  tomlFormat = pkgs.formats.toml { };
+
+  # Wayle's ten color roles, from the theme's palette. Wayle has no setting
+  # that names a theme, so the colors themselves go in the config.
+  waylePalette = {
+    inherit (palette) bg surface elevated fg fg-muted red yellow green blue;
+    primary = palette.accent;
+  };
+
+  # Settings declared here that Wayle's settings panel or CLI can override
+  # in runtime.toml. Wayle can't reset a whole table, so each color is
+  # listed.
+  overridable = [
+    "general.font-sans"
+    "general.font-mono"
+    "styling.theme-provider"
+  ] ++ map (role: "styling.palette.${role}") (lib.attrNames waylePalette);
 in
 {
-  # Wayle gives runtime settings priority over the Home Manager config.
+  # Wayle gives runtime settings priority over the Home Manager config, so a
+  # config change clears the overrides of what's declared here. A theme
+  # picked in Wayle's settings lasts until then; `wayle config reset` with
+  # one of these paths clears it sooner.
   xdg.configFile."wayle/config.toml".onChange = ''
     if [[ -f ${lib.escapeShellArg "${config.xdg.configHome}/wayle/runtime.toml"} ]]; then
-      XDG_CONFIG_HOME=${lib.escapeShellArg config.xdg.configHome} ${wayle} config reset general.font-sans
-      XDG_CONFIG_HOME=${lib.escapeShellArg config.xdg.configHome} ${wayle} config reset general.font-mono
+      for path in ${lib.escapeShellArgs overridable}; do
+        XDG_CONFIG_HOME=${lib.escapeShellArg config.xdg.configHome} ${wayle} config reset "$path" >/dev/null
+      done
     fi
   '';
+
+  # The same colors as a Wayle theme file, so the theme is also listed in
+  # Wayle's settings. Wayle has Nord built in, and skips a file named after
+  # a built-in.
+  xdg.configFile."wayle/themes/${theme}.toml" = lib.mkIf (theme != "nord") {
+    source = tomlFormat.generate "wayle-theme-${theme}.toml"
+      # Theme files spell this one with an underscore; the config, with a
+      # hyphen.
+      (lib.removeAttrs waylePalette [ "fg-muted" ] // { fg_muted = waylePalette.fg-muted; });
+  };
 
   # Reload the font map when the installed primary font changes.
   systemd.user.services.wayle.Unit.X-Restart-Triggers = [
@@ -36,6 +68,13 @@ in
       general = {
         font-sans = fontFamily;
         font-mono = fontFamily;
+      };
+
+      styling = {
+        # Static colors. The other providers (matugen, pywal, wallust) take
+        # them from the wallpaper instead, and can recolor the terminals too.
+        theme-provider = "wayle";
+        palette = waylePalette;
       };
 
       bar = {

@@ -1,6 +1,7 @@
 -- https://wiki.hypr.land/Configuring/Start/
 
 local applications = require("hyprland.data.applications")
+local colors = require("hyprland.data.colors")
 local keybindings = require("hyprland.data.keybindings")
 
 -- First, so it records every bind made after it.
@@ -26,9 +27,11 @@ hl.config({
 
         border_size = 2,
 
+        -- The theme's accent for the focused window, its border color for
+        -- the rest (data/colors.lua, generated from the palette).
         col = {
-            active_border   = { colors = {"rgba(33ccffee)", "rgba(00ff99ee)"}, angle = 45 },
-            inactive_border = "rgba(595959aa)",
+            active_border   = "rgba(" .. colors.accent .. "ee)",
+            inactive_border = "rgba(" .. colors.border .. "aa)",
         },
 
         resize_on_border = false,

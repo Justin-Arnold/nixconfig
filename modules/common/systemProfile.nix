@@ -14,6 +14,9 @@
 # modules to make configuration decisions, promoting consistency and reducing
 # duplication across the system configuration.
 { config, pkgs, lib, ... }:
+let
+  palettes = import ./themes { inherit lib; };
+in
 {
   options.systemProfile = {
     ############################################################
@@ -70,12 +73,23 @@
       };
     };
     theme = lib.mkOption {
-      type = lib.types.enum [ "zenwritten-dark" "nord" ];
+      # One per palette in ./themes.
+      type = lib.types.enum (builtins.attrNames palettes);
       description = ''
         Color theme for applications that follow the system profile. Each app
         maps it to its own port of that theme (docs/theming/REFERENCE.md).
       '';
       default = "zenwritten-dark";
+    };
+    palette = lib.mkOption {
+      type = lib.types.attrsOf lib.types.str;
+      readOnly = true;
+      description = ''
+        The theme's colors by role, from themes/<theme>.toml, for apps that
+        are themed here from raw colors rather than by their own port.
+      '';
+      default = palettes.${config.systemProfile.theme};
+      defaultText = lib.literalMD "the colors in `themes/<theme>.toml`";
     };
     stateVersion = lib.mkOption {
       type = lib.types.str;

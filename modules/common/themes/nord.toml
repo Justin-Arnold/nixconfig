@@ -1,0 +1,45 @@
+# Nord, in the same roles as zenwritten-dark.toml.
+#
+# Only for apps themed here from raw colors (Wayle, Hyprland). Wayle's roles
+# use the values of Wayle's own built-in Nord (palettes.rs at v0.7.1), so
+# Wayle looks the same as when Nord is picked in its settings; the rest are
+# the standard Nord colors, nord0 to nord15.
+
+[meta]
+name = "Nord"
+upstream = "https://www.nordtheme.com"
+
+[colors]
+# Surfaces, darkest first
+bg = "#2E3440"            # nord0 (Wayle bg)
+bg-subtle = "#3B4252"     # nord1
+surface = "#3B4252"       # nord1 (Wayle surface)
+overlay = "#3B4252"       # nord1
+elevated = "#434C5E"      # nord2 (Wayle elevated)
+selection = "#434C5E"     # nord2
+border = "#4C566A"        # nord3
+border-strong = "#616E88" # Nord's brightened nord3, used for comments
+
+# Text
+fg = "#ECEFF4"            # nord6 (Wayle fg)
+fg-muted = "#D8DEE9"      # nord4 (Wayle fg-muted)
+fg-faint = "#616E88"
+cursor = "#D8DEE9"        # nord4
+
+# Accent and its text
+accent = "#88C0D0"        # nord8 (Wayle primary)
+on-accent = "#2E3440"
+
+# Status and syntax colors, then their bright variants
+blue = "#81A1C1"          # nord9
+green = "#A3BE8C"         # nord14
+red = "#BF616A"           # nord11
+yellow = "#EBCB8B"        # nord13
+magenta = "#B48EAD"       # nord15
+cyan = "#88C0D0"          # nord8
+blue-bright = "#81A1C1"
+green-bright = "#A3BE8C"
+red-bright = "#BF616A"
+yellow-bright = "#EBCB8B"
+magenta-bright = "#B48EAD"
+cyan-bright = "#8FBCBB"   # nord7

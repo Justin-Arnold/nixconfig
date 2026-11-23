@@ -1,4 +1,4 @@
-{ config, osConfig, pkgs, ... }:
+{ config, lib, osConfig, pkgs, ... }:
 let
   # Vicinae ships both themes; these are their names in its theme list.
   vicinaeTheme = {
@@ -217,5 +217,13 @@ in
       source = ../dotfiles/hyprland;
       recursive = true;
     };
+
+    # The theme's palette for the Lua config, by role. Hex without the "#",
+    # the way Hyprland's rgba() takes it.
+    "hypr/hyprland/data/colors.lua".text = ''
+      -- Generated from systemProfile.palette by home/apps/hyprland.nix.
+      return ${lib.generators.toLua { }
+        (lib.mapAttrs (_: hex: lib.toLower (lib.removePrefix "#" hex)) osConfig.systemProfile.palette)}
+    '';
   };
 }
