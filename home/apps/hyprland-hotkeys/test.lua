@@ -27,9 +27,14 @@ local anything = setmetatable({}, {
 
 local binds, handlers, timers, notifications, down = {}, {}, {}, {}, {}
 
+-- What the config dispatches, as { what, where }.
+local dispatched = {}
+local shown_special -- the special workspace showing, for the Tab mode checks
+local function with_rest(t) return setmetatable(t, { __index = function() return anything end }) end
+
 hl = setmetatable({
     bind = function(keys, action, opts)
-        table.insert(binds, { keys = keys, opts = opts })
+        table.insert(binds, { keys = keys, action = action, opts = opts })
         return anything
     end,
     on = function(event, fn)
@@ -54,8 +59,17 @@ hl = setmetatable({
         end,
     },
     is_key_down = function(code) return down[code] == true end,
-    plugin = setmetatable({ hy3 = anything }, { __index = function() return anything end }),
-    dsp = anything,
+    plugin = with_rest({
+        hy3 = with_rest({ move_to_workspace = function(ws) return { "send", ws } end }),
+    }),
+    dsp = with_rest({
+        focus = function(opts) return { "focus", opts.workspace } end,
+        workspace = with_rest({ toggle_special = function(name) return { "toggle", name } end }),
+        window = with_rest({ move = function(opts) return { "move", opts.workspace } end }),
+    }),
+    dispatch = function(d) table.insert(dispatched, d) end,
+    get_active_window = function() return { stable_id = 1 } end,
+    get_active_special_workspace = function() return shown_special end,
 }, { __index = function() return anything end })
 
 -- The generated scene binds, as `scene binds` writes them.
@@ -195,6 +209,68 @@ local early = timers[#timers]
 release(SUPER)
 fire(early)
 check("letting go before the delay means the hint never shows", not early.enabled and #notifications == 2)
+
+-- Workspace taps -------------------------------------------------------
+
+local SHIFT = 50
+
+local function tap(keys, times)
+    for _, bind in ipairs(binds) do
+        if bind.keys == keys then
+            for _ = 1, times or 1 do bind.action() end
+            return
+        end
+    end
+    error("no bind " .. keys)
+end
+local function last()
+    local d = dispatched[#dispatched]
+    return d and (d[1] .. " " .. tostring(d[2])) or "nothing"
+end
+
+check("the floating workspaces moved off F", not seen["super+F"] and not seen["shift+super+F"])
+check("the hint lists them on 0", has_line(super, "0  →  Toggle floating workspace")
+      and has_line(super, "0  →  Move window to floating workspace"), super)
+
+press(SUPER)
+tap("SUPER + 0", 2)
+check("tapping Super + 0 twice picks nothing until Super is let go", last() == "nothing", last())
+release(SUPER)
+check("then shows the second floating workspace", last() == "toggle floating-2", last())
+
+press(SUPER)
+tap("SUPER + 0", 5)
+release(SUPER)
+check("more than three taps stops at the third", last() == "toggle floating-3", last())
+
+press(SUPER)
+press(SHIFT)
+tap("SUPER + SHIFT + 0")
+release(SHIFT)
+release(SUPER)
+check("Super + Shift + 0 tapped once moves the window to the first", last() == "move special:floating-1", last())
+
+press(SUPER)
+tap("SUPER + 1", 2)
+release(SUPER)
+check("the screen groups still pick a workspace by taps", last() == "focus 2", last())
+
+press(SUPER)
+tap("SUPER + 0")
+press(9)
+release(9)
+release(SUPER)
+check("Escape still cancels a pick", last() == "focus 2", last())
+
+tap("SUPER + F12")
+tap("SUPER + 0")
+check("in Tab mode Super + 0 shows the first floating workspace at once", last() == "toggle floating-1", last())
+shown_special = { name = "special:floating-1" }
+tap("SUPER + Tab")
+check("and Super + Tab steps to the next while one is showing", last() == "toggle floating-2", last())
+shown_special = { name = "special:floating-3" }
+tap("SUPER + Tab")
+check("wrapping round after the third", last() == "toggle floating-1", last())
 
 if failures > 0 then
     print(failures .. " check(s) failed")
