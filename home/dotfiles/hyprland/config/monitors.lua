@@ -25,3 +25,12 @@ hl.monitor({
     position = "3440x-400",
     scale    = "1.25",
 })
+
+-- XWayland apps draw at 1x and get stretched on the 1.25-scaled side
+-- monitors. Nearest-neighbor stretching makes their text jagged; linear
+-- filtering keeps it smooth, if a little soft.
+hl.config({
+    xwayland = {
+        use_nearest_neighbor = false,
+    },
+})
