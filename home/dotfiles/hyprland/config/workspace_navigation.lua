@@ -3,9 +3,9 @@ local keybindings = require("hyprland.data.keybindings")
 local hy3 = assert(hl.plugin.hy3, "hy3 plugin is not loaded")
 
 local groups = {
-    { monitor = displays.center.desc, workspaces = { 1, 2, 3 } },
-    { monitor = displays.left.desc, workspaces = { 4, 5, 6 } },
-    { monitor = displays.right.desc, workspaces = { 7, 8, 9 } },
+    { name = "center", monitor = displays.center.desc, workspaces = { 1, 2, 3 } },
+    { name = "left", monitor = displays.left.desc, workspaces = { 4, 5, 6 } },
+    { name = "right", monitor = displays.right.desc, workspaces = { 7, 8, 9 } },
 }
 
 local main_mod = keybindings.main_mod
@@ -40,10 +40,10 @@ end
 for key, group in ipairs(groups) do
     hl.bind(main_mod .. " + " .. key, function()
         return select_workspace(group, false)
-    end)
+    end, { description = "Go to workspace group (" .. group.name .. ")" })
     hl.bind(move_mod .. " + " .. key, function()
         select_workspace(group, true)
-    end)
+    end, { description = "Send window to workspace group (" .. group.name .. ")" })
 end
 
 hl.bind(main_mod .. " + Tab", function()
@@ -62,14 +62,14 @@ hl.bind(main_mod .. " + Tab", function()
         end
     end
     return { pass_event = true }
-end)
+end, { description = "Next workspace in group (Tab mode)" })
 
 hl.bind(move_mod .. " + Tab", function()
     if tap_mode or not pending then
         return { pass_event = true }
     end
     pending.slot = pending.slot % #pending.group.workspaces + 1
-end)
+end, { description = "Next workspace to send to (Tab mode)" })
 
 -- Modifier-only release binds skip keys used in a chord. The keyboard event
 -- also sees those releases and reports XKB keycodes (9 = Escape, 133/134 = Super).
@@ -106,6 +106,6 @@ hl.bind(main_mod .. " + F12", function()
         icon = "info",
         timeout = 2000,
     })
-end)
+end, { description = "Switch workspace tap or Tab mode" })
 
 return groups

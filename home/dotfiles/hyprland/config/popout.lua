@@ -52,17 +52,20 @@ end)
 -- Popup keybinds
 hl.bind(
     "SUPER + SHIFT + Space",
-    toggle_popout("aichat")
+    toggle_popout("aichat"),
+    { description = "Toggle AI chat popout" }
 )
 
 hl.bind(
     keybindings.main_mod .. " + SHIFT + C",
-    toggle_popout("codex")
+    toggle_popout("codex"),
+    { description = "Toggle Codex popout" }
 )
 
 hl.bind(
     keybindings.main_mod .. " + SHIFT + T",
-    toggle_popout("terminal")
+    toggle_popout("terminal"),
+    { description = "Toggle terminal popout" }
 )
 
 return M

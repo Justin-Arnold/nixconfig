@@ -1,5 +1,49 @@
-{ pkgs, ... }: {
+{ config, pkgs, ... }:
+let
+  # Every Hyprland bind with a description, searchable by what it does.
+  # Bound to Super + / (config/hotkeys.lua) and listed in the launcher as
+  # "Hotkeys". hyprctl comes from the session, to match the running Hyprland.
+  hotkeys = pkgs.writeShellApplication {
+    name = "hypr-hotkeys";
+    runtimeInputs = [ pkgs.jq config.programs.vicinae.package ];
+    text = ''
+      rows="$(hyprctl binds -j | jq -r '
+        def mods: .modmask as $m
+          | [[64, "Super"], [4, "Ctrl"], [1, "Shift"], [8, "Alt"]]
+          | map(select(($m / .[0] | floor) % 2 == 1) | .[1]);
+        def key: {"slash": "/", "grave": "`", "Return": "Enter", "Escape": "Esc"}[.key] // .key;
+        .[]
+        | select(.has_description)
+        # hyprshell adds release binds on the modifiers to close its switcher.
+        | select(.description | startswith("hyprshell-keybind: Close") | not)
+        | (.description
+            | sub("^hyprshell-keybind: "; "") | sub(" with .*$"; "") | sub("Switch"; "window switcher")
+          ) as $what
+        | "\($what)  —  \(mods + [key] | join(" + "))"
+      ' | sort -u)"
+
+      printf '%s\n' "$rows" | vicinae dmenu \
+        --navigation-title Hotkeys \
+        --placeholder "Search hotkeys by what they do" \
+        --section-title "{count} hotkeys" \
+        --no-quick-look >/dev/null || true
+    '';
+  };
+in
+{
+  xdg.desktopEntries.hypr-hotkeys = {
+    name = "Hotkeys";
+    genericName = "Keyboard shortcuts";
+    comment = "Search Hyprland hotkeys by what they do";
+    exec = "${hotkeys}/bin/hypr-hotkeys";
+    icon = "input-keyboard";
+    terminal = false;
+    categories = [ "Utility" ];
+    settings.Keywords = "keybinds;shortcuts;keys;hyprland;";
+  };
+
   home.packages = [
+    hotkeys
     (pkgs.writeShellApplication {
       name = "hypr-popout";
       runtimeInputs = [

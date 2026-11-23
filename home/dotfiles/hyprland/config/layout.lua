@@ -25,5 +25,6 @@ hl.config({
 
 hl.bind(
     keybindings.main_mod .. " + P",
-    hy3.change_group("opposite")
+    hy3.change_group("opposite"),
+    { description = "Flip split direction" }
 )

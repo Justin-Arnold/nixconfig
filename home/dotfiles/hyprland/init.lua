@@ -3,6 +3,9 @@
 local applications = require("hyprland.data.applications")
 local keybindings = require("hyprland.data.keybindings")
 
+-- First, so it records every bind made after it.
+require("hyprland.config.hotkeys")
+
 require("hyprland.config.popout")
 require("hyprland.config.scenes")
 require("hyprland.config.animation")
@@ -41,23 +44,27 @@ hl.config({
 -- Launch terminal
 hl.bind(
     keybindings.main_mod .. " + T",
-    hl.dsp.exec_cmd(applications.terminal)
+    hl.dsp.exec_cmd(applications.terminal),
+    { description = "Open terminal" }
 )
 
 -- Open the application launcher
 hl.bind(
     keybindings.main_mod .. " + Space",
-    hl.dsp.exec_cmd(applications.menu)
+    hl.dsp.exec_cmd(applications.menu),
+    { description = "Open launcher" }
 )
 
 -- Close active window
 hl.bind(
     keybindings.main_mod .. " + Q",
-    hl.dsp.window.close()
+    hl.dsp.window.close(),
+    { description = "Close window" }
 )
 
 -- Toggle floating
 hl.bind(
     keybindings.main_mod .. " + V",
-    hl.dsp.window.float({ action = "toggle" })
+    hl.dsp.window.float({ action = "toggle" }),
+    { description = "Toggle floating" }
 )
