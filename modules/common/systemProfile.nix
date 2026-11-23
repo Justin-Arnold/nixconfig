@@ -49,6 +49,26 @@
       description = "The system time zone.";
       default = "America/New_York";
     };
+    fonts.primary = lib.mkOption {
+      type = lib.types.submodule {
+        options = {
+          family = lib.mkOption {
+            type = lib.types.str;
+            description = "Font family name used by applications that follow the system profile.";
+          };
+          package = lib.mkOption {
+            type = lib.types.package;
+            description = "Package that provides the primary font family.";
+          };
+        };
+      };
+      description = "Primary font for desktop applications.";
+      default = {
+        # Hasklug is the Nerd Font build of Hasklig, which adds ligatures to Source Code Pro.
+        family = "Hasklug Nerd Font";
+        package = pkgs.nerd-fonts.hasklug;
+      };
+    };
     stateVersion = lib.mkOption {
       type = lib.types.str;
       description = "The NixOS state version, indicating the system's configuration version.";

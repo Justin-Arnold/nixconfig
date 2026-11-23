@@ -32,7 +32,7 @@
           ];
           "[json].editor.defaultFormatter" = "esbenp.prettier-vscode";
           "workbench.iconTheme" = "vscode-icons";
-          "editor.fontFamily" = "Fira Code";
+          "editor.fontFamily" = osConfig.systemProfile.fonts.primary.family;
           "editor.fontLigatures" = true;
         };
       };

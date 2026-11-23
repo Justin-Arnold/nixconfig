@@ -1,4 +1,4 @@
-{ osConfig,lib, ... }:
+{ lib, osConfig, ... }:
 {
   config = lib.mkIf osConfig.systemProfile.hasGui {
     programs.alacritty = {
@@ -6,7 +6,7 @@
       settings = {
         font = {
           normal = {
-            family = "FiraCode Nerd Font";
+            family = osConfig.systemProfile.fonts.primary.family;
             style = "Regular";
           };
           size = 14;

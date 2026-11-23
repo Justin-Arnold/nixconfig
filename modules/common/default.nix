@@ -1,4 +1,4 @@
-{ pkgs, config, ... }:
+{ config, lib, pkgs, ... }:
 {
   imports = [
     ./systemProfile.nix
@@ -37,7 +37,6 @@
   #############################################################
   ## Fonts
   #############################################################
-  fonts.packages = with pkgs; [
-    nerd-fonts.fira-code
-  ];
+  fonts.packages = [ pkgs.nerd-fonts.fira-code ]
+    ++ lib.optional config.systemProfile.hasGui config.systemProfile.fonts.primary.package;
 }

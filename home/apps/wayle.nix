@@ -3,19 +3,38 @@
 # dashboard menu. `wayle panel settings` changes things live, and writes them
 # to ~/.config/wayle/runtime.toml, not here; copy anything worth keeping back
 # into settings below.
-{ pkgs, ... }:
+{ config, lib, osConfig, pkgs, ... }:
+let
+  fontFamily = osConfig.systemProfile.fonts.primary.family;
+  wayle = lib.getExe' config.services.wayle.package "wayle";
+in
 {
+  # Wayle gives runtime settings priority over the Home Manager config.
+  xdg.configFile."wayle/config.toml".onChange = ''
+    if [[ -f ${lib.escapeShellArg "${config.xdg.configHome}/wayle/runtime.toml"} ]]; then
+      XDG_CONFIG_HOME=${lib.escapeShellArg config.xdg.configHome} ${wayle} config reset general.font-sans
+      XDG_CONFIG_HOME=${lib.escapeShellArg config.xdg.configHome} ${wayle} config reset general.font-mono
+    fi
+  '';
+
+  # Reload the font map when the installed primary font changes.
+  systemd.user.services.wayle.Unit.X-Restart-Triggers = [
+    osConfig.systemProfile.fonts.primary.package
+  ];
+
   services.wayle = {
     enable = true;
+
     package = pkgs.wayle.overrideAttrs (oldAttrs: {
       # Wayle's SQLite-backed modules link libsqlite3, which is missing from
       # the nixpkgs 0.7.1 package inputs.
       buildInputs = (oldAttrs.buildInputs or [ ]) ++ [ pkgs.sqlite ];
     });
+
     settings = {
       general = {
-        font-sans = "CaskaydiaCove NF";
-        font-mono = "CaskaydiaCove NF";
+        font-sans = fontFamily;
+        font-mono = fontFamily;
       };
 
       bar = {
