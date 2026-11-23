@@ -120,8 +120,13 @@ check("generated scene binds are listed", has_line(super, "S  →  Scene: Save s
 local ctrl = hotkeys.hint_text({ super = true, ctrl = true })
 check("adding Ctrl narrows the list to binds that build on Super + Ctrl",
       ctrl:match("^Super %+ Ctrl\n") and not ctrl:find("Focus window")
-      and has_line(ctrl, "H J K L  →  Resize window (narrower/taller/shorter/wider)")
-      and has_line(ctrl, "1 2 3  →  Send window to workspace group (center/left/right)"), ctrl)
+      and has_line(ctrl, "H J K L  →  Resize window (narrower/taller/shorter/wider)"), ctrl)
+
+local shift = hotkeys.hint_text({ super = true, shift = true })
+check("sending a window to another workspace group is on Super + Shift",
+      has_line(shift, "1 2 3  →  Send window to workspace group (center/left/right)")
+      and has_line(shift, "Tab  →  Next workspace to send to (Tab mode)")
+      and not ctrl:find("Send window"), shift)
 
 local none = hotkeys.hint_text({ super = true, ctrl = true, shift = true, alt = true })
 check("a set of modifiers with no binds says so", none == "No hotkeys build on Super + Ctrl + Shift + Alt", none)

@@ -9,7 +9,7 @@ local groups = {
 }
 
 local main_mod = keybindings.main_mod
-local move_mod = main_mod .. " + CTRL"
+local move_mod = main_mod .. " + SHIFT"
 local tap_mode = true
 local pending
 
