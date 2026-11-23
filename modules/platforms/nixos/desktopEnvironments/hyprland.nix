@@ -12,7 +12,12 @@ in {
       enable = true;
       withUWSM = true;
       xwayland.enable = true;
-    }; 
+    };
+
+    # Nix-packaged Electron apps run on native Wayland only with this set.
+    # Without it some (Codex/ChatGPT desktop) fall back to XWayland, which
+    # draws them at 1x and stretches them on the 1.25-scaled DualUps.
+    environment.sessionVariables.NIXOS_OZONE_WL = "1";
 
     environment.systemPackages = [
       pkgs.hyprshell
