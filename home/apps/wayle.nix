@@ -1,8 +1,5 @@
-# Wayle took over from hyprpanel when nixpkgs archived it in November 2026.
-# It's a whole shell: the bar, notifications, on-screen display and the
-# dashboard menu. `wayle panel settings` changes things live, and writes them
-# to ~/.config/wayle/runtime.toml, not here; copy anything worth keeping back
-# into settings below.
+# https://wayle.app/guide/getting-started-nixos
+
 { config, lib, osConfig, pkgs, ... }:
 let
   fontFamily = osConfig.systemProfile.fonts.primary.family;
@@ -30,6 +27,10 @@ in
       # the nixpkgs 0.7.1 package inputs.
       buildInputs = (oldAttrs.buildInputs or [ ]) ++ [ pkgs.sqlite ];
     });
+
+    # Whether to automatically install soft dependencies used by wayle that
+    # will be required based on your config.
+    autoInstallDependencies = true;
 
     settings = {
       general = {
