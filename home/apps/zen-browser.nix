@@ -16,7 +16,12 @@
       # Through autoconfig, not policies.Preferences: Zen's policies only
       # take an allowlist of prefixes (browser., ui., ...) and reject zen.*.
       # Locked, so it can't be turned back on from Settings.
-      extraPrefs = ''
+      #
+      # Linux only. On macOS the flake keeps Zen's upstream code signature
+      # (darwin.packageMode = "signed"), and autoconfig would have to be
+      # written inside the .app, so on the Macs Glance is turned off by hand
+      # in Settings.
+      extraPrefs = lib.mkIf (!osConfig.systemProfile.isDarwin) ''
         lockPref("zen.glance.enabled", false);
       '';
     };
