@@ -86,4 +86,30 @@ git -C "$VAULT" commit -q --amend -m rewritten
 check "a rewritten history fails the push" bash -c '! bash "$1" >/dev/null 2>&1' _ "$MIRROR"
 check "and forge keeps what it had" test "$(git -C "$MIRROR_URL" log -1 --format=%s main)" = late
 
+# The status agent-watch reads for MirrorStale.
+export STATUS=$TMP/state/status.json
+mkdir "$TMP/state"
+# json <jq args>: whether the status matches, quietly.
+json() { jq -e "$@" >/dev/null; }
+back_to_forge() { git -C "$VAULT" reset -q --hard "$(git -C "$MIRROR_URL" rev-parse main)"; }
+back_to_forge
+check "a good push writes the status" bash "$MIRROR"
+check "  ...which anyone can read, agent-watch included" test "$(stat -c %a "$STATUS")" = 644
+check "  ...with the time it pushed and no error" \
+  json '(.last_ok | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:]{8}Z$")) and .last_error == null' "$STATUS"
+ok_before=$(jq -r .last_ok "$STATUS")
+git -C "$VAULT" commit -q --amend -m rewritten-again
+check "a refused push fails" bash -c '! bash "$1" >/dev/null 2>&1' _ "$MIRROR"
+check "  ...and records git's reason and when, keeping last_ok" \
+  json --arg ok "$ok_before" '.last_ok == $ok and (.last_error | test("non-fast-forward")) and .last_error_at != null' "$STATUS"
+back_to_forge
+echo 'not json' > "$STATUS"
+check "a status that can't be read doesn't stop a push" bash "$MIRROR"
+check "  ...and is written again" json '.last_ok != null' "$STATUS"
+chmod a-w "$TMP/state"
+commit six
+check "a status that can't be written doesn't stop a push either" bash "$MIRROR"
+check "  ...and forge still gets the commit" same
+chmod u+w "$TMP/state"
+
 exit $failed

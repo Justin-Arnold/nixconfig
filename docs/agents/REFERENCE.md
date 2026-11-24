@@ -898,6 +898,7 @@ alerts in Alerta on lab118-services, environment `Homelab`, origin
 | `IntakeStale` | `n8n/intake` | an alert n8n should have handed to the monitor's triage has been open 15 minutes without it, and isn't waiting behind a triage open less than an hour; it names the alerts, and the triage it waits behind if that's been open an hour | warning |
 | `BridgeStale` | `agents/board-bridge` | board-bridge hasn't read Paperclip and reached every chat channel that's on for 15 minutes, with the reason it last gave | warning |
 | `EventsStale` | `agents/paperclip-events` | paperclip-events has been disconnected from Paperclip's live events for 5 minutes, so everything above waits for its timer, with the reason it last gave | warning |
+| `MirrorStale` | `agents/notes-mirror` | notes-mirror hasn't pushed the vault's history to forge for 150 minutes, with git's reason from its last failed push (`docs/forge/REFERENCE.md`) | warning |
 
 An alert is cleared, which sends a resolved notification, on the first pass
 where it no longer holds. agent-watch finds its open alerts by asking Alerta,

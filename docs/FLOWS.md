@@ -291,6 +291,7 @@ flowchart TB
     bs["BridgeStale: board-bridge<br/>failing for 15 minutes"]
     is["IntakeStale: an alert not handed<br/>over for 15 minutes"]
     hs["HealthStale: no good morning<br/>check for 26 hours"]
+    ms["MirrorStale: no push of the vault<br/>to forge for 2.5 hours"]
   end
 
   svc -->|"HTTPS over the tunnel"| hosts["Each lab VM's health endpoint"]

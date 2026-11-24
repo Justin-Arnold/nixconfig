@@ -22,6 +22,8 @@
 #               timer catches a missed start. It reaches forge's SSH port and
 #               nothing else, can't write to the vault, and holds a deploy key
 #               for that one repository, which the other units can't read.
+#               agent-watch raises MirrorStale from its status file when it
+#               hasn't pushed for two and a half hours.
 #
 # Setting up Sync is a one-time step after the first switch, with Justin's
 # Obsidian login (account-wide; it stays in /var/lib/notes/config):
@@ -236,6 +238,12 @@ in
         default = "hourly";
         description = "When the mirror runs besides after each commit (systemd OnCalendar), in case a start was missed.";
       };
+      statusFile = lib.mkOption {
+        type = lib.types.str;
+        default = "/var/lib/notes-mirror/status.json";
+        readOnly = true;
+        description = "Where notes-mirror writes when it last pushed and why it last failed, for agent-watch's MirrorStale.";
+      };
       active = lib.mkOption {
         type = lib.types.bool;
         default = cfg.enable && mirror.enable && mirror.hostKey != null;
@@ -438,17 +446,22 @@ in
         wants = [ "network-online.target" ];
         after = [ "network-online.target" ];
         unitConfig.ConditionPathIsDirectory = "${vault}/.git";
-        path = [ pkgs.git ];
+        path = [ pkgs.git pkgs.jq ];
         environment = {
           VAULT = vault;
           MIRROR_URL = "ssh://${forge.sshUser}@${mirror.address}:${toString forge.sshPort}/${mirror.repo}.git";
           GIT_SSH_COMMAND = mirrorSsh;
+          STATUS = mirror.statusFile;
         };
         serviceConfig = hardening // {
           Type = "oneshot";
           Group = mirrorGroup;
           ExecStart = "${pkgs.bash}/bin/bash ${./notes/notes-mirror.sh}";
           ReadWritePaths = [ ];
+          # agent-watch reads status.json there. It holds times and git's
+          # first error line, nothing from the vault.
+          StateDirectory = "notes-mirror";
+          StateDirectoryMode = "0755";
           TimeoutStartSec = "5min";
           # While forge is down: again after 30 s, backing off to every 30 min.
           Restart = "on-failure";

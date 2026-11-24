@@ -2,7 +2,7 @@
 { pkgs }:
 pkgs.runCommand "notes-tests"
   {
-    nativeBuildInputs = [ pkgs.python3 pkgs.git pkgs.gitleaks ];
+    nativeBuildInputs = [ pkgs.python3 pkgs.git pkgs.gitleaks pkgs.jq ];
   }
   ''
     export HOME=$TMPDIR

@@ -5,7 +5,8 @@
 # issues labelled change or sensitive, and budgets past their warning level,
 # and, from what agent-costs writes, Claude spend nearing the month's credit
 # and Claude or Jev refusing an agent for credits, from their status files,
-# board-bridge, paperclip-events or lab-health stalling, and from Alerta itself, alerts
+# board-bridge, paperclip-events, lab-health or the vault's mirror to forge
+# stalling, and from Alerta itself, alerts
 # n8n should have handed to the monitor's triage and hasn't. Alerta's forwarder on
 # lab118-services sends them to the phone, with a link to the issue or
 # approval where there is one. See agent-watch/agent-watch.py for what each
@@ -152,6 +153,12 @@ in
           # while it's connected.
           EVENTS_STATUS = config.agents.events.statusFile;
           EVENTS_STALE_MINUTES = "5";
+        } // lib.optionalAttrs config.agents.notes.mirror.active {
+          # Whether the vault's history still reaches forge (./notes.nix).
+          # notes-mirror runs after every commit and every hour, so two
+          # missed hours and a half; a forge reboot doesn't count.
+          MIRROR_STATUS = config.agents.notes.mirror.statusFile;
+          MIRROR_STALE_MINUTES = toString 150;
         } // {
           # For the HTTPS push to Kuma; Python doesn't find the bundle itself.
           SSL_CERT_FILE = config.security.pki.caBundle;

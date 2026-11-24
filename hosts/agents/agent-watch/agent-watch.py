@@ -61,6 +61,13 @@ agents/paperclip-events):
                    host reacts until its timers come round, with the reason
                    it last gave (warning)
 
+and, from notes-mirror's MIRROR_STATUS file (resource agents/notes-mirror):
+
+  MirrorStale      notes-mirror hasn't pushed the vault's history to forge
+                   for MIRROR_STALE_MINUTES, so what agents change there
+                   stops showing on forge, with git's reason from its last
+                   failed push (warning)
+
 Alerts about one issue or approval carry a link to it in Paperclip
 (attributes.url, under PAPERCLIP_LINK), which the forwarder puts on the
 phone.
@@ -78,7 +85,8 @@ company's prefix, as https://<host>/LAB), ALERTA_URL, STUCK_AFTER_MINUTES
 INTAKE_SEVERITIES, INTAKE_IGNORE_ORIGINS, INTAKE_HARMLESS (origin/event,
 comma separated), INTAKE_ROUTINE, INTAKE_STALE_MINUTES (15), HEALTH_STATUS,
 HEALTH_STALE_MINUTES (1560), BRIDGE_STATUS,
-BRIDGE_STALE_MINUTES (15), EVENTS_STATUS, EVENTS_STALE_MINUTES (5), and
+BRIDGE_STALE_MINUTES (15), EVENTS_STATUS, EVENTS_STALE_MINUTES (5),
+MIRROR_STATUS, MIRROR_STALE_MINUTES (150), and
 CREDENTIALS_DIRECTORY holding paperclip-key, alerta-key and kuma-push-url.
 """
 import datetime
@@ -391,6 +399,11 @@ def main():
                         datetime.timedelta(minutes=int(os.environ.get("EVENTS_STALE_MINUTES", "5"))), now,
                         "agents/paperclip-events", "EventsStale", "Paperclip events lost",
                         "paperclip-events hasn't been connected")
+    if os.environ.get("MIRROR_STATUS"):
+        alerts += stale(os.environ["MIRROR_STATUS"],
+                        datetime.timedelta(minutes=int(os.environ.get("MIRROR_STALE_MINUTES", "150"))), now,
+                        "agents/notes-mirror", "MirrorStale", "Vault mirror stalled",
+                        "notes-mirror hasn't pushed the vault to forge")
     wanted = {(a["resource"], a["event"]) for a in alerts}
 
     query = urllib.parse.urlencode([("environment", ENVIRONMENT), ("origin", ORIGIN),

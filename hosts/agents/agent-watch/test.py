@@ -447,6 +447,27 @@ check("a relay disconnected for 8 minutes raises EventsStale with the reason",
       and sent[EVENTS]["text"].startswith("paperclip-events hasn't been connected since ")
       and sent[EVENTS]["text"].endswith(": not connected: GET /api/agents/me answered 401"))
 
+# MirrorStale, from notes-mirror's status.json, after two and a half hours.
+mirror_dir = pathlib.Path(tempfile.mkdtemp())
+mirror_file = mirror_dir / "status.json"
+env.update({"MIRROR_STATUS": str(mirror_file), "MIRROR_STALE_MINUTES": "150"})
+MIRROR = ("agents/notes-mirror", "MirrorStale")
+mirror_file.write_text(json.dumps({"last_ok": ago(60), "last_error_at": ago(30),
+                                   "last_error": "ssh: connect to host 10.0.0.157 port 22: No route to host"}))
+code, sent = watch()
+check("a mirror that last pushed an hour ago raises nothing, even failing since", code == 0 and MIRROR not in sent)
+mirror_file.write_text(json.dumps({"last_ok": ago(200), "last_error_at": ago(5),
+                                   "last_error": "ssh: connect to host 10.0.0.157 port 22: No route to host"}))
+code, sent = watch()
+check("one that hasn't pushed for 200 minutes raises MirrorStale with git's reason",
+      sent.get(MIRROR, {}).get("severity") == "warning"
+      and sent[MIRROR]["text"].startswith("notes-mirror hasn't pushed the vault to forge since ")
+      and sent[MIRROR]["text"].endswith(": ssh: connect to host 10.0.0.157 port 22: No route to host"))
+mirror_file.write_text(json.dumps({"last_ok": ago(1), "last_error_at": ago(5),
+                                   "last_error": "ssh: connect to host 10.0.0.157 port 22: No route to host"}))
+code, sent = watch()
+check("  ...and a good push clears it", sent.get(MIRROR, {}).get("severity") == "cleared")
+
 server.shutdown()
 if failures:
     sys.exit(f"{len(failures)} check(s) failed")

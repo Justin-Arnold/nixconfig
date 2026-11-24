@@ -117,6 +117,10 @@ with its config (`sudo forge-admin user list`).
   meanwhile.
 - While forge is down it fails and tries again after 30 seconds, backing off
   to every 30 minutes.
+- Each run writes `/var/lib/notes-mirror/status.json` on the agents host:
+  when it last pushed, and git's first error line from the last failure.
+  agent-watch raises `MirrorStale` in Alerta, which reaches the phone, once
+  there's been no good push for two and a half hours (Monitoring).
 - It runs as `notes` in a group of its own, `notes-mirror`, that no user is
   in. That group can read the deploy key, and an nftables rule lets it open
   TCP 22 to `10.0.0.157` and nothing else. Its unit's own filter allows only
@@ -355,11 +359,11 @@ about is a quick check:
 |---|---|---|
 | Beszel agent | the hub on dashboard | the VM is down or overloaded |
 | `JOB / forge backup` | Kuma push, 26 h heartbeat | the nightly backup failed or didn't run |
+| `MirrorStale` (`agents/notes-mirror`) | Alerta, from agent-watch on the agents host | the agents host hasn't pushed the vault's history here for two and a half hours, with git's reason |
 
 There's no Kuma HTTP check: Kuma runs on lab118-services, which can't reach
-this host. A failing `notes-mirror` shows as a failed unit on the agents
-host (`systemctl --failed`) and as a stale last commit here; nothing alerts
-on it yet.
+this host. Forge being down shows as `MirrorStale` too, once no push has
+got through for two and a half hours, so a forge reboot doesn't raise it.
 
 ## Operations
 
@@ -386,7 +390,6 @@ migrations only go forward.
 - The forge is a second place the vault's plaintext history lives, next to
   the agents host. Anyone who gets root on forge, or a shell as `forgejo`,
   can read it.
-- Nothing alerts on a failing mirror yet.
 - The nightly copy of a repository isn't atomic (Backups).
 
 ## Related
