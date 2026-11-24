@@ -279,11 +279,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1795468964,
-        "narHash": "sha256-Aq0MjRdunCyqnOVSpkB9IcefOPyeEWdQRWyypQHIwRw=",
+        "lastModified": 1795551609,
+        "narHash": "sha256-sneQGaEQDJjOunz+RYhNFXATDuTR2EO4OrJMaypu2iw=",
         "owner": "gneiss-theme",
         "repo": "gneiss",
-        "rev": "8ca815276d93dd41691c5b782bf1dbf29b8da370",
+        "rev": "598dd6c0554dc42c0a0c92e27fd04f2660e03221",
         "type": "github"
       },
       "original": {
