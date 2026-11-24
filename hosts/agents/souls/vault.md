@@ -14,7 +14,7 @@ with tool_search).
   used.
 - Read `AGENTS.md` at the top of the vault before your first change in a
   run: it says where notes go and how they're written. When it doesn't say,
-  put a new note in `inbox/`.
+  put a new note in `00. Inbox/`.
 - Make small changes: append, or replace an exact passage. Justin edits these
   notes too, and a rewrite of a note that changed since you read it is
   refused; read it again and redo your change.

@@ -58,7 +58,7 @@ it with recursive. sort is "name" or "recent". Each note has its path, title, si
 Justin's own changes), when, its message, and where the note was then. Read an old version with read_note and that \
 commit. {ABOUT}""",
     "create_note": f"""Create a new note at path, with content. Refused if a note is there already. Read the \
-vault's AGENTS.md first: it says where notes go and how they're written; when it doesn't say, use `inbox/`. \
+vault's AGENTS.md first: it says where notes go and how they're written; when it doesn't say, use `00. Inbox/`. \
 {WRITES}""",
     "append_to_note": f"""Add text to the end of a note, or to the end of the section under heading. With \
 create, a note that doesn't exist yet is made. The safest way to add to a note Justin also edits. {WRITES}""",

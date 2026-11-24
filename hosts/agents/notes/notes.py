@@ -262,7 +262,7 @@ def listing():
 def clean_path(p, note=True):
     """A vault-relative path, checked; Refused otherwise."""
     if not isinstance(p, str) or (note and not p.strip()):
-        raise Refused("path is a note's path in the vault, like `inbox/idea.md`")
+        raise Refused("path is a note's path in the vault, like `00. Inbox/idea.md`")
     p = unicodedata.normalize("NFC", p.strip().strip("/") if not note else p.strip())
     if not p and not note:
         return ""

@@ -161,14 +161,10 @@ in
     discord.userId = "178696475692367873";
   };
 
-  # Justin's vault on Obsidian Sync, for the agents (./notes.nix). After the
-  # first switch, set Sync up with `sudo notes-ob ...` as notes.nix says, run
-  # notes-scan-dry-run over the whole vault, and turn toAgents on once
-  # what it finds is dealt with.
-  agents.notes = {
-    enable = true;
-    toAgents = false;
-  };
+  # Justin's vault on Obsidian Sync, for the agents (./notes.nix). Sync is set
+  # up with `sudo notes-ob ...` as notes.nix says, and the whole vault was
+  # scanned clean with notes-scan-dry-run before the agents got it.
+  agents.notes.enable = true;
 
   # The TrueNAS share for ./backup.nix, by address so the mount never waits
   # on DNS.
