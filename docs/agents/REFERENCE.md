@@ -948,6 +948,7 @@ operator key, nothing else. On macOS, edit it with
 | `board-bridge/discord-token` | the Discord bot's token, from its application's Bot page. It needs no privileged intents. |
 | `observe/github-token` | a fine-grained GitHub token from Justin's account: all repositories, read-only Metadata, Contents, Issues, Pull requests and Commit statuses |
 | `hermes/<name>/ssh-key` | for the engineer, reviewer and infra: `ssh-keygen -t ed25519 -N ''`, the private half; the public half goes in `workbench.agents.<name>.publicKey` in `hosts/workbench/agents.nix`. Needed once `workbenchHostKey` is set. |
+| `notes/forge-deploy-key` | notes-mirror's deploy key for the vault's repository on forge, the private half; readable by root and the `notes-mirror` group only. Needed once forge's `sshHostKey` is set (`docs/forge/REFERENCE.md`, "First install"). |
 
 The host key is installed by `nix run .#install` from `HOST_AGE_KEY_FILE`
 (`hostAgeKey = true` in `infra/terranix/default.nix`), the same way as on

@@ -19,7 +19,7 @@ set -u
 # These no longer evaluate and wait to be fixed or removed. A host that
 # breaks and isn't listed here fails the check. pr-previews still pins
 # pnpm_9, which nixpkgs dropped in November 2026.
-legacy=(checkmk gitea onepassword-connect omada-controller parallels pr-previews)
+legacy=(checkmk onepassword-connect omada-controller parallels pr-previews)
 
 usage="usage: scripts/flake-check.sh [eval|checks|darwin [name...] | all]"
 part=${1:-all}

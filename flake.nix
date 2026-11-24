@@ -82,7 +82,7 @@
         dashboard = "x86_64-linux";
         desktop = "x86_64-linux";
         dockhand = "x86_64-linux";
-        gitea = "x86_64-linux";
+        forge = "x86_64-linux";
         github-runner = "x86_64-linux";
         inference = "x86_64-linux";
         lab118-services = "x86_64-linux";

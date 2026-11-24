@@ -23,6 +23,7 @@ in
   inference = proxmox ./hosts/inference.nix // { hostAgeKey = true; };
   automation = proxmox ./hosts/automation.nix // { hostAgeKey = true; };
   cglt-previews = proxmox ./hosts/cglt-previews.nix // { hostAgeKey = true; };
+  forge = proxmox ./hosts/forge.nix // { hostAgeKey = true; };
 
   lab118-services = {
     platform = "contabo";

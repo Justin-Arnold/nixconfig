@@ -183,7 +183,7 @@ changed there.
 
 ## Checking nixconfig here
 
-`nix flake check` fails on nixconfig while the legacy hosts (checkmk, gitea,
+`nix flake check` fails on nixconfig while the legacy hosts (checkmk,
 onepassword-connect, omada-controller, parallels, pr-previews) don't
 evaluate, so infra and the reviewer run `scripts/flake-check.sh` from a
 worktree instead:

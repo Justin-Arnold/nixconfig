@@ -25,6 +25,8 @@
   agents.notes = {
     enable = lib.mkForce true;
     toAgents = lib.mkForce true;
+    # The mirror to forge, with an example host key.
+    mirror.hostKey = lib.mkForce "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExampleExampleExampleExampleExampleExampleExa root@forge";
   };
   # The bridge with both channels, under example user IDs.
   agents.boardBridge = {

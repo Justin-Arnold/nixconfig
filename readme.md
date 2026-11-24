@@ -29,7 +29,7 @@ Destroy the managed VM:
 nix run .#destroy -- <host>
 ```
 
-Currently managed hosts: `dockhand`, `notifications`, `uptime-kuma`, `pr-previews`, `dashboard`, `agents`, `workbench`, `openclaw`, `inference`, `cglt-previews` (Proxmox) and `lab118-services` (Contabo).
+Currently managed hosts: `dockhand`, `notifications`, `uptime-kuma`, `pr-previews`, `dashboard`, `agents`, `workbench`, `openclaw`, `inference`, `cglt-previews`, `forge` (Proxmox) and `lab118-services` (Contabo).
 
 ### Cloud host lab118-services
 
@@ -83,6 +83,15 @@ key) but isn't HA: it stays on proxmox4's local ZFS storage with the `host`
 CPU type, for speed. It's fenced off from the rest of the LAN because deploy
 jobs are root there. It replaces `pr-previews` at cutover. See
 [docs/cglt-previews/REFERENCE.md](docs/cglt-previews/REFERENCE.md).
+
+### Git forge
+
+`forge` runs Forgejo at `git.lab118.xyz`, for the LAN and the VPN only, with
+no mirrors and no CI. The agents host pushes the vault's git history to it
+within seconds of each commit, so who changed what can be read in a browser.
+It's built like `dashboard` (its own age key, HA on `nas-shared`), and it
+evaluates before its secrets file exists, with a warning, while install
+refuses without it. See [docs/forge/REFERENCE.md](docs/forge/REFERENCE.md).
 
 The provisioning flow expects:
 

@@ -14,6 +14,12 @@
 #   notes-scan  every 15 minutes, gitleaks and the service's own checks over
 #               the new commits, Justin's included, waking the monitor with
 #               what they find, the way lab-health does.
+#   notes-mirror  within seconds of each commit, `git push --mirror` of the
+#               history to forge (git.lab118.xyz), where Justin reads it. A
+#               path unit on the vault's branches starts it, and an hourly
+#               timer catches a missed start. It reaches forge's SSH port and
+#               nothing else, can't write to the vault, and holds a deploy key
+#               for that one repository, which the other units can't read.
 #
 # Setting up Sync is a one-time step after the first switch, with Justin's
 # Obsidian login (account-wide; it stays in /var/lib/notes/config):
@@ -42,6 +48,22 @@ let
   privateRanges = [ "10.0.0.0/8" "172.16.0.0/12" "192.168.0.0/16" "100.64.0.0/10" "169.254.0.0/16" "fc00::/7" "fe80::/10" ];
   ready = monitor != null && monitor.secrets ? PAPERCLIP_AGENT_KEY;
   svc = config.systemd.services;
+
+  # notes-mirror runs as notes, in a group of its own that no user is in. The
+  # group can read the deploy key and the firewall lets it reach forge's SSH
+  # port, so the other units, which run as notes too, get neither.
+  forge = import ../forge/facts.nix;
+  mirror = cfg.mirror;
+  mirrorGroup = "notes-mirror";
+  mirrorGid = 3390;
+  deployKey = "notes/forge-deploy-key";
+  forgeKnownHosts = pkgs.writeText "forge-known-hosts" "${mirror.address} ${toString mirror.hostKey}\n";
+  mirrorSsh = lib.concatStringsSep " " [
+    "${pkgs.openssh}/bin/ssh" "-F none" "-i ${secretOf deployKey}"
+    "-o IdentitiesOnly=yes" "-o IdentityAgent=none" "-o BatchMode=yes"
+    "-o StrictHostKeyChecking=yes" "-o UserKnownHostsFile=${forgeKnownHosts}" "-o GlobalKnownHostsFile=/dev/null"
+    "-o ConnectTimeout=15" "-o ServerAliveInterval=15" "-o ServerAliveCountMax=4"
+  ];
 
   hardening = {
     User = "notes";
@@ -181,12 +203,48 @@ in
         description = "Whether the scan runs: the vault on, the scan on, and the monitor with its Paperclip key.";
       };
     };
+
+    mirror = {
+      enable = lib.mkOption {
+        type = lib.types.bool;
+        default = true;
+        description = "Whether the vault's history is pushed to forge after every commit. It waits for forge's SSH host key.";
+      };
+      address = lib.mkOption {
+        type = lib.types.strMatching "[0-9]{1,3}(\\.[0-9]{1,3}){3}";
+        default = forge.address;
+        description = "forge's address. The mirror reaches it by address, so it needs no DNS.";
+      };
+      hostKey = lib.mkOption {
+        type = lib.types.nullOr (lib.types.strMatching "ssh-ed25519 [A-Za-z0-9+/=]+( .*)?");
+        default = forge.sshHostKey;
+        description = "forge's ed25519 SSH host key, pinned. null keeps the mirror off.";
+      };
+      repo = lib.mkOption {
+        type = lib.types.strMatching "[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+";
+        default = "justin/vault";
+        description = "The repository on forge, as owner/name. Its deploy key is the only key that can write to it.";
+      };
+      every = lib.mkOption {
+        type = lib.types.str;
+        default = "hourly";
+        description = "When the mirror runs besides after each commit (systemd OnCalendar), in case a start was missed.";
+      };
+      active = lib.mkOption {
+        type = lib.types.bool;
+        default = cfg.enable && mirror.enable && mirror.hostKey != null;
+        readOnly = true;
+        description = "Whether the mirror runs: the vault on, the mirror on, and forge's host key known.";
+      };
+    };
   };
 
   config = lib.mkIf cfg.enable (lib.mkMerge [
     {
       warnings = lib.optional (cfg.scan.enable && !ready)
-        "agents: notes-scan is off until the monitor has its Paperclip key.";
+        "agents: notes-scan is off until the monitor has its Paperclip key."
+        ++ lib.optional (mirror.enable && mirror.hostKey == null)
+        "agents: notes-mirror is off until forge's SSH host key is in hosts/forge/facts.nix (docs/forge/REFERENCE.md, \"First install\").";
 
       assertions = [
         {
@@ -314,6 +372,104 @@ in
         wantedBy = [ "timers.target" ];
         timerConfig = {
           OnCalendar = cfg.scan.every;
+          Persistent = true;
+        };
+      };
+    })
+
+    (lib.mkIf mirror.active {
+      assertions = [
+        {
+          assertion = svc.notes-mirror.serviceConfig.IPAddressAllow == [ mirror.address ]
+            && svc.notes-mirror.serviceConfig.IPAddressDeny == [ "any" ];
+          message = "agents: notes-mirror reaches forge (${mirror.address}) and nothing else.";
+        }
+        {
+          # The cgroup filter can't tell ports apart; this rule does.
+          assertion = config.networking.nftables.enable
+            && lib.hasInfix "meta skgid ${toString mirrorGid} ip daddr ${mirror.address} tcp dport ${toString forge.sshPort} accept"
+              config.networking.nftables.tables.notes-mirror.content;
+          message = "agents: the notes-mirror group reaches forge's SSH port (${toString forge.sshPort}) and no other port.";
+        }
+        {
+          assertion = svc.notes-mirror.serviceConfig.Group == mirrorGroup && svc.notes-mirror.serviceConfig.ReadWritePaths == [ ];
+          message = "agents: notes-mirror runs in the notes-mirror group and can't write to the vault.";
+        }
+        {
+          assertion = let key = config.sops.secrets.${deployKey}; in key.owner == "root" && key.group == mirrorGroup && key.mode == "0440";
+          message = "agents: only root and the notes-mirror group can read forge's deploy key, so the other notes units can't.";
+        }
+        {
+          assertion = lib.all (u: !(lib.elem mirrorGroup u.extraGroups) && u.group != mirrorGroup) (lib.attrValues config.users.users);
+          message = "agents: no user is in the notes-mirror group; only notes-mirror's unit runs with it.";
+        }
+      ];
+
+      users.groups.${mirrorGroup}.gid = mirrorGid;
+
+      sops.secrets.${deployKey} = {
+        owner = "root";
+        group = mirrorGroup;
+        mode = "0440";
+      };
+
+      # By the socket's group: the notes-mirror group may open a connection to
+      # forge's SSH port, and nothing else.
+      networking.nftables.enable = true;
+      networking.nftables.tables.notes-mirror = {
+        family = "inet";
+        content = ''
+          chain output {
+            type filter hook output priority filter; policy accept;
+            meta skgid ${toString mirrorGid} ip daddr ${mirror.address} tcp dport ${toString forge.sshPort} accept comment "forge's SSH"
+            meta skgid ${toString mirrorGid} counter reject with icmpx admin-prohibited comment "anything else from notes-mirror"
+          }
+        '';
+      };
+
+      systemd.services.notes-mirror = {
+        description = "Pushes the vault's history to forge";
+        wants = [ "network-online.target" ];
+        after = [ "network-online.target" ];
+        unitConfig.ConditionPathIsDirectory = "${vault}/.git";
+        path = [ pkgs.git ];
+        environment = {
+          VAULT = vault;
+          MIRROR_URL = "ssh://${forge.sshUser}@${mirror.address}:${toString forge.sshPort}/${mirror.repo}.git";
+          GIT_SSH_COMMAND = mirrorSsh;
+        };
+        serviceConfig = hardening // {
+          Type = "oneshot";
+          Group = mirrorGroup;
+          ExecStart = "${pkgs.bash}/bin/bash ${./notes/notes-mirror.sh}";
+          ReadWritePaths = [ ];
+          TimeoutStartSec = "5min";
+          # While forge is down: again after 30 s, backing off to every 30 min.
+          Restart = "on-failure";
+          RestartSec = "30s";
+          RestartSteps = 6;
+          RestartMaxDelaySec = "30min";
+          ProcSubset = "pid";
+          IPAddressAllow = [ mirror.address ];
+          IPAddressDeny = [ "any" ];
+          RestrictAddressFamilies = [ "AF_INET" "AF_UNIX" ];
+        };
+      };
+
+      # A commit writes refs/heads/<branch>.lock and renames it into place.
+      systemd.paths.notes-mirror = {
+        description = "Starts notes-mirror when a branch moves in the vault";
+        wantedBy = [ "multi-user.target" ];
+        pathConfig = {
+          PathChanged = "${vault}/.git/refs/heads";
+          Unit = "notes-mirror.service";
+        };
+      };
+
+      systemd.timers.notes-mirror = {
+        wantedBy = [ "timers.target" ];
+        timerConfig = {
+          OnCalendar = mirror.every;
           Persistent = true;
         };
       };
