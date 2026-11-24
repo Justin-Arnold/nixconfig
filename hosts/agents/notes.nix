@@ -2,9 +2,11 @@
 # the agents. Three parts, all as the `notes` user:
 #
 #   notes-sync  Obsidian's headless client (`ob sync --continuous`) keeps this
-#               host's copy at /var/lib/notes/vault, Markdown only: no
-#               attachments and no .obsidian settings, where plugins keep
-#               their keys. It reaches loopback and the internet, never the
+#               host's copy at /var/lib/notes/vault: the notes and Sync's
+#               default attachments (images, audio, PDFs and video), but no
+#               .obsidian settings, where plugins keep their keys. The
+#               agents' tools open Markdown only, and notes-scan doesn't read
+#               attachments. It reaches loopback and the internet, never the
 #               LAN.
 #   notes       the vault service (notes/notes.py), on a socket only the
 #               agents' users can open, with no network at all. It knows the
@@ -29,6 +31,10 @@
 #   sudo notes-ob sync-setup --vault "<vault>" --path /var/lib/notes/vault --device-name agents
 #   sudo notes-ob sync-config --path /var/lib/notes/vault --file-types "" --configs "" --conflict-strategy merge
 #   sudo systemctl start notes-sync
+#
+# In ob 0.0.14 an empty `--file-types` means Sync's default attachment types,
+# not none; the command line can't turn them all off. An empty `--configs`
+# does turn the settings off.
 #
 # Until then notes-sync is skipped and the vault is empty. Run
 # `sudo systemctl start notes-scan-dry-run` and read its journal once the
