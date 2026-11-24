@@ -75,8 +75,12 @@ These live outside the repo:
   MAC is fixed in Terraform, so the address follows the VM through migration
   and HA recovery. `hosts/forge/facts.nix` has the same address, and the
   agents host pushes to it by address.
-- Porkbun API access turned on for `lab118.xyz`. Only `servicestack.xyz` had
-  it so far; lab118-services gets its certificates over HTTP.
+- Porkbun API access for `lab118.xyz`, in two places: the domain's own API
+  access setting, and the lab's shared API key, which Porkbun limits to the
+  domains listed on it. `lab118.xyz` was added to that key on 2026-11-24, next
+  to `servicestack.xyz`, so every host that holds it (agents, automation,
+  dashboard, inference, openclaw and forge) can change `lab118.xyz`'s
+  records too. lab118-services gets its certificates over HTTP.
 - No Pangolin resource, and no `WG_LAB118` rule: lab118-services has no
   reason to reach this host.
 
@@ -172,7 +176,9 @@ repository, and the deploy key.
 4. Outside the repo:
    - In OPNsense, reserve `10.0.0.157` for `02:01:18:00:00:0c`.
    - In AdGuard, rewrite `git.lab118.xyz` to `10.0.0.157`.
-   - In Porkbun, turn on API access for `lab118.xyz`.
+   - In Porkbun, turn on API access for `lab118.xyz`, and add `lab118.xyz`
+     to the shared API key's domains. Without the second, the order fails
+     with a 403: the key "is restricted to specific domains".
    - On TrueNAS, export `/mnt/Main/backups/forge-backups` over NFS to
      `10.0.0.157` only, root mapped to root.
    - In Kuma, make a push monitor `JOB / forge backup` with a 26 hour
@@ -182,7 +188,7 @@ repository, and the deploy key.
    scripts/flake-check.sh eval forge
    ```
    Expected output: `ok    forge`, then `all passed`.
-6. Look at the plan: one VM on `proxmox5` with the MAC above, its disk and
+6. Look at the plan: one VM on `proxmox7` with the MAC above, its disk and
    cloud-init drive on `nas-shared`, and one `proxmox_haresource`.
    ```sh
    nix run .#plan -- forge
@@ -192,8 +198,11 @@ repository, and the deploy key.
    HOST_AGE_KEY_FILE=~/.config/sops/age/hosts/forge.txt SSH_PRIVATE_KEY_PATH=~/.ssh/homelab_provision nix run .#provision -- forge
    ```
    It ends with `Saved hardware configuration to …/hosts/forge/hardware-configuration.nix`.
-   The committed one is the same QEMU guest file as dashboard's; keep
-   whichever it writes.
+   `provision` only installs while that file doesn't exist; once it does,
+   `provision` just switches. To install over a VM again, use `install`.
+   The bootstrap key has to exist when the VM is created, or the VM gets a
+   placeholder nobody can log in with. Without `SSH_PRIVATE_KEY_PATH` the
+   script uses `~/.ssh/id_ed25519`.
 8. Switch once, so the generated hardware configuration is the one running:
    ```sh
    git add hosts/forge/hardware-configuration.nix
@@ -268,7 +277,7 @@ sops doesn't look in `~/.config/sops/age`, so edit it with
 | Key | What |
 |---|---|
 | `root/console-password-hash` | `nix shell nixpkgs#mkpasswd -c mkpasswd -m yescrypt` |
-| `porkbun/api-key`, `porkbun/secret-api-key` | for DNS-01; the same key as the other hosts works once `lab118.xyz` has API access |
+| `porkbun/api-key`, `porkbun/secret-api-key` | for DNS-01; the same pair as the other hosts, with `lab118.xyz` on its list of domains in Porkbun |
 | `beszel/agent-token` | the Beszel hub's universal token |
 | `kuma/backup-push-url` | the `JOB / forge backup` push monitor's URL |
 
@@ -356,9 +365,10 @@ on it yet.
 
 ### Rebuilding the VM
 
-`nix run .#provision -- forge` with `HOST_AGE_KEY_FILE` and
-`SSH_PRIVATE_KEY_PATH=~/.ssh/homelab_provision` set recreates the VM and
-installs it. Then restore the newest backup. The new VM has a new SSH host
+`nix run .#install -- forge` with `HOST_AGE_KEY_FILE` and
+`SSH_PRIVATE_KEY_PATH=~/.ssh/homelab_provision` set recreates the VM if it's
+gone and installs it. `provision` wouldn't install here, since the hardware
+configuration is committed by then. Then restore the newest backup. The new VM has a new SSH host
 key, so the mirror stops with a host key error until you pin the new one
 (First install, step 13). That's on purpose: the agents host won't push the
 vault to a machine it doesn't know.

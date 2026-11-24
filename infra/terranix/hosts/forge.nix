@@ -8,7 +8,7 @@ in
 mkProxmoxVm {
   name = "forge";
   # Where it's created. HA may run it anywhere afterwards.
-  proxmoxNode = "proxmox5";
+  proxmoxNode = "proxmox7";
   bootstrapTemplateId = 9999;
   bootstrapTemplateNode = "proxmox8";
   macAddress = "02:01:18:00:00:0c";
