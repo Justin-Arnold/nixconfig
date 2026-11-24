@@ -21,6 +21,11 @@
     researcher.github.enable = lib.mkForce true;
   };
   agents.events.enable = lib.mkForce true;
+  # The vault, with every agent's notes tools.
+  agents.notes = {
+    enable = lib.mkForce true;
+    toAgents = lib.mkForce true;
+  };
   # The bridge with both channels, under example user IDs.
   agents.boardBridge = {
     enable = lib.mkForce true;

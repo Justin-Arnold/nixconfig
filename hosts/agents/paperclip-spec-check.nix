@@ -17,6 +17,8 @@ let
   triage = lib.findFirst (routine: routine.title == watch.intake.routineTitle) null (spec.routines or [ ]);
   health = agents.agents.labHealth;
   findings = lib.findFirst (routine: routine.title == health.routineTitle) null (spec.routines or [ ]);
+  scan = agents.agents.notes.scan;
+  vaultFindings = lib.findFirst (routine: routine.title == scan.routineTitle) null (spec.routines or [ ]);
 in
 assert lib.assertMsg (onHost == inSpec)
   "scripts/agents/paperclip-spec.json doesn't match hosts/agents/agents.nix: ${builtins.toJSON { inherit onHost inSpec; }}";
@@ -30,4 +32,7 @@ assert lib.assertMsg (!(watch.enable && watch.intake.enable) || (triage != null 
 # lab-health runs this routine by its title with the monitor's key, which runs only the monitor's own.
 assert lib.assertMsg (!health.active || (findings != null && findings.assignee == "Monitor"))
   "scripts/agents/paperclip-spec.json has no routine for the monitor titled ${builtins.toJSON health.routineTitle} (agents.labHealth.routineTitle)";
+# notes-scan runs this routine the same way.
+assert lib.assertMsg (!scan.active || (vaultFindings != null && vaultFindings.assignee == "Monitor"))
+  "scripts/agents/paperclip-spec.json has no routine for the monitor titled ${builtins.toJSON scan.routineTitle} (agents.notes.scan.routineTitle)";
 pkgs.writeText "paperclip-spec" (builtins.toJSON inSpec)

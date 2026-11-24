@@ -33,6 +33,8 @@ lib.genAttrs systems (system:
     lab-health = import ../hosts/agents/lab-health/check.nix { inherit pkgs; };
     board-bridge = import ../hosts/agents/board-bridge/check.nix { inherit pkgs; };
     paperclip-events = import ../hosts/agents/paperclip-events/check.nix { inherit pkgs; };
+    notes = import ../hosts/agents/notes/check.nix { inherit pkgs; };
+    notes-mcp = import ../modules/roles/hermes-agents/notes-mcp/check.nix { inherit pkgs; };
     jev-mcp = import ../modules/roles/hermes-agents/jev-mcp/check.nix { inherit pkgs; };
     paperclip-mcp = import ../modules/roles/hermes-agents/paperclip-mcp/check.nix { inherit pkgs; };
     websearch-mcp = import ../modules/roles/hermes-agents/websearch-mcp/check.nix { inherit pkgs; };

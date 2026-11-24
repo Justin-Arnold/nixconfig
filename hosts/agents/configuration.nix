@@ -46,6 +46,7 @@ in
       ./searxng.nix
       ./board-bridge.nix
       ./paperclip-events.nix
+      ./notes.nix
       ../../modules/common
       ../../modules/profiles/server.nix
       ../../modules/platforms/nixos
@@ -158,6 +159,15 @@ in
     enable = true;
     telegram.userId = "8610869785";
     discord.userId = "178696475692367873";
+  };
+
+  # Justin's vault on Obsidian Sync, for the agents (./notes.nix). After the
+  # first switch, set Sync up with `sudo notes-ob ...` as notes.nix says, run
+  # notes-scan-dry-run over the whole vault, and turn toAgents on once
+  # what it finds is dealt with.
+  agents.notes = {
+    enable = true;
+    toAgents = false;
   };
 
   # The TrueNAS share for ./backup.nix, by address so the mount never waits

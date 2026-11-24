@@ -31,9 +31,15 @@ let
   # limit and credits. Only agents that name it get the key.
   claude = name: { provider = "anthropic"; inherit name; };
 
+  # Justin's vault (./notes.nix), for every agent once it's on.
+  notes = config.agents.notes.enable && config.agents.notes.toAgents;
+
   # Every agent's soul ends with the same section on asking Justin, so a
-  # question reaches his phone and his answer wakes the agent.
-  soulOf = name: builtins.readFile ./souls/${name}.md + builtins.readFile ./souls/asking-justin.md;
+  # question reaches his phone and his answer wakes the agent; with the
+  # vault on, a section on the vault comes before it.
+  soulOf = name: builtins.readFile ./souls/${name}.md
+    + lib.optionalString notes (builtins.readFile ./souls/vault.md)
+    + builtins.readFile ./souls/asking-justin.md;
 
   # workbench, where the engineer's, reviewer's and infra's terminal and file
   # tools act. Its host key is `cat /etc/ssh/ssh_host_ed25519_key.pub` there,
@@ -129,6 +135,14 @@ in
     # with web.enable. The server reads only pages a search or a page it read
     # gave it (docs/agents/REFERENCE.md, "Web search").
     web.searxngUrl = lib.mkIf config.agents.searxng.enable config.agents.searxng.url;
+
+    # Justin's vault through the vault service's socket, for every agent
+    # (./notes.nix). It knows which agent is calling from the socket, so
+    # none of them holds a key for it.
+    notes = {
+      enable = notes;
+      socket = lib.mkIf config.agents.notes.enable config.agents.notes.socket;
+    };
 
     observe = {
       proxmox = if lib.elem "proxmox" observeReady && proxmoxNodes != [ ] && proxmoxCa != null then {
@@ -268,6 +282,11 @@ in
     assertion = agents.monitor.terminal.ssh == null && !(lib.elem "terminal" agents.monitor.toolsets)
       && !(lib.elem "file" agents.monitor.toolsets);
     message = "agents: the monitor must have no terminal or file tools.";
+  } {
+    # The vault is everyone's or no one's; its socket isn't IP, so egress
+    # needs nothing for it.
+    assertion = lib.all (a: a.notes.enable == notes) (lib.attrValues agents);
+    message = "agents: with the vault on for the agents, every agent has it (notes.enable), and with it off, none.";
   } {
     assertion = lib.all (a: a.address != lab118 || (lib.subtractLists [ 3002 5000 ] a.tcpPorts == [ ] && (a.udpPorts or [ ]) == [ ]))
       (lib.attrValues config.roles.agentEgress.allow);

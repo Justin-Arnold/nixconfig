@@ -36,6 +36,7 @@ let
   labMcp = pkgs.callPackage ./hermes-agents/lab-mcp/package.nix { };
   githubMcp = pkgs.callPackage ./hermes-agents/github-mcp/package.nix { };
   websearchMcp = pkgs.callPackage ./hermes-agents/websearch-mcp/package.nix { };
+  notesMcp = pkgs.callPackage ./hermes-agents/notes-mcp/package.nix { };
 
   # The MCP servers an agent may run: this role's own packages, each taking
   # only its own keys from .env.
@@ -46,11 +47,19 @@ let
     github = { command = lib.getExe githubMcp; keys = [ "GITHUB_OBSERVE_TOKEN" ]; };
     # SearXNG on loopback needs no key.
     websearch = { command = lib.getExe websearchMcp; keys = [ ]; };
+    # The vault service knows the agent from its socket, so no key either.
+    notes = { command = lib.getExe notesMcp; keys = [ ]; };
   };
 
   # What the websearch server's env may hold, and where SearXNG may be.
   websearchEnv = [ "SEARXNG_URL" "SSL_CERT_FILE" "WEB_CALL_LOG" ];
   loopbackHttp = url: builtins.match "http://(127\\.0\\.0\\.1|localhost)(:[0-9]+)?/?" url != null;
+
+  # The notes server's env, its tools, and where the vault's socket may be.
+  notesEnv = [ "NOTES_CALL_LOG" "NOTES_SOCKET" ];
+  notesReadTools = [ "search_notes" "read_note" "list_notes" "backlinks" "note_history" ];
+  notesWriteTools = [ "create_note" "append_to_note" "replace_in_note" "rewrite_note" "move_note" ];
+  unixSocket = path: builtins.match "/run/[a-z0-9-]+/[a-z0-9-]+\\.sock" path != null;
 
   # The lab server's keys in .env, by source.
   labKeys = { proxmox = "LAB_PROXMOX_TOKEN"; beszel = "LAB_BESZEL_PASSWORD"; alerta = "LAB_ALERTA_KEY"; };
@@ -253,6 +262,17 @@ let
         '';
       };
 
+      notes.enable = lib.mkOption {
+        type = lib.types.bool;
+        default = cfg.notes.enable;
+        defaultText = lib.literalExpression "roles.hermesAgents.notes.enable";
+        description = ''
+          Give this agent Justin's vault: the notes server, which searches,
+          reads and changes notes through the vault service's socket
+          (roles.hermesAgents.notes.socket).
+        '';
+      };
+
       soul = lib.mkOption {
         type = lib.types.lines;
         description = "SOUL.md: who the agent is and how it works.";
@@ -422,6 +442,19 @@ let
             sampling.enabled = false;
           };
         })
+        (lib.mkIf config.notes.enable {
+          notes = {
+            command = lib.getExe notesMcp;
+            env = {
+              NOTES_SOCKET = cfg.notes.socket;
+              # Call ids, tools and outcomes only.
+              NOTES_CALL_LOG = "${stateDirOf name}/.hermes/logs/notes.log";
+            };
+            tools.include = notesReadTools ++ notesWriteTools;
+            timeout = 60;
+            sampling.enabled = false;
+          };
+        })
       ];
       # settings is a raw attribute set (it becomes config.yaml as written), so
       # conditional parts use optionalAttrs, not mkIf.
@@ -439,6 +472,11 @@ let
               tool_costs = { search_web = 1; read_page = 1; };
               cost_unit = "calls";
               spend_limit = cfg.web.callsPerSession;
+            } // lib.optionalAttrs (n == "notes") {
+              # Reads are free; changes to the vault are counted.
+              tool_costs = lib.genAttrs notesWriteTools (_: 1);
+              cost_unit = "changes";
+              spend_limit = cfg.notes.writesPerSession;
             }) config.mcpServers);
       } // lib.optionalAttrs (config.fallbacks != [ ]) {
         # A Claude entry names its key, so Hermes takes the API key rather
@@ -466,7 +504,8 @@ let
           ++ lib.optional config.jev.enable "jev"
           ++ lib.optional config.observe.enable "lab"
           ++ lib.optional config.github.enable "github"
-          ++ lib.optional config.web.enable "websearch";
+          ++ lib.optional config.web.enable "websearch"
+          ++ lib.optional config.notes.enable "notes";
         agent.disabled_toolsets = neverToolsets
           ++ lib.optionals (config.terminal.ssh == null) machineToolsets;
         terminal = if config.terminal.ssh == null then { backend = "local"; } else {
@@ -658,6 +697,23 @@ in
       };
     };
 
+    # Justin's vault for the agents with notes.enable
+    # (modules/roles/hermes-agents/notes-mcp, hosts/agents/notes.nix).
+    notes = {
+      enable = lib.mkEnableOption "Justin's vault for every agent (each can opt out with notes.enable)";
+      socket = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
+        default = null;
+        example = "/run/notes/notes.sock";
+        description = "The vault service's Unix socket under /run. An agent with notes.enable needs it.";
+      };
+      writesPerSession = lib.mkOption {
+        type = lib.types.ints.positive;
+        default = 30;
+        description = "Changes to the vault one session may make before Hermes wants an approval, which an unattended run can't get.";
+      };
+    };
+
     # The lab server's sources (modules/roles/hermes-agents/lab-mcp). Each is
     # read-only by its credential and by the server, which only sends GETs to
     # fixed paths. A source left null has no tools.
@@ -784,6 +840,11 @@ in
           assertion = lib.any (i: i.observe.enable) (lib.attrValues instances) -> labTools != [ ];
           message = "roles.hermesAgents.observe: an agent has observe.enable but no source is set up.";
         }
+        {
+          assertion = lib.any (i: i.notes.enable) (lib.attrValues instances)
+            -> (cfg.notes.socket != null && unixSocket cfg.notes.socket);
+          message = "roles.hermesAgents.notes.socket: an agent has notes.enable, so the vault service's socket has to be set, as /run/<dir>/<name>.sock.";
+        }
       ]
       ++ lib.concatMap (name:
         let
@@ -885,7 +946,7 @@ in
           {
             assertion = lib.all (n: mcpAllowed ? ${n}) (lib.attrNames inst.mcpServers)
               && lib.all lib.id (lib.mapAttrsToList serverOk servers);
-            message = "${opt}: MCP servers are only paperclip, jev, lab, github and websearch, each running this role's own package with no arguments, url, headers or auth, sampling off, and only its own keys from .env.";
+            message = "${opt}: MCP servers are only paperclip, jev, lab, github, websearch and notes, each running this role's own package with no arguments, url, headers or auth, sampling off, and only its own keys from .env.";
           }
           {
             assertion = inst.jev.enable == (inst.secrets ? JEV_API_KEY)
@@ -914,6 +975,15 @@ in
                 && lib.sort lib.lessThan (lib.attrNames (servers.websearch.env or { })) == websearchEnv
                 && servers.websearch.env.SEARXNG_URL == cfg.web.searxngUrl));
             message = "${opt}: an agent with web.enable has the websearch server, in its toolsets, asking SearXNG over HTTP on loopback (roles.hermesAgents.web.searxngUrl) with nothing else in its env; one without has neither.";
+          }
+          {
+            assertion = inst.notes.enable == (servers ? notes)
+              && inst.notes.enable == lib.elem "notes" (s.platform_toolsets.api_server or [ ])
+              && (!inst.notes.enable || (cfg.notes.socket != null && unixSocket cfg.notes.socket
+                && lib.sort lib.lessThan (lib.attrNames (servers.notes.env or { })) == notesEnv
+                && servers.notes.env.NOTES_SOCKET == cfg.notes.socket
+                && lib.all (t: (servers.notes.tool_costs or { }) ? ${t}) notesWriteTools));
+            message = "${opt}: an agent with notes.enable has the notes server, in its toolsets, talking to roles.hermesAgents.notes.socket with nothing else in its env and its changes counted; one without has neither.";
           }
           {
             assertion = (claudeTyped != [ ]) == (inst.secrets ? ANTHROPIC_API_KEY)
@@ -1034,8 +1104,9 @@ in
           ReadWritePaths = [ (stateDirOf name) ];
           # Secrets under /run/secrets stay reachable for the ssh key, whose
           # path links there; everything else in it is root-only or another
-          # service's.
-          InaccessiblePaths = [ "-/var/lib/sops-nix" "-/var/lib/paperclip" "-/var/lib/postgresql" ]
+          # service's. The vault's files and its Obsidian login are reached
+          # only through the vault service's socket.
+          InaccessiblePaths = [ "-/var/lib/sops-nix" "-/var/lib/paperclip" "-/var/lib/postgresql" "-/var/lib/notes" ]
             ++ map (d: "-${d}") others;
           PrivateTmp = true;
           PrivateDevices = true;

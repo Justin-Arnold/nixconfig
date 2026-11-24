@@ -162,6 +162,27 @@
       "triggers": []
     },
     {
+      "title": "Look into {{count}} vault finding(s)",
+      "assignee": "Monitor",
+      "descriptionFile": "routines/vault-findings.md",
+      "priority": "high",
+      "concurrencyPolicy": "skip_if_active",
+      "catchUpPolicy": "skip_missed",
+      "variables": [
+        {
+          "name": "count",
+          "label": "How many findings",
+          "type": "number"
+        },
+        {
+          "name": "findings",
+          "label": "Finding codes",
+          "type": "text"
+        }
+      ],
+      "triggers": []
+    },
+    {
       "title": "Triage {{count}} lab alert(s)",
       "assignee": "Monitor",
       "descriptionFile": "routines/triage-lab-alerts.md",
