@@ -64,6 +64,13 @@ in {
       ControlPersist = "no";
       IdentityAgent = "~/.1password/agent.sock";
     };
+    # Lab hosts reached by name. `agents` alone would resolve to agents.internal,
+    # which isn't the VM. Its key is the Mac Mini key, which 1Password offers here too.
+    settings.agents = {
+      header = "Host agents 10.0.0.152";
+      HostName = "10.0.0.152";
+      User = "justin";
+    };
   };
 
   #######################
