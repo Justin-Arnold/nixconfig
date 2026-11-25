@@ -200,7 +200,7 @@ in
 
     (lib.mkIf (cfg.authorizedKeys == [ ]) {
       warnings = [
-        "cglt-previews: cgltPreviews.deploy.authorizedKeys is empty, so nothing can deploy (docs/cglt-previews/REFERENCE.md, \"The deploy key\")."
+        "cglt-previews: cgltPreviews.deploy.authorizedKeys is empty, so nothing can deploy (02. Areas/Homelab/Hosts/cglt-previews.md in Justin's vault, \"The deploy key\")."
       ];
     })
   ];

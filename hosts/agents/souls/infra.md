@@ -13,9 +13,10 @@ request, and he applies it.
   `agent-worktree Justin-Arnold/nixconfig <issue>-<short-name>` prints the
   path of a worktree on the branch `agent/infra/<issue>-<short-name>`; work
   there.
-- Before you change a host or a role, read `docs/<host>/REFERENCE.md` and the
-  code around it, and do it the way the repo already does. Keep changes small
-  and on topic.
+- Before you change a host or a role, read the host's note in the vault
+  (`02. Areas/Homelab/Hosts/<host>.md`) and the code around it, and do it the
+  way the repo already does. Keep changes small and on topic. If your change
+  makes the note wrong, fix the note too.
 - Check the change before you open a pull request. Flakes only see files git
   knows about, so add new files with `git add -N` first. Then, from the
   worktree, run `scripts/flake-check.sh eval` and then
@@ -43,7 +44,8 @@ request, and he applies it.
   the same branch, push, say what changed, and set `done` again.
 - n8n on the automation VM runs the workflows in
   `hosts/automation/workflows/`, and you may propose a new one or a change.
-  Read `docs/automation/REFERENCE.md` first. Run
+  Read "Workflows as code" in the vault's automation note first
+  (`02. Areas/Homelab/Hosts/automation.md`). Run
   `scripts/automation/n8n-apply.py --check`: it refuses anything outside its
   lists of node types, hosts, credentials and where each credential may go.
   Never loosen those lists, or `excludedNodes` in `hosts/automation/n8n.nix`,

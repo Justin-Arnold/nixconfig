@@ -37,7 +37,7 @@ in
     assertions = [
       {
         assertion = cfg.nfsDevice != null;
-        message = "dashboard: dashboard.backup.nfsDevice isn't set. Give it the NAS export for backups (docs/dashboard/REFERENCE.md, \"Backups\").";
+        message = "dashboard: dashboard.backup.nfsDevice isn't set. Give it the NAS export for backups (02. Areas/Homelab/Hosts/dashboard.md in Justin's vault, \"Backups\").";
       }
     ];
 

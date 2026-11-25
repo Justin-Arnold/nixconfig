@@ -165,7 +165,7 @@ require_host_age_key() {
   local sops_home
 
   if [[ -z "$host_key" || ! -f "$host_key" ]]; then
-    echo "Set HOST_AGE_KEY_FILE to the host-scoped age key for ${HOST_NAME} (see docs/${HOST_NAME}/REFERENCE.md)." >&2
+    echo "Set HOST_AGE_KEY_FILE to the host-scoped age key for ${HOST_NAME} (see 02. Areas/Homelab/Hosts/${HOST_NAME}.md in Justin's vault, \"Secrets\")." >&2
     exit 1
   fi
   if [[ -f "$AGE_KEY_PATH" ]] && cmp -s "$host_key" "$AGE_KEY_PATH"; then
@@ -239,7 +239,7 @@ contabo_load_api_credentials() {
     fi
     if ! value="$(sops -d --extract "[\"contabo\"][\"${key}\"]" "$SECRETS_FILE" 2>/dev/null)"; then
       echo "Failed to decrypt contabo.${key} from ${SECRETS_FILE}." >&2
-      echo "Add the Contabo API credentials with: sops ${SECRETS_FILE}  (see docs/lab118-services/REFERENCE.md)" >&2
+      echo "Add the Contabo API credentials with: sops ${SECRETS_FILE}  (see 02. Areas/Homelab/Hosts/lab118-services.md in Justin's vault, \"Infrastructure and Terraform\")" >&2
       exit 1
     fi
     export "${var}=${value}"

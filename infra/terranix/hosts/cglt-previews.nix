@@ -10,7 +10,7 @@ mkProxmoxVm {
   # Not HA by choice (2026-11-09): local proxmox4 storage and cpuType host
   # for ZFS/build speed. If stability is lacking, add HA (nas-shared +
   # x86-64-v2-AES) or move to a cloud provider. See
-  # docs/cglt-previews/REFERENCE.md, "Where it runs".
+  # 02. Areas/Homelab/Hosts/cglt-previews.md in Justin's vault, "Where it runs".
   proxmoxNode = "proxmox4";
   # A fixed id that had never been used (145), for the reason in
   # automation.nix.
@@ -41,7 +41,7 @@ mkProxmoxVm {
   # `nas-previews`: a TrueNAS dataset of its own (Main/cglt-previews) with no
   # snapshots or replication, since everything on it can be copied again.
   # The guest makes the ZFS pool `cold` on it (preview-cold-pool.service).
-  # docs/cglt-previews/REFERENCE.md, "Storage".
+  # 02. Areas/Homelab/Hosts/cglt-previews.md in Justin's vault, "Storage".
   extraDisks = [
     {
       datastore = "nas-previews";

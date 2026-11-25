@@ -32,7 +32,7 @@ in
     assertions = [
       {
         assertion = cfg.nfsDevice != null;
-        message = "openclaw: openclaw.backup.nfsDevice isn't set. Give it the NAS export for backups (docs/openclaw/REFERENCE.md, \"Backups\").";
+        message = "openclaw: openclaw.backup.nfsDevice isn't set. Give it the NAS export for backups (02. Areas/Homelab/Hosts/openclaw.md in Justin's vault, \"Backups\").";
       }
     ];
 

@@ -5,7 +5,8 @@
 # Paperclip routine it may start and its own Alerta key, and none of the
 # agents' keys. Like the other lab VMs it can move between nodes: disk and
 # cloud-init drive on nas-shared, an HA resource, a CPU model every node has
-# (infra/terranix/hosts/automation.nix). See docs/automation/REFERENCE.md.
+# (infra/terranix/hosts/automation.nix). See Justin's vault,
+# 02. Areas/Homelab/Hosts/automation.md.
 { config, lib, inputs, sops-nix, ... }:
 let
   macMiniKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIA80MbGDPmyq9NruBH2oS0vVzFDXSH0oT+YqxrIW89Da hello@justin-arnold.com";
@@ -116,7 +117,8 @@ in
       message = ''
         automation: secrets/hosts/automation.yaml doesn't exist yet. Generate
         the host age key, add its recipient to .sops.yaml, create the file with
-        sops and `git add` it (docs/automation/REFERENCE.md, "Secrets").
+        sops and `git add` it
+        (02. Areas/Homelab/Hosts/automation.md in Justin's vault, "Secrets").
       '';
     }
   ];

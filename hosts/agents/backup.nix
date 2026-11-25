@@ -35,7 +35,7 @@ in
     assertions = [
       {
         assertion = cfg.nfsDevice != null;
-        message = "agents: agents.backup.nfsDevice isn't set. Give it the NAS export for backups (docs/agents/REFERENCE.md, \"Backups\").";
+        message = "agents: agents.backup.nfsDevice isn't set. Give it the NAS export for backups (02. Areas/Homelab/Hosts/agents.md in Justin's vault, \"Backups\").";
       }
     ];
 

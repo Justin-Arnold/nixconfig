@@ -4,8 +4,8 @@
 # and Justin's private projects. There's no public DNS record and no Pangolin
 # resource for it, no mirrors and no CI. Like the other lab VMs it can move
 # between nodes: disk and cloud-init drive on nas-shared, an HA resource, a
-# CPU model every node has (infra/terranix/hosts/forge.nix). See
-# docs/forge/REFERENCE.md.
+# CPU model every node has (infra/terranix/hosts/forge.nix). Its install,
+# secrets and backups are in Justin's vault, 02. Areas/Homelab/Hosts/forge.md.
 { config, lib, inputs, sops-nix, ... }:
 let
   facts = import ./facts.nix;
@@ -112,8 +112,8 @@ in
   warnings = lib.optional (!haveSecrets) ''
     forge: secrets/hosts/forge.yaml doesn't exist yet, so this host can't be
     installed. Generate the host age key, add its recipient to .sops.yaml,
-    create the file with sops and `git add` it (docs/forge/REFERENCE.md,
-    "Secrets").
+    create the file with sops and `git add` it
+    (02. Areas/Homelab/Hosts/forge.md in Justin's vault, "Secrets").
   '';
 
   ############################################################

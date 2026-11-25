@@ -16,7 +16,7 @@ would cost. Nothing here is built. Decide before any of it is.
   deliveries go through `intake.lab118.xyz` and the tunnel to n8n, which
   raises LandReady or CIStuck and starts the Fix CI routines, and sweeps
   GitHub's API every 30 minutes for missed deliveries
-  (`docs/automation/REFERENCE.md`, "GitHub deliveries").
+  (`02. Areas/Homelab/Hosts/automation.md` in Justin's vault, "GitHub deliveries").
 - The Review and Fix CI routines (`scripts/agents/paperclip-spec.json`,
   `scripts/agents/routines/`) and the agents' souls drive `gh`. The lab tools
   read GitHub with `observe/github-token`.

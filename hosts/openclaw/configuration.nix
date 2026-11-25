@@ -5,7 +5,8 @@
 # login, its Paperclip key and the chat bots' tokens, and nothing else. Like
 # agents it can move between nodes: disk and cloud-init drive on nas-shared,
 # an HA resource, a CPU model every node has
-# (infra/terranix/hosts/openclaw.nix). See docs/openclaw/REFERENCE.md.
+# (infra/terranix/hosts/openclaw.nix). See Justin's vault,
+# 02. Areas/Homelab/Hosts/openclaw.md.
 { config, lib, inputs, sops-nix, ... }:
 let
   macMiniKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIA80MbGDPmyq9NruBH2oS0vVzFDXSH0oT+YqxrIW89Da hello@justin-arnold.com";
@@ -217,7 +218,8 @@ in
       message = ''
         openclaw: secrets/hosts/openclaw.yaml doesn't exist yet. Generate the
         host age key, add its recipient to .sops.yaml, create the file with
-        sops and `git add` it (docs/openclaw/REFERENCE.md, "Secrets").
+        sops and `git add` it
+        (02. Areas/Homelab/Hosts/openclaw.md in Justin's vault, "Secrets").
       '';
     }
   ];

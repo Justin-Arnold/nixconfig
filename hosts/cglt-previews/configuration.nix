@@ -15,7 +15,7 @@
 # Whoever holds the deploy key is root here (the docker group is root), so
 # the host is fenced off from the rest of the lab: it may reach the gateway
 # and the Internet, and its containers the same.
-# See docs/cglt-previews/REFERENCE.md.
+# See Justin's vault, 02. Areas/Homelab/Hosts/cglt-previews.md.
 { config, lib, pkgs, inputs, sops-nix, ... }:
 let
   facts = import ./facts.nix;
@@ -121,7 +121,8 @@ in
   boot.loader.grub.devices = lib.mkForce [ "/dev/sda" ];
 
   # The MAC is fixed in Terraform; give it an OPNsense DHCP reservation
-  # (docs/cglt-previews/REFERENCE.md, "Outside the repo").
+  # (02. Areas/Homelab/Hosts/cglt-previews.md in Justin's vault,
+  # "Outside nixconfig").
   networking.useDHCP = lib.mkDefault true;
 
   profiles.server = {
@@ -152,7 +153,8 @@ in
   };
 
   # The deploy key's public half (deploy.nix). Until it's here nothing can
-  # deploy (docs/cglt-previews/REFERENCE.md, "The deploy key").
+  # deploy (02. Areas/Homelab/Hosts/cglt-previews.md in Justin's vault,
+  # "The deploy key").
   cgltPreviews.deploy.authorizedKeys = [ "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINVDVwKwSzX26jrK5mnmBcSZ0htGi6oIy8hifpf6CZoj cglt-previews-deploy"];
 
   roles.beszelAgent = {
@@ -184,7 +186,8 @@ in
   # build/, config/ and stacks/ are plain directories in tank/previews, made
   # here rather than by tmpfiles, which runs before the pool's first datasets
   # exist. Hosts set up before the NAS pool also have tank/previews/golden;
-  # nothing uses it any more (REFERENCE.md, "Storage", says how to drop it).
+  # nothing uses it any more (the vault's cglt-previews note, "Storage",
+  # says how to drop it).
   systemd.services.preview-datasets = {
     description = "Create the preview datasets and directories";
     wantedBy = [ "multi-user.target" ];
@@ -345,7 +348,8 @@ in
       message = ''
         cglt-previews: secrets/hosts/cglt-previews.yaml doesn't exist yet. Generate
         the host age key, add its recipient to .sops.yaml, create the file with
-        sops and `git add` it (docs/cglt-previews/REFERENCE.md, "Secrets").
+        sops and `git add` it
+        (02. Areas/Homelab/Hosts/cglt-previews.md in Justin's vault, "Secrets").
       '';
     }
   ];

@@ -1,6 +1,7 @@
 # lab118-services: general-purpose cloud host (Contabo Cloud VPS 12, EU).
 # Initial workloads: notification stack, Uptime Kuma, external and
-# WireGuard-based monitoring of the lab. See docs/lab118-services/REFERENCE.md.
+# WireGuard-based monitoring of the lab. See Justin's vault,
+# 02. Areas/Homelab/Hosts/lab118-services.md.
 { config, lib, inputs, sops-nix, ... }:
 let
   facts = config.lab118.facts;
@@ -123,7 +124,8 @@ in
       };
       alerta.extraCorsOrigins = [ "https://alerta.servicestack.xyz" ];
       # n8n on the automation VM, over the tunnel, decides what the monitor triages
-      # (docs/automation/REFERENCE.md). automation.servicestack.xyz resolves through lab DNS (labDomains).
+      # (02. Areas/Homelab/Hosts/automation.md in Justin's vault). automation.servicestack.xyz
+      # resolves through lab DNS (labDomains).
       alerta.n8nAlertsUrl = "https://automation.servicestack.xyz/webhook/alerta";
       # 1880 on the host is the nginx intake allowlist; Node-RED itself is loopback-only.
       nodeRed.hostPort = 1881;

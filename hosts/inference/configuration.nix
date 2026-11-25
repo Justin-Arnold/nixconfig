@@ -5,7 +5,7 @@
 # client (endpoints.nix), plus Home Assistant's speech to text (Whisper, on
 # the GPU) and text to speech (Piper). It holds no credentials but its own:
 # the clients' keys, its certificate's DNS key and the Beszel token. See
-# docs/inference/REFERENCE.md.
+# Justin's vault, 02. Areas/Homelab/Hosts/inference.md.
 { config, lib, pkgs, inputs, sops-nix, ... }:
 let
   macMiniKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIA80MbGDPmyq9NruBH2oS0vVzFDXSH0oT+YqxrIW89Da hello@justin-arnold.com";
@@ -98,7 +98,7 @@ in
   roles.inference = {
     enable = true;
     # Chosen by scripts/inference/model-test.py on 4 November 2026; the
-    # results are in docs/inference/REFERENCE.md.
+    # results are in 02. Areas/Homelab/Hosts/inference.md in Justin's vault.
     active = "qwen3.6-35b-a3b";
     # Voice and the Mac are the only clients: one slot always free for
     # Home Assistant, one shared. Few slots also keep Home Assistant's long
@@ -154,7 +154,8 @@ in
       message = ''
         inference: secrets/hosts/inference.yaml doesn't exist yet. Generate the
         host age key, add its recipient to .sops.yaml, create the file with
-        sops and `git add` it (docs/inference/REFERENCE.md, "Secrets").
+        sops and `git add` it
+        (02. Areas/Homelab/Hosts/inference.md in Justin's vault, "Secrets").
       '';
     }
   ];

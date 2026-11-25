@@ -2,7 +2,8 @@
 #
 # The Pangolin VPS holds the *.preview.commongoodlt.dev wildcard certificate
 # and a hand-written Traefik route that sends those names through the home
-# site's Newt to this VM over plain HTTP (docs/cglt-previews/REFERENCE.md).
+# site's Newt to this VM over plain HTTP (02. Areas/Homelab/Hosts/cglt-previews.md
+# in Justin's vault).
 # Traefik here trusts X-Forwarded-* from the Newt alone, so the apps see
 # https and don't redirect to http.
 #
@@ -45,7 +46,8 @@ in
 {
   # The htpasswd line (bcrypt) for the gate in front of the ops tools. Nobody
   # types it: Warpgate's targets send it as an Authorization header
-  # (docs/cglt-previews/REFERENCE.md, "Ops tools through Warpgate").
+  # (02. Areas/Homelab/Hosts/cglt-previews.md in Justin's vault,
+  # "Ops tools through Warpgate").
   sops.secrets."traefik/ops-users" = {
     owner = "traefik";
     restartUnits = [ "traefik.service" ];

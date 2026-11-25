@@ -62,7 +62,8 @@
     # KV cache is a quarter of a usual model's: four 64K slots take about
     # 3,000 MiB. Q4_K_M (20.4 GB) doesn't fit beside that and Whisper, so
     # this is Unsloth's dynamic IQ4_XS, 17.7 GB: 20,288 MiB on the card in
-    # all. The model test chose it (docs/inference/REFERENCE.md).
+    # all. The model test chose it (02. Areas/Homelab/Hosts/inference.md in
+    # Justin's vault, "How the model was chosen").
     "qwen3.6-35b-a3b" = {
       files = [
         {

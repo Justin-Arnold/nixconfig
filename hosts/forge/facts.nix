@@ -17,7 +17,8 @@
 
   # forge's ed25519 host key (/etc/ssh/ssh_host_ed25519_key.pub), the whole
   # line. Until it's here, the agents host doesn't push the vault: fill it
-  # in after the first install (docs/forge/REFERENCE.md, "First install").
+  # in after the first install
+  # (02. Areas/Homelab/Hosts/forge.md in Justin's vault, "First install").
   sshHostKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIK7qJVQMDJNR5F0NQiiIGbt0NY9khRG7QkP27uF+zMYT root@forge";
 
   # Who may open a connection to forge at all: the LAN and the road-warrior

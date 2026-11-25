@@ -38,7 +38,7 @@ in
     assertions = [
       {
         assertion = cfg.nfsDevice != null;
-        message = "forge: forge.backup.nfsDevice isn't set. Give it the NAS export for backups (docs/forge/REFERENCE.md, \"Backups\").";
+        message = "forge: forge.backup.nfsDevice isn't set. Give it the NAS export for backups (02. Areas/Homelab/Hosts/forge.md in Justin's vault, \"Backups\").";
       }
     ];
 

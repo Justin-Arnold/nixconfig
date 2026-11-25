@@ -258,7 +258,7 @@ in
       warnings = lib.optional (cfg.scan.enable && !ready)
         "agents: notes-scan is off until the monitor has its Paperclip key."
         ++ lib.optional (mirror.enable && mirror.hostKey == null)
-        "agents: notes-mirror is off until forge's SSH host key is in hosts/forge/facts.nix (docs/forge/REFERENCE.md, \"First install\").";
+        "agents: notes-mirror is off until forge's SSH host key is in hosts/forge/facts.nix (02. Areas/Homelab/Hosts/forge.md in Justin's vault, \"First install\").";
 
       assertions = [
         {

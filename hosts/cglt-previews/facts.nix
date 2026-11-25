@@ -1,7 +1,8 @@
 # Addresses, names and paths the cglt-previews modules share. The paths,
 # user, network and middleware names are also a contract with the CGLT
 # monorepo's preview workflows and scripts (previews/scripts/*.sh): change
-# them there too. docs/cglt-previews/REFERENCE.md lists the contract.
+# them there too. The contract is in Justin's vault,
+# 02. Areas/Homelab/Hosts/cglt-previews.md, "The contract with the monorepo".
 {
   # Preview URLs are <tag>-pr<N>.<domain>; the ops tools are dockhand., files.
   # and mail.<domain>. TLS ends on the Pangolin VPS.

@@ -7,7 +7,7 @@
 # account needs a second factor (TOTP or a security key). Every repository is
 # private. Mirrors, migrations, Actions, packages and LFS are off, and the
 # service itself can't open a connection beyond loopback, so nothing in it can
-# copy a repository off this host. See docs/forge/REFERENCE.md.
+# copy a repository off this host.
 { config, lib, pkgs, ... }:
 let
   facts = import ./facts.nix;

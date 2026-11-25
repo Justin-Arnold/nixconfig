@@ -3,7 +3,7 @@
 # are routed; the host's default route stays on its public interface.
 #
 # Values are set in configuration.nix. The router side (OPNsense) is described
-# in docs/lab118-services/REFERENCE.md.
+# in Justin's vault, 02. Areas/Homelab/Hosts/lab118-services.md.
 { config, lib, pkgs, ... }:
 let
   cfg = config.lab118.wireguard;

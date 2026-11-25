@@ -66,8 +66,8 @@ let
 
   # Read-only lab tools (Proxmox, Beszel, Kuma, Alerta) for the coordinator,
   # infra, the researcher and the monitor, and read-only GitHub for the coordinator and
-  # the researcher (docs/agents/REFERENCE.md, "Lab state"). A source is on
-  # once it's in observeReady, with its credential in
+  # the researcher (02. Areas/Homelab/Hosts/agents.md in Justin's vault,
+  # "Lab state"). A source is on once it's in observeReady, with its credential in
   # secrets/hosts/agents.yaml; Proxmox needs its nodes and CA here too.
   observeReady = [ "proxmox" "beszel" "kuma" "alerta" ];
   withGithubToken = true;
@@ -128,12 +128,13 @@ in
 
     # Jev, TypeSafe's decision model, as a tool for every agent; each SOUL.md
     # says when to use it. What they send it is text from Paperclip or public
-    # sources only (docs/agents/REFERENCE.md).
+    # sources only (02. Areas/Homelab/Hosts/agents.md in Justin's vault).
     jev.enable = true;
 
     # Web search through SearXNG on this VM (./searxng.nix), for the agents
     # with web.enable. The server reads only pages a search or a page it read
-    # gave it (docs/agents/REFERENCE.md, "Web search").
+    # gave it (02. Areas/Homelab/Hosts/agents.md in Justin's vault,
+    # "Web search").
     web.searxngUrl = lib.mkIf config.agents.searxng.enable config.agents.searxng.url;
 
     # Justin's vault through the vault service's socket, for every agent

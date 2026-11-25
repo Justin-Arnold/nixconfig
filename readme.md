@@ -31,13 +31,16 @@ nix run .#destroy -- <host>
 
 Currently managed hosts: `dockhand`, `notifications`, `uptime-kuma`, `pr-previews`, `dashboard`, `agents`, `workbench`, `openclaw`, `inference`, `cglt-previews`, `forge` (Proxmox) and `lab118-services` (Contabo).
 
+The code's comments say what each part does. The rest of what's known about a
+host, like its install steps, secrets, backups and the settings made by hand
+outside this repo, is in Justin's private notes, not here.
+
 ### Cloud host lab118-services
 
 `lab118-services` is a Contabo VPS that runs the notification stack and Uptime
 Kuma outside the lab. Its flow is different from the Proxmox one: the server is
 bought in the Contabo panel and imported with `nix run .#adopt`, `switch` and
-`install` never run Terraform, and `destroy` is refused. See
-[docs/lab118-services/REFERENCE.md](docs/lab118-services/REFERENCE.md).
+`install` never run Terraform, and `destroy` is refused.
 
 ### Monitoring dashboard
 
@@ -45,31 +48,27 @@ bought in the Contabo panel and imported with `nix run .#adopt`, `switch` and
 Proxmox HA (shared storage, a common CPU model, an HA resource). It installs
 with its own age key instead of the operator key, so `install` and the first
 `provision` need `HOST_AGE_KEY_FILE`. Provisioning refuses any plan that would
-delete or replace a VM, and finds a VM on whichever node HA moved it to. See
-[docs/dashboard/REFERENCE.md](docs/dashboard/REFERENCE.md).
+delete or replace a VM, and finds a VM on whichever node HA moved it to.
 
 ### Agent orchestration
 
 `agents` is a Proxmox VM running Paperclip on PostgreSQL, the task and
 approval layer for the lab's AI agents. It's built and installed like
-`dashboard` (HA, its own age key). See
-[docs/agents/REFERENCE.md](docs/agents/REFERENCE.md).
+`dashboard` (HA, its own age key).
 
 `workbench` is where those agents' work runs: their terminal and file tools
 act there over ssh, in git worktrees, with rootless Podman. It has its own age
-key but no HA, since nothing on it needs keeping. See
-[docs/workbench/REFERENCE.md](docs/workbench/REFERENCE.md).
+key but no HA, since nothing on it needs keeping.
 
 `openclaw` is the chat front door to them: an OpenClaw gateway whose only
 tool is Paperclip, so asking it for something files an issue for the
 coordinator. It's built and installed like `agents` (HA, its own age key).
-See [docs/openclaw/REFERENCE.md](docs/openclaw/REFERENCE.md).
 
 `inference` is the GPU host: the RTX 3090 passed through on proxmox2, serving
 one model as `local` through llama-server, behind nginx with a key per client,
 to Home Assistant's voice assistant (and the Mac), plus Home Assistant's
 Whisper and Piper. The agents run on cloud models. It has its own age key and no HA, since it's tied to the
-node with the card. See [docs/inference/REFERENCE.md](docs/inference/REFERENCE.md).
+node with the card.
 
 ### CGLT pull-request previews
 
@@ -81,8 +80,7 @@ reaches sshd's port 2222, where `preview-deploy` can only run `preview-ctl`.
 There's no runner on the host. It's built like `automation` (its own age
 key) but isn't HA: it stays on proxmox4's local ZFS storage with the `host`
 CPU type, for speed. It's fenced off from the rest of the LAN because deploy
-jobs are root there. It replaces `pr-previews` at cutover. See
-[docs/cglt-previews/REFERENCE.md](docs/cglt-previews/REFERENCE.md).
+jobs are root there. It replaces `pr-previews` at cutover.
 
 ### Git forge
 
@@ -91,7 +89,7 @@ no mirrors and no CI. The agents host pushes the vault's git history to it
 within seconds of each commit, so who changed what can be read in a browser.
 It's built like `dashboard` (its own age key, HA on `nas-shared`), and it
 evaluates before its secrets file exists, with a warning, while install
-refuses without it. See [docs/forge/REFERENCE.md](docs/forge/REFERENCE.md).
+refuses without it.
 
 The provisioning flow expects:
 

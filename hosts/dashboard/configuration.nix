@@ -2,7 +2,8 @@
 # cluster. It runs Homarr (the dashboard) and the Beszel hub (host and GPU
 # metrics). It's built to move between nodes: disk and cloud-init drive on
 # nas-shared, an HA resource, a CPU model every node has, and nothing passed
-# through (infra/terranix/hosts/dashboard.nix). See docs/dashboard/REFERENCE.md.
+# through (infra/terranix/hosts/dashboard.nix). See Justin's vault,
+# 02. Areas/Homelab/Hosts/dashboard.md.
 { config, lib, inputs, sops-nix, ... }:
 let
   macMiniKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIA80MbGDPmyq9NruBH2oS0vVzFDXSH0oT+YqxrIW89Da hello@justin-arnold.com";
@@ -183,7 +184,8 @@ in
       message = ''
         dashboard: secrets/hosts/dashboard.yaml doesn't exist yet. Generate the
         host age key, add its recipient to .sops.yaml, create the file with
-        sops and `git add` it (docs/dashboard/REFERENCE.md, "Secrets").
+        sops and `git add` it
+        (02. Areas/Homelab/Hosts/dashboard.md in Justin's vault, "Secrets").
       '';
     }
   ];

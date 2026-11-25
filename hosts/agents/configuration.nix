@@ -4,7 +4,8 @@
 # logins but never runs code the agents generate; that happens on
 # workbench. Like dashboard it can move between nodes: disk and cloud-init
 # drive on nas-shared, an HA resource, a CPU model every node has, nothing
-# passed through (infra/terranix/hosts/agents.nix). See docs/agents/REFERENCE.md.
+# passed through (infra/terranix/hosts/agents.nix). See Justin's vault,
+# 02. Areas/Homelab/Hosts/agents.md.
 { config, lib, inputs, sops-nix, ... }:
 let
   macMiniKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIA80MbGDPmyq9NruBH2oS0vVzFDXSH0oT+YqxrIW89Da hello@justin-arnold.com";
@@ -129,7 +130,7 @@ in
     publicUrl = "https://paperclip.servicestack.xyz";
     # Sign-up stays off (the role's default) now that the board is claimed. A
     # fresh instance needs it on once to accept the bootstrap invite
-    # (docs/agents/REFERENCE.md, "First start").
+    # (02. Areas/Homelab/Hosts/agents.md in Justin's vault, "First start").
   };
 
   roles.beszelAgent = {
@@ -138,7 +139,7 @@ in
   };
 
   # Alerts from Paperclip's state (./agent-watch.nix). Its three secrets are
-  # in SOPS (docs/agents/REFERENCE.md, "Monitoring").
+  # in SOPS (02. Areas/Homelab/Hosts/agents.md in Justin's vault, "Monitoring").
   agents.watch.enable = true;
 
   # The 07:00 check of the lab in code (./lab-health.nix). proxmox9 is a new
@@ -221,7 +222,8 @@ in
       message = ''
         agents: secrets/hosts/agents.yaml doesn't exist yet. Generate the
         host age key, add its recipient to .sops.yaml, create the file with
-        sops and `git add` it (docs/agents/REFERENCE.md, "Secrets").
+        sops and `git add` it
+        (02. Areas/Homelab/Hosts/agents.md in Justin's vault, "Secrets").
       '';
     }
   ];

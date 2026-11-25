@@ -7,7 +7,8 @@
 #
 # It's disposable. Work lives on pushed branches, so there's nothing to back
 # up, and the disk sits on the node's local storage without HA
-# (infra/terranix/hosts/workbench.nix). See docs/workbench/REFERENCE.md.
+# (infra/terranix/hosts/workbench.nix). See Justin's vault,
+# 02. Areas/Homelab/Hosts/workbench.md.
 { config, lib, inputs, sops-nix, ... }:
 let
   macMiniKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIA80MbGDPmyq9NruBH2oS0vVzFDXSH0oT+YqxrIW89Da hello@justin-arnold.com";
@@ -163,7 +164,8 @@ in
       message = ''
         workbench: secrets/hosts/workbench.yaml doesn't exist yet. Generate
         the host age key, add its recipient to .sops.yaml, create the file
-        with sops and `git add` it (docs/workbench/REFERENCE.md, "Secrets").
+        with sops and `git add` it
+        (02. Areas/Homelab/Hosts/workbench.md in Justin's vault, "Secrets").
       '';
     }
   ];

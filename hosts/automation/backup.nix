@@ -45,7 +45,7 @@ in
     assertions = [
       {
         assertion = cfg.nfsDevice != null;
-        message = "automation: automation.backup.nfsDevice isn't set. Give it the NAS export for backups (docs/automation/REFERENCE.md, \"Backups\").";
+        message = "automation: automation.backup.nfsDevice isn't set. Give it the NAS export for backups (02. Areas/Homelab/Hosts/automation.md in Justin's vault, \"Backups\").";
       }
     ];
 

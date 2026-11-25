@@ -19,8 +19,8 @@
 #
 # host.sh is arbitrary code from the pull request, and preview-deploy is root
 # through the docker group. This script checks the shape of the request and
-# nothing else (docs/cglt-previews/REFERENCE.md, "How GitHub Actions reaches
-# the host").
+# nothing else (02. Areas/Homelab/Hosts/cglt-previews.md in Justin's vault,
+# "How GitHub Actions reaches the host").
 { lib, writeShellApplication, bash, coreutils, gnutar, gzip,
   # Everything host.sh gets on its PATH.
   tools,
