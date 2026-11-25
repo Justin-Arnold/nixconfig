@@ -1,5 +1,8 @@
 { config, inputs, lib, pkgs, osConfig, zen-browser, ... }:
 let
+  forge = import ../../hosts/forge/facts.nix;
+  forgeKnownHosts = pkgs.writeText "forge-known-hosts" "${forge.domain} ${forge.sshHostKey}\n";
+
   claudeDesktop = inputs.claude-desktop.packages.${pkgs.stdenv.hostPlatform.system}.claude-desktop;
 
   claudeUrlOpener = pkgs.writeShellScript "claude-open-web-url" ''
@@ -70,6 +73,20 @@ in {
       header = "Host agents 10.0.0.152";
       HostName = "10.0.0.152";
       User = "justin";
+    };
+    # Git over SSH to forge, where the vault's history is read. Only the
+    # desktop's own key, which Forgejo has as "Desktop", none of 1Password's.
+    # forge's host key is pinned from its facts, so a rebuilt forge with a new
+    # key is refused until the new one is pinned there.
+    settings.forge = {
+      header = "Host ${forge.domain}";
+      User = forge.sshUser;
+      Port = forge.sshPort;
+      IdentityFile = "~/.ssh/id_ed25519";
+      IdentitiesOnly = true;
+      IdentityAgent = "none";
+      StrictHostKeyChecking = "yes";
+      UserKnownHostsFile = "${forgeKnownHosts}";
     };
   };
 
