@@ -47,6 +47,17 @@ in
           then "/Users/${user}"
           else "/home/${user}";
     };
+    nixconfigDirectory = lib.mkOption {
+      type = lib.types.str;
+      description = "Where this host keeps its checkout of nixconfig, which the `nr` alias rebuilds it from.";
+      default =
+        let
+          home = config.systemProfile.homeDirectory;
+        in
+          if pkgs.stdenv.hostPlatform.isDarwin
+          then "${home}/Code/personal/nixconfig"
+          else "${home}/nixconfig";
+    };
     timeZone = lib.mkOption {
       type = lib.types.str;
       description = "The system time zone.";

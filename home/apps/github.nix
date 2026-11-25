@@ -1,5 +1,12 @@
-{ pkgs, config, ... }:
-
+{ pkgs, lib, config, osConfig, ... }:
+let
+  profile = osConfig.systemProfile;
+  # nr rebuilds this host from its own checkout, by its name in the flake,
+  # so it doesn't depend on where the checkout is or what the OS calls the
+  # machine.
+  rebuild = if pkgs.stdenv.hostPlatform.isDarwin then "darwin-rebuild" else "nixos-rebuild";
+  flake = lib.escapeShellArg "${profile.nixconfigDirectory}#${profile.hostname}";
+in
 {
   # Add the GitHub CLI tool
   home.packages = [
@@ -21,7 +28,7 @@
   programs.zsh = {
     shellAliases = {
       ghr = "searchGithubRepos";
-      nr  = "sudo nixos-rebuild switch --flake ~/Code/personal/nixconfig";
+      nr  = "sudo ${rebuild} switch --flake ${flake}";
     };
 
     initContent = ''
