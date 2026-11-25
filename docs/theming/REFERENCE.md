@@ -20,8 +20,10 @@ its palette, its ports and their docs. nixconfig takes it as the `gneiss`
 flake input, with nixpkgs following nixconfig's:
 
 - `inputs.gneiss.lib.palette.colors`: its roles, one of the palettes below.
+- `inputs.gneiss.lib.wayle.palette`: its Wayle theme's colors, as Wayle's
+  config spells them.
 - `inputs.gneiss.packages.<system>`: its ports, `neovim`, `vscode`,
-  `alacritty` and `vicinae`.
+  `alacritty`, `vicinae`, `wayle` and `obsidian`.
 
 To change a Gneiss color or port, change it there, then run
 `nix flake update gneiss` here.
@@ -44,7 +46,7 @@ Then rebuild. Apps that are already open pick it up when restarted.
 | Alacritty | Zenbones' own export, `extras/alacritty/zenwritten_dark.toml` in `pkgs.vimPlugins.zenbones-nvim` | `nord` from `pkgs.alacritty-theme` | the gneiss input's `alacritty` | `home/apps/alacritty.nix` | GUI hosts, incl. Macs |
 | VS Code | `rpbritton.zenbones` from the Marketplace (not in nixpkgs), theme `Zenbones Zenwritten Dark` | `arcticicestudio.nord-visual-studio-code`, theme `Nord` | the gneiss input's `vscode`, theme `Gneiss` | `home/apps/vscode.nix` | GUI hosts, incl. Macs |
 | Neovim | `pkgs.vimPlugins.zenbones-nvim` with `lush-nvim`, colorscheme `zenwritten` | `pkgs.vimPlugins.gbprod-nord`, colorscheme `nord` | the gneiss input's `neovim`, colorscheme `gneiss` | `home/apps/neovim.nix` | every host |
-| Wayle | the palette, plus a `zenwritten-dark` theme file so it's listed in Wayle's settings | the palette (Wayle's own Nord values) | the palette, plus a `gneiss` theme file | `home/apps/wayle.nix` | Hyprland desktops |
+| Wayle | the palette, plus a `zenwritten-dark` theme file so it's listed in Wayle's settings | the palette (Wayle's own Nord values) | the gneiss input's `wayle` theme file, and its colors (`lib.wayle.palette`) in the config | `home/apps/wayle.nix` | Hyprland desktops |
 | Hyprland borders | the palette: `accent` for the focused window, `border` for the rest | the palette | the palette | `home/apps/hyprland.nix`, `home/dotfiles/hyprland/init.lua` | Hyprland desktops |
 | hy3 tab bars | the palette: `accent` for the focused tab, grays for the others, `red` urgent, `yellow` locked | the palette | the palette | `home/dotfiles/hyprland/config/layout.lua` | Hyprland desktops |
 | hyprshell switcher | the palette, as its CSS variables | the palette | the palette | `home/apps/hyprshell.nix` | NixOS GUI hosts |
@@ -75,8 +77,9 @@ Every palette must have Gneiss's roles; evaluation fails if one doesn't.
 Adding a theme means adding a palette with those roles, which also adds it
 to `systemProfile.theme`, and mapping it in each app above that uses a port.
 
-- Wayle takes ten of the roles as `styling.palette` (`primary` is
-  `accent`). Its config spells one `fg-muted` and its theme files
+- Wayle, for Zenwritten Dark and Nord, takes ten of the roles as
+  `styling.palette` (`primary` is `accent`); Gneiss has its own Wayle
+  theme. Its config spells one `fg-muted` and its theme files
   `fg_muted`; Wayle's config schema doesn't catch the wrong one, it just
   falls back to Wayle's default color.
 - Hyprland reads all of them from `hypr/hyprland/data/colors.lua`,

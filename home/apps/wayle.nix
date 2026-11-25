@@ -1,18 +1,21 @@
 # https://wayle.app/guide/getting-started-nixos
 
-{ config, lib, osConfig, pkgs, ... }:
+{ config, inputs, lib, osConfig, pkgs, ... }:
 let
   fontFamily = osConfig.systemProfile.fonts.primary.family;
   inherit (osConfig.systemProfile) theme palette;
   wayle = lib.getExe' config.services.wayle.package "wayle";
   tomlFormat = pkgs.formats.toml { };
 
-  # Wayle's ten color roles, from the theme's palette. Wayle has no setting
-  # that names a theme, so the colors themselves go in the config.
-  waylePalette = {
-    inherit (palette) bg surface elevated fg fg-muted red yellow green blue;
-    primary = palette.accent;
-  };
+  # Wayle's ten color roles. Wayle has no setting that names a theme, so the
+  # colors themselves go in the config. Gneiss has a Wayle theme of its own,
+  # in the gneiss input; the other themes map their palette's roles here.
+  waylePalette =
+    if theme == "gneiss" then inputs.gneiss.lib.wayle.palette
+    else {
+      inherit (palette) bg surface elevated fg fg-muted red yellow green blue;
+      primary = palette.accent;
+    };
 
   # Settings declared here that Wayle's settings panel or CLI can override
   # in runtime.toml. Wayle can't reset a whole table, so each color is
@@ -37,13 +40,15 @@ in
   '';
 
   # The same colors as a Wayle theme file, so the theme is also listed in
-  # Wayle's settings. Wayle has Nord built in, and skips a file named after
-  # a built-in.
+  # Wayle's settings: Gneiss's own file, or one made here. Wayle has Nord
+  # built in, and skips a file named after a built-in.
   xdg.configFile."wayle/themes/${theme}.toml" = lib.mkIf (theme != "nord") {
-    source = tomlFormat.generate "wayle-theme-${theme}.toml"
-      # Theme files spell this one with an underscore; the config, with a
-      # hyphen.
-      (lib.removeAttrs waylePalette [ "fg-muted" ] // { fg_muted = waylePalette.fg-muted; });
+    source =
+      if theme == "gneiss" then inputs.gneiss.packages.${pkgs.stdenv.hostPlatform.system}.wayle
+      else tomlFormat.generate "wayle-theme-${theme}.toml"
+        # Theme files spell this one with an underscore; the config, with a
+        # hyphen.
+        (lib.removeAttrs waylePalette [ "fg-muted" ] // { fg_muted = waylePalette.fg-muted; });
   };
 
   # Reload the font map when the installed primary font changes.
