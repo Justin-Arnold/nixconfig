@@ -23,15 +23,15 @@ section "failed units"
 systemctl --failed --no-legend --no-pager || true
 
 section "services"
-for unit in llama-server inference-models nginx nvidia-persistenced podman-wyoming-whisper \
-  wyoming-piper-en_US-lessac-medium beszel-agent; do
+for unit in llama-server inference-models nginx nvidia-persistenced \
+  wyoming-faster-whisper-parakeet podman-phonon beszel-agent; do
   printf '%-36s %s\n' "$unit" "$(systemctl is-active "$unit" 2>/dev/null)"
 done
 printf 'docker installed: %s, ollama installed: %s (expect no, no)\n' \
   "$(command -v docker >/dev/null && echo yes || echo no)" "$(command -v ollama >/dev/null && echo yes || echo no)"
 printf 'nixos-upgrade timer: %s (expect inactive)\n' "$(systemctl is-active nixos-upgrade.timer 2>/dev/null)"
 
-section "gpu (Whisper and llama-server should both be on the card)"
+section "gpu (llama-server should be alone on the card)"
 nvidia-smi --query-gpu=name,memory.used,memory.total,temperature.gpu,power.draw --format=csv,noheader 2>&1
 nvidia-smi --query-compute-apps=pid,process_name,used_memory --format=csv,noheader 2>&1
 
@@ -43,7 +43,7 @@ printf '/health on loopback: %s\n' "$(code http://127.0.0.1:8080/health)"
 # /props is only reachable here, on loopback: nginx doesn't serve it.
 curl -s --max-time 10 http://127.0.0.1:8080/props \
   | jq -c '{model: .model_alias, slots: .total_slots, n_ctx_per_slot: .default_generation_settings.n_ctx, build: .build_info}' 2>&1
-echo "expect slots 4 and n_ctx_per_slot 65536"
+echo "expect slots 2 and n_ctx_per_slot 65536"
 echo "model files:"
 find "$models" -maxdepth 2 -type f -name '*.gguf' -printf '  %s bytes  %p\n' 2>&1
 echo "warnings and errors this boot (last 5):"
@@ -59,7 +59,7 @@ if [[ -n ${CANARY:-} ]]; then
   grep -rlIF --exclude-dir=models --exclude-dir=containers "$CANARY" /var/log /var/cache /var/lib /tmp /var/tmp 2>/dev/null | sed 's/^/  /'
 fi
 
-section "listening sockets (expect 22, 443, 10200, 10300, and nginx's default 80 that the firewall drops; 8080 on 127.0.0.1)"
+section "listening sockets (expect 22, 443, 10300, and nginx's default 80 that the firewall drops; 8080 on 127.0.0.1; Phonon's 10200 is Podman's port forward and may not show)"
 ss -tlnp | awk 'NR == 1 || /LISTEN/'
 
 section "nginx from this host (127.0.0.1 isn't on the allow-lists: 401 without a key on the API, 403 on /health, 404 elsewhere)"

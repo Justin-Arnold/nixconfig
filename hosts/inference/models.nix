@@ -14,7 +14,7 @@
 {
   roles.inference.models = {
     # 21B parameters, 3.6B active per token (MoE), MXFP4: about 12 GB of
-    # weights, which leaves room for four 64K slots and Whisper. Pinned to the
+    # weights, which leaves room for four 64K slots. Pinned to the
     # conversion from before the July 2026 re-upload.
     gpt-oss-20b = {
       files = [
@@ -36,7 +36,8 @@
     # Unsloth's dynamic Q4_K_XL, 17.0 GB. Five of its 30 layers attend to the
     # whole context and the rest to the last 1024 tokens, so four 64K slots
     # take about 3,400 MiB of q8_0 cache: 21,014 MiB on the card in all, of
-    # the 22,400 free beside Whisper.
+    # the 22,400 that were free beside Whisper (which left the card in
+    # November 2026).
     # Pinned to the 4 May 2026 upload, which has Google's updated chat
     # template (llama.cpp doesn't need its old-template workarounds for it).
     gemma-4-26b-a4b = {
@@ -60,10 +61,11 @@
     # 35B parameters, 3B active per token (256 experts, 8 used). Three of
     # every four layers are linear attention with a small fixed state, so its
     # KV cache is a quarter of a usual model's: four 64K slots take about
-    # 3,000 MiB. Q4_K_M (20.4 GB) doesn't fit beside that and Whisper, so
-    # this is Unsloth's dynamic IQ4_XS, 17.7 GB: 20,288 MiB on the card in
-    # all. The model test chose it (02. Areas/Homelab/Hosts/inference.md in
-    # Justin's vault, "How the model was chosen").
+    # 3,000 MiB. Q4_K_M (20.4 GB) didn't fit beside that and Whisper, which
+    # shared the card until November 2026, so this is Unsloth's dynamic
+    # IQ4_XS, 17.7 GB: 20,288 MiB on the card in all. The model test chose
+    # it (02. Areas/Homelab/Hosts/inference.md in Justin's vault, "How the
+    # model was chosen").
     "qwen3.6-35b-a3b" = {
       files = [
         {

@@ -10,9 +10,10 @@
 # the request reaches llama-server. A request with no known key gets a 401.
 #
 # The server has `roles.inference.parallel` slots. Two connection limits keep
-# one of them for voice: everything except Home Assistant shares a pool of
-# `parallel - 1`, and each key gets at most 2. Over a limit nginx answers 429
-# straight away.
+# one of them for voice: every other client shares a pool of `parallel - 1`,
+# and each key gets at most 2. Over a limit nginx answers 429 straight away.
+# Home Assistant is the only client since 26 November 2026; the pool is for
+# one added back, like the Mac's for scripts/inference/model-test.py.
 #
 # Nothing a client sends is written to disk: request bodies stay in memory,
 # responses aren't buffered, and the access log has the client, status and
@@ -29,8 +30,10 @@ let
   # pangolin-newt: the way in from the Internet, through Pangolin. Never.
   newt = "10.0.0.72";
 
-  # Who may call the model. Each needs inference/keys/<name> in SOPS.
-  clients = [ "ha" "mac" ];
+  # Who may call the model. Each needs inference/keys/<name> in SOPS. The
+  # Mac's key, inference/keys/mac, is still in SOPS: add "mac" back here to
+  # run the model test, and take it out again after.
+  clients = [ "ha" ];
   # Exempt from the shared pool, so it always finds a free slot.
   voiceClient = "ha";
   sharedPool = config.roles.inference.parallel - 1;

@@ -2,8 +2,9 @@
 # passed through (infra/terranix/hosts/inference.nix). It serves one model to
 # every client as `local`, through llama-server on loopback
 # (modules/roles/inference.nix, models.nix) behind nginx with a key per
-# client (endpoints.nix), plus Home Assistant's speech to text (Whisper, on
-# the GPU) and text to speech (Piper). It holds no credentials but its own:
+# client (endpoints.nix), plus Home Assistant's speech to text (Parakeet) and
+# text to speech (Phonon), both on the CPU (ai-voice.nix). It holds no
+# credentials but its own:
 # the clients' keys, its certificate's DNS key and the Beszel token. See
 # Justin's vault, 02. Areas/Homelab/Hosts/inference.md.
 { config, lib, pkgs, inputs, sops-nix, ... }:
@@ -49,7 +50,7 @@ in
   boot.loader.grub.devices = lib.mkForce [ "/dev/sda" ];
 
   # The MAC is fixed in Terraform; OPNsense keeps a DHCP reservation for it
-  # (10.0.0.63), which Home Assistant's Whisper and Piper settings point at.
+  # (10.0.0.63), which Home Assistant's speech settings point at.
   networking.useDHCP = lib.mkDefault true;
 
   profiles.server = {
@@ -64,7 +65,7 @@ in
   home-manager.users = lib.mkForce { };
 
   # nixpkgs opens DNS (port 53) on every podman interface by default.
-  # Whisper's container is on Podman's default network, which runs no DNS
+  # Phonon's container is on Podman's default network, which runs no DNS
   # server, so it stays shut and the firewall guard below still holds.
   virtualisation.podman.dns.openFirewall = false;
 
@@ -100,9 +101,9 @@ in
     # Chosen by scripts/inference/model-test.py on 4 November 2026; the
     # results are in 02. Areas/Homelab/Hosts/inference.md in Justin's vault.
     active = "qwen3.6-35b-a3b";
-    # Voice and the Mac are the only clients: one slot always free for
-    # Home Assistant, one shared. Few slots also keep Home Assistant's long
-    # system prompt cached in one, so a voice request reads little anew.
+    # Home Assistant is the only client (endpoints.nix): two slots, so two
+    # conversations can run at once. Few slots also keep its long system
+    # prompt cached in one, so a voice request reads little anew.
     parallel = 2;
   };
 
@@ -120,8 +121,8 @@ in
   # The exposure policy: the build fails if any of these stops holding.
   assertions = [
     {
-      # SSH, the model over HTTPS, and Home Assistant's Piper (10200) and
-      # Whisper (10300).
+      # SSH, the model over HTTPS, and Home Assistant's text to speech
+      # (10200) and speech to text (10300).
       assertion = publicTcpPorts == [ 22 443 10200 10300 ];
       message = "inference: public TCP ports must be exactly 22, 443, 10200, 10300 (got ${toString publicTcpPorts}).";
     }
@@ -135,7 +136,7 @@ in
     }
     {
       assertion = !config.virtualisation.docker.enable;
-      message = "inference: no Docker; Whisper runs under Podman.";
+      message = "inference: no Docker; Phonon runs under Podman.";
     }
     {
       assertion = !config.services.ollama.enable;

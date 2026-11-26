@@ -1,5 +1,6 @@
 # llama.cpp's llama-server with one model loaded, for every client of the
-# GPU: Home Assistant's voice assistant and the Mac. Clients ask for the
+# GPU: Home Assistant's voice assistant, and the Mac's model test while it
+# runs. Clients ask for the
 # model `local`; which model that is gets decided here, so changing it
 # changes no client.
 #
@@ -258,10 +259,7 @@ in
       description = "llama-server, the local model";
       wantedBy = [ "multi-user.target" ];
       requires = [ "inference-models.service" ];
-      # Whisper takes its share of the card first, so the model's slots are
-      # sized against what's actually left.
-      after = [ "inference-models.service" "nvidia-persistenced.service" ]
-        ++ lib.optional (config.virtualisation.oci-containers.containers ? wyoming-whisper) "podman-wyoming-whisper.service";
+      after = [ "inference-models.service" "nvidia-persistenced.service" ];
       restartTriggers = [ manifest server ];
       serviceConfig = hardening // {
         ExecStart = server;
