@@ -2,7 +2,9 @@
 # scripts/provisioning/provision-host.sh; `deployTarget` is where a cloud
 # `switch` connects (cloud switches never run Terraform). A Proxmox host with
 # `hostAgeKey = true` installs with its own age key (HOST_AGE_KEY_FILE)
-# instead of the operator key; Contabo hosts always do.
+# instead of the operator key; Contabo hosts always do. `os` is "nixos"
+# unless a Proxmox host says otherwise; for any other OS nixconfig only makes
+# the VM, so `install` and `switch` refuse it.
 { inputs }:
 let
   proxmox = file: {
@@ -24,6 +26,7 @@ in
   automation = proxmox ./hosts/automation.nix // { hostAgeKey = true; };
   cglt-previews = proxmox ./hosts/cglt-previews.nix // { hostAgeKey = true; };
   forge = proxmox ./hosts/forge.nix // { hostAgeKey = true; };
+  home-assistant = proxmox ./hosts/home-assistant.nix // { os = "haos"; };
 
   lab118-services = {
     platform = "contabo";

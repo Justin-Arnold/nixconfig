@@ -434,6 +434,21 @@ esac
 
 PROXMOX_PLAN_GUARD="${NIXCONFIG_PROXMOX_PLAN_GUARD:-${REPO_ROOT}/scripts/provisioning/proxmox-plan-guard.jq}"
 
+# A VM that doesn't run NixOS (`os` in infra/terranix/default.nix) only has
+# its VM made here: nothing is installed or switched on it, and no key is
+# shipped to it.
+HOST_OS="$(host_field os)"
+HOST_OS="${HOST_OS:-nixos}"
+RUNS_NIXOS=true
+if [[ "$HOST_OS" != nixos ]]; then
+  RUNS_NIXOS=false
+  if [[ "$ACTION" == install || "$ACTION" == switch ]]; then
+    echo "Refusing: ${HOST_NAME} runs ${HOST_OS}, not NixOS, so there's nothing to ${ACTION}." >&2
+    echo "nixconfig only makes its VM (plan, provision, adopt, destroy); ${HOST_OS} updates itself." >&2
+    exit 1
+  fi
+fi
+
 mkdir -p "$STATE_DIR"
 
 install -m 0644 "$TERRANIX_CONFIG" "$TF_CONFIG_JSON"
@@ -448,7 +463,7 @@ fi
 # anything. Without the bootstrap key a new VM gets a placeholder that nobody
 # can log in with, and the key is never updated on an existing VM.
 RUNS_NIXOS_ANYWHERE=false
-if [[ "$ACTION" == "install" || ( "$ACTION" == "provision" && ! -f "$HARDWARE_CONFIG" ) ]]; then
+if [[ "$RUNS_NIXOS" == true && ( "$ACTION" == "install" || ( "$ACTION" == "provision" && ! -f "$HARDWARE_CONFIG" ) ) ]]; then
   RUNS_NIXOS_ANYWHERE=true
 fi
 
@@ -468,7 +483,7 @@ backup_local_state_before_adopt
 rm -rf "$EXTRA_FILES_DIR"
 mkdir -p "$EXTRA_FILES_DIR"
 
-if [[ "$USES_HOST_AGE_KEY" != true && -n "${AGE_KEY_PATH}" && -f "${AGE_KEY_PATH}" ]]; then
+if [[ "$RUNS_NIXOS" == true && "$USES_HOST_AGE_KEY" != true && -n "${AGE_KEY_PATH}" && -f "${AGE_KEY_PATH}" ]]; then
   mkdir -p "$EXTRA_FILES_DIR/home/justin/.config/sops/age"
   install -m 0400 "$AGE_KEY_PATH" "$EXTRA_FILES_DIR/home/justin/.config/sops/age/keys.txt"
 fi
@@ -782,6 +797,21 @@ case "$ACTION" in
     DISCOVERED_IP=""
 
     guard_against_duplicate_vm
+
+    # Only provision gets this far for a VM that doesn't run NixOS. Its
+    # address is a convenience: the VM is made even if the guest agent never
+    # answers.
+    if [[ "$RUNS_NIXOS" != true ]]; then
+      proxmox_guarded_apply "$@"
+      terraform -chdir="$STATE_DIR" output -json > "$OUTPUTS_JSON"
+      VM_ID="$(jq -r '.vm_id.value' "$OUTPUTS_JSON")"
+      NODE_NAME="$(current_vm_node "$VM_ID" "$(jq -r '.node_name.value' "$OUTPUTS_JSON")")"
+      echo "${HOST_NAME} is VM ${VM_ID} on ${NODE_NAME}, running ${HOST_OS}. Set it up from its own interface."
+      if DISCOVERED_IP="$(discover_vm_ip "$NODE_NAME" "$VM_ID")"; then
+        echo "Its address: ${DISCOVERED_IP}"
+      fi
+      exit 0
+    fi
 
     terraform_apply_and_discover "$OUTPUTS_JSON" NODE_NAME VM_ID TARGET_USER DISCOVERED_IP "$@"
 

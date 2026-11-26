@@ -14,17 +14,25 @@ rec {
       modules = [ host.module ];
     }) terranixHosts);
 
-  # Per-host platform, rendered Terraform JSON, deploy target and whether the
-  # host installs with its own age key, read by provision-host.sh. The
-  # provisioning check tests the script against the same file.
+  # Per-host platform, rendered Terraform JSON, deploy target, what the VM
+  # runs and whether the host installs with its own age key, read by
+  # provision-host.sh. The provisioning check tests the script against the
+  # same file.
   infraManifest = lib.genAttrs systems (system:
     pkgsFor.${system}.writeText "nixconfig-infra-hosts.json" (builtins.toJSON (lib.mapAttrs
-      (name: host: {
-        inherit (host) platform;
-        terraformConfig = "${terranixConfigurations.${system}.${name}}";
-        deployTarget = host.deployTarget or null;
-        hostAgeKey = host.hostAgeKey or false;
-      })
+      (name: host:
+        let
+          os = host.os or "nixos";
+          hostAgeKey = host.hostAgeKey or false;
+        in
+        assert lib.assertMsg (os == "nixos" || (host.platform == "proxmox" && !hostAgeKey))
+          "${name}: only a Proxmox VM can run something other than NixOS, and then it has no host age key.";
+        {
+          inherit (host) platform;
+          inherit os hostAgeKey;
+          terraformConfig = "${terranixConfigurations.${system}.${name}}";
+          deployTarget = host.deployTarget or null;
+        })
       terranixHosts)));
 
   apps = lib.genAttrs systems (system:

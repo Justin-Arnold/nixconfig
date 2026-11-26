@@ -49,6 +49,10 @@ KEYED_MANIFEST="$T/manifest-keyed.json"
 jq --arg h "$KEYED" '. + {($h): (.dockhand + {hostAgeKey: true})}' "$MANIFEST" >"$KEYED_MANIFEST"
 mkdir -p "$REPO/hosts/$KEYED"
 touch "$REPO/secrets/hosts/$KEYED.yaml"
+# A Proxmox VM that doesn't run NixOS, built from dockhand's entry the same way.
+APPLIANCE=appliance-vm
+APPLIANCE_MANIFEST="$T/manifest-appliance.json"
+jq --arg h "$APPLIANCE" '. + {($h): (.dockhand + {os: "haos"})}' "$MANIFEST" >"$APPLIANCE_MANIFEST"
 echo "fake private key" >"$T/bootstrap_key"
 echo "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKE test" >"$T/bootstrap_key.pub"
 
@@ -372,6 +376,41 @@ check "  ...and says it moved" output_has "runs on proxmox7, not proxmox5"
 check "  ...then switches it" called_with nixos-rebuild "--target-host justin@10.0.0.50"
 FAKE_STATE=proxmox run switch dockhand
 check "falls back to the Terraform node when the cluster doesn't list it" called_with curl "/nodes/proxmox5/qemu/105/agent/network-get-interfaces"
+
+echo "== proxmox VM without NixOS"
+appliance() { NIXCONFIG_INFRA_HOSTS="$APPLIANCE_MANIFEST" run "$@"; }
+no_key_in_appliance_state() {
+  [[ -z "$(find "$REPO/.state/terraform/$APPLIANCE" -name keys.txt -o -name key.txt 2>/dev/null)" ]]
+}
+check "the real manifest has home-assistant on haos, without a host key" \
+  [ "$(jq -r '."home-assistant" | "\(.os) \(.hostAgeKey)"' "$MANIFEST")" = "haos false" ]
+check "  ...and every other host on NixOS" \
+  [ "$(jq -r '[to_entries[] | select(.key != "home-assistant" and .value.os != "nixos")] | length' "$MANIFEST")" = 0 ]
+proxmox_plan '["create"]'
+for action in install switch; do
+  appliance "$action" "$APPLIANCE"
+  check "$action refused" rc_not_zero
+  check "  ...saying what it runs" output_has "runs haos, not NixOS"
+  check "  ...before running terraform" not_called terraform
+done
+SSH_PRIVATE_KEY_PATH="$T/no-such-key" appliance provision "$APPLIANCE"
+check "provision exits 0 without a bootstrap key" rc_is 0
+check "  ...applying the reviewed plan" called_with terraform "apply -input=false"
+check "  ...from the plan file" called_with terraform "plan.tfplan"
+check "  ...and reports the VM's address" output_has "Its address: 10.0.0.50"
+check "  ...never installing NixOS" not_called nixos-anywhere
+check "  ...or switching" not_called nixos-rebuild
+check "  ...or reading an age key" not_called sops
+check "  ...or leaving one under .state" no_key_in_appliance_state
+proxmox_plan '["delete","create"]'
+FAKE_STATE=proxmox appliance provision "$APPLIANCE"
+check "provision still refuses a replace" rc_is 1
+check "  ...without applying" not_called_with terraform " apply"
+appliance plan "$APPLIANCE"
+check "plan exits 0" rc_is 0
+check "  ...without applying" not_called_with terraform " apply"
+appliance destroy "$APPLIANCE"
+check "destroy works on it" called_with terraform "destroy -input=false -auto-approve"
 
 echo "== unknown host"
 run switch no-such-host

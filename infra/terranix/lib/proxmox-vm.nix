@@ -3,8 +3,15 @@
   name,
   proxmoxNode,
   vmId ? null,
-  bootstrapTemplateId,
+  # The NixOS bootstrap template every NixOS VM is cloned from.
+  bootstrapTemplateId ? null,
   bootstrapTemplateNode ? null,
+  # Instead of a template, a disk image to boot, for a VM whose OS nixconfig
+  # doesn't manage (Home Assistant OS): its file ID, "<datastore>:import/<file>".
+  # It becomes scsi0 when the VM is created and is never read again, so the
+  # file can go once the VM exists. Such a VM boots UEFI without Secure Boot
+  # and has no cloud-init.
+  diskImage ? null,
   macAddress,
   cpuCores ? 2,
   cpuType ? null,
@@ -40,10 +47,13 @@
 }:
 let
   hasManagedDisk = diskSizeGb != null;
+  fromImage = diskImage != null;
   haEnabled = (ha.enable or false);
   effectiveLifecycleIgnoreChanges =
     lifecycleIgnoreChanges
-    ++ lib.optional ignoreBootstrapKeyChanges "initialization[0].user_account[0].keys";
+    ++ lib.optional (ignoreBootstrapKeyChanges && !fromImage) "initialization[0].user_account[0].keys"
+    # Only the VM's creation reads the image.
+    ++ lib.optional fromImage "disk[0].import_from";
   effectiveVmLifecycleIgnoreChanges =
     effectiveLifecycleIgnoreChanges
     ++ lib.optional haEnabled "node_name";
@@ -66,6 +76,10 @@ assert lib.assertMsg (!(haEnabled && hostPci != [ ]))
   "${name}: a VM with a passed-through PCI device can't be an HA resource; it can only run on the node that has the device.";
 assert lib.assertMsg (hostPci == [ ] || machine == "q35")
   "${name}: PCIe passthrough needs machine = \"q35\".";
+assert lib.assertMsg ((bootstrapTemplateId != null) != fromImage)
+  "${name}: give either bootstrapTemplateId (a NixOS VM) or diskImage, not both or neither.";
+assert lib.assertMsg (!fromImage || hasManagedDisk)
+  "${name}: a VM from a disk image needs diskSizeGb for the imported disk.";
 {
   terraform.required_version = ">= 1.6.0";
 
@@ -93,15 +107,8 @@ assert lib.assertMsg (hostPci == [ ] || machine == "q35")
           name = name;
           node_name = proxmoxNode;
           on_boot = true;
-          bios = "seabios";
+          bios = if fromImage then "ovmf" else "seabios";
           boot_order = [ "scsi0" ];
-
-          clone = {
-            vm_id = bootstrapTemplateId;
-            full = true;
-          } // lib.optionalAttrs (bootstrapTemplateNode != null) {
-            node_name = bootstrapTemplateNode;
-          };
 
           serial_device = [
             {
@@ -123,6 +130,14 @@ assert lib.assertMsg (hostPci == [ ] || machine == "q35")
           ];
 
           agent.enabled = true;
+        }
+        // lib.optionalAttrs (!fromImage) {
+          clone = {
+            vm_id = bootstrapTemplateId;
+            full = true;
+          } // lib.optionalAttrs (bootstrapTemplateNode != null) {
+            node_name = bootstrapTemplateNode;
+          };
 
           initialization = {
             ip_config.ipv4 = {
@@ -136,6 +151,15 @@ assert lib.assertMsg (hostPci == [ ] || machine == "q35")
             datastore_id = cloudInitDatastore;
           };
         }
+        // lib.optionalAttrs fromImage {
+          # UEFI variables, on the disk's storage so HA can move the VM.
+          efi_disk = {
+            datastore_id = datastore;
+            file_format = "raw";
+            type = "4m";
+            pre_enrolled_keys = false;
+          };
+        }
         // lib.optionalAttrs (effectiveVmLifecycleIgnoreChanges != [ ]) {
           lifecycle.ignore_changes = effectiveVmLifecycleIgnoreChanges;
         }
@@ -146,6 +170,7 @@ assert lib.assertMsg (hostPci == [ ] || machine == "q35")
               interface = "scsi0";
               size = diskSizeGb;
             }
+            // lib.optionalAttrs fromImage { import_from = diskImage; }
             // lib.optionalAttrs (!diskBackup) { backup = false; })
           ] ++ map (extra: {
             datastore_id = extra.datastore;
