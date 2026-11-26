@@ -167,13 +167,14 @@ in
       # AdGuard Home on the router, asked at the router's tunnel address: asked at
       # 10.0.0.1 it answers UDP from 10.118.0.2, and those replies are dropped.
       labDns = "10.118.0.2";
-      # Lab DNS points these at the dashboard, agents, inference and
-      # automation VMs (split horizon); public DNS would send them to Pangolin,
-      # whose SSO the Beszel agent, Kuma's checks and GitHub's deliveries can't
-      # pass, or for inference nowhere at all.
+      # Lab DNS points these at the dashboard, agents, inference, automation
+      # and Home Assistant VMs (split horizon); public DNS would send them to
+      # Pangolin, whose SSO the Beszel agent, Kuma's checks and GitHub's
+      # deliveries can't pass, or for inference and Home Assistant nowhere at
+      # all.
       labDomains = [
         "host.internal" "dashboard.servicestack.xyz" "beszel.servicestack.xyz" "paperclip.servicestack.xyz"
-        "inference.servicestack.xyz" "automation.servicestack.xyz"
+        "inference.servicestack.xyz" "automation.servicestack.xyz" "homeassistant.lab118.xyz"
       ];
     };
 
